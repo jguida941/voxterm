@@ -1,0 +1,155 @@
+//! Lightweight wrapper around whisper_rs that hides initialization noise and
+//! gives the rest of the app a simple "transcribe these samples" API.
+
+#[cfg(unix)]
+mod platform {
+    use crate::log_debug;
+    use anyhow::{anyhow, Context, Result};
+    use std::io;
+    use std::os::raw::{c_char, c_void};
+    use std::os::unix::io::AsRawFd;
+    use std::sync::Once;
+    use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};
+    use whisper_rs_sys::ggml_log_level;
+
+    /// Owns a single Whisper context so multiple voice captures can reuse the same
+    /// memory-mapped model and stay fast.
+    pub struct Transcriber {
+        ctx: WhisperContext,
+    }
+
+    impl Transcriber {
+        /// Load the Whisper model, temporarily silencing stderr because whisper.cpp is chatty.
+        pub fn new(model_path: &str) -> Result<Self> {
+            install_whisper_log_silencer();
+
+            // Suppress whisper.cpp's verbose output during model loading
+            let null = std::fs::OpenOptions::new()
+                .write(true)
+                .open("/dev/null")
+                .context("failed to open /dev/null")?;
+            let null_fd = null.as_raw_fd();
+
+            // Save original stderr
+            let orig_stderr = unsafe { libc::dup(2) };
+            if orig_stderr < 0 {
+                return Err(anyhow!(
+                    "failed to dup stderr: {}",
+                    io::Error::last_os_error()
+                ));
+            }
+
+            // Redirect stderr to /dev/null temporarily
+            let dup_result = unsafe { libc::dup2(null_fd, 2) };
+            if dup_result < 0 {
+                unsafe {
+                    libc::close(orig_stderr);
+                }
+                return Err(anyhow!(
+                    "failed to redirect stderr: {}",
+                    io::Error::last_os_error()
+                ));
+            }
+
+            // Load model (output will be suppressed)
+            let ctx_result =
+                WhisperContext::new_with_params(model_path, WhisperContextParameters::default());
+
+            // Restore original stderr
+            let restore_result = unsafe { libc::dup2(orig_stderr, 2) };
+            unsafe {
+                libc::close(orig_stderr);
+            }
+            if restore_result < 0 {
+                return Err(anyhow!(
+                    "failed to restore stderr: {}",
+                    io::Error::last_os_error()
+                ));
+            }
+
+            let ctx = ctx_result.context("failed to load whisper model")?;
+            Ok(Self { ctx })
+        }
+
+        /// Run transcription for the captured PCM samples and return the concatenated text.
+        pub fn transcribe(&self, samples: &[f32], lang: &str) -> Result<String> {
+            let mut state = self
+                .ctx
+                .create_state()
+                .context("failed to create whisper state")?;
+            let mut params = FullParams::new(SamplingStrategy::Greedy { best_of: 1 });
+            params.set_language(Some(lang));
+            // Limit CPU usage so laptops don't max out all cores.
+            params.set_n_threads(num_cpus::get().min(8) as i32);
+            params.set_print_progress(false);
+            params.set_print_timestamps(false);
+            params.set_print_special(false);
+            params.set_print_realtime(false);
+            params.set_translate(false);
+            params.set_token_timestamps(false);
+            state.full(params, samples)?;
+            let mut transcript = String::new();
+            let num_segments = state.full_n_segments();
+            if num_segments < 0 {
+                log_debug("Whisper returned a negative segment count");
+                return Ok(transcript);
+            }
+            // Whisper splits output into small segments; stitch them together.
+            for i in 0..num_segments {
+                let Some(segment) = state.get_segment(i) else {
+                    log_debug(&format!("Failed to access whisper segment {i}"));
+                    continue;
+                };
+                match segment.to_str() {
+                    Ok(text) => transcript.push_str(text),
+                    Err(err) => log_debug(&format!("Failed to read whisper segment {i}: {err}")),
+                }
+            }
+            Ok(transcript)
+        }
+    }
+
+    fn install_whisper_log_silencer() {
+        static INSTALL_LOG_CALLBACK: Once = Once::new();
+        INSTALL_LOG_CALLBACK.call_once(|| unsafe {
+            whisper_rs::set_log_callback(Some(whisper_log_callback), std::ptr::null_mut());
+        });
+    }
+
+    #[allow(unused_variables)]
+    unsafe extern "C" fn whisper_log_callback(
+        _level: ggml_log_level,
+        _text: *const c_char,
+        _user_data: *mut c_void,
+    ) {
+        // Silence the default whisper.cpp logger so it does not corrupt the TUI.
+    }
+}
+
+#[cfg(unix)]
+pub use platform::Transcriber;
+
+#[cfg(not(unix))]
+mod platform {
+    use anyhow::{anyhow, Result};
+
+    /// Stub implementation for unsupported targets such as Windows.
+    pub struct Transcriber;
+
+    impl Transcriber {
+        pub fn new(_: &str) -> Result<Self> {
+            Err(anyhow!(
+                "Whisper transcription is currently supported only on Unix-like platforms"
+            ))
+        }
+
+        pub fn transcribe(&self, _: &[f32], _: &str) -> Result<String> {
+            Err(anyhow!(
+                "Whisper transcription is currently supported only on Unix-like platforms"
+            ))
+        }
+    }
+}
+
+#[cfg(not(unix))]
+pub use platform::Transcriber;

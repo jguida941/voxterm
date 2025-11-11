@@ -1,22 +1,26 @@
 #!/usr/bin/env python3
-"""Record microphone audio, transcribe it, and forward the text to the Codex CLI.
+"""Voice → Whisper → Codex pipeline with reusable building blocks.
 
-This module intentionally keeps the pipeline in three reusable steps:
+The module intentionally keeps the workflow in three portable stages:
 
-1. Capture audio with `record_wav`, which shells out to ffmpeg using
-   platform-specific defaults so that other languages can mirror the behavior.
-2. Convert the audio into text via `transcribe`, delegating to either the
-   OpenAI `whisper` CLI or the whisper.cpp binary.
-3. Send the prompt to Codex with `call_codex_auto`, automatically retrying with
-   stdin or an emulated TTY when the CLI rejects non-interactive runs.
+1. Capture microphone audio with `record_wav`, which shells out to `ffmpeg`
+   using OS-specific defaults so other languages can mirror the behaviour.
+2. Transcribe the captured clip with `transcribe`, delegating to either the
+   OpenAI `whisper` CLI or the `whisper.cpp` binary.
+3. Forward the final prompt to Codex via `call_codex_auto`, automatically
+   retrying argv/stdin/PTY modes when the CLI insists on a TTY.
 
-The Rust TUI in `rust_tui/` reuses these same shell contracts, so keeping this
-module well documented makes it easier to keep both frontends aligned.
+Everything is wrapped in small dataclasses (`PipelineConfig`, `PipelineResult`)
+so frontends such as the Rust TUI or automated tests can run the pipeline
+non-interactively (`--auto-send --emit-json`) and treat this script as the
+canonical spec.
 """
 import argparse, errno, json, os, platform, pty, select, shlex, shutil, subprocess, sys, tempfile, time
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Callable, Optional
 
-# Extra Codex CLI flags injected via --codex-args; stored globally for reuse.
+# Extra Codex CLI flags injected via --codex-args/--codex-arg; stored globally for reuse.
 _EXTRA_CODEX_ARGS: list[str] = []
 
 def _require(cmd: str):
@@ -67,6 +71,7 @@ def _run_with_pty(argv, *, input_bytes=None, timeout=None, env=None):
 
     master_fd, slave_fd = pty.openpty()
     cursor_report = b"\x1b[1;1R"
+    proc = None
     try:
         proc = subprocess.Popen(argv, stdin=slave_fd, stdout=slave_fd, stderr=slave_fd, env=env)
     except Exception:
@@ -75,7 +80,8 @@ def _run_with_pty(argv, *, input_bytes=None, timeout=None, env=None):
         raise
     finally:
         # Child inherits the slave; close our parent copy.
-        os.close(slave_fd)
+        if proc is not None:
+            os.close(slave_fd)
 
     if input_bytes:
         data = input_bytes
@@ -168,13 +174,15 @@ def record_wav(path: str, seconds: int, ffmpeg_cmd: str, ffmpeg_device: str|None
     args += ["-t", str(seconds), "-ac", "1", "-ar", "16000", "-vn", path]
     _run(args)
 
-def transcribe(path: str, whisper_cmd: str, lang: str, model: str, *, model_path: str|None=None, tmpdir: Path|None=None) -> str:
+def transcribe(path: str, whisper_cmd: str, lang: str, model: str, *, model_path: str|None=None, tmpdir: Path|None=None) -> tuple[str, Path]:
     """Convert recorded audio into text using the selected Whisper implementation.
 
     This helper accepts both the official OpenAI CLI (`whisper`) and the
     whisper.cpp binary, mirroring the flags required by each tool. Temporary
     files are written into a per-invocation directory so that multiple runs
     never collide.
+    Returns:
+        A tuple of the transcript text and the path to the generated `.txt` file.
     """
     _require(whisper_cmd)
     tmpdir = Path(tmpdir or tempfile.mkdtemp(prefix="codex_voice_"))
@@ -198,7 +206,7 @@ def transcribe(path: str, whisper_cmd: str, lang: str, model: str, *, model_path
 
     if not txt_path.exists():
         raise RuntimeError(f"Transcript file not found: {txt_path}")
-    return txt_path.read_text(encoding="utf-8").strip()
+    return txt_path.read_text(encoding="utf-8").strip(), txt_path
 
 def call_codex_auto(prompt: str, codex_cmd: str, *, timeout: int | None = None) -> str | None:
     """Invoke the Codex CLI and gracefully fallback across invocation modes.
@@ -277,6 +285,154 @@ def call_codex_auto(prompt: str, codex_cmd: str, *, timeout: int | None = None) 
     joined = "\n---\n".join(error_messages)
     raise RuntimeError(f"Codex invocation failed:\n{joined}")
 
+
+@dataclass
+class PipelineConfig:
+    """Immutable configuration for a single voice → text → Codex run."""
+
+    seconds: int = 5
+    lang: str = "en"
+    whisper_cmd: str = "whisper"
+    whisper_model: str = "small"
+    whisper_model_path: str | None = None
+    codex_cmd: str = "codex"
+    ffmpeg_cmd: str = "ffmpeg"
+    ffmpeg_device: str | None = None
+    codex_timeout: int | None = 180
+    keep_audio: bool = False
+    run_codex: bool = True
+
+
+@dataclass
+class CaptureArtifacts:
+    """Intermediate data produced after recording+transcribing a single clip."""
+
+    transcript: str
+    wav_path: Path
+    transcript_path: Path | None
+    metrics: dict[str, float]
+    tmp_dir: Path
+    artifacts_retained: bool
+    _cleanup: Optional[Callable[[], None]] = None
+
+    def cleanup(self) -> None:
+        """Delete temporary artifacts when they were not requested to persist."""
+        if self._cleanup:
+            try:
+                self._cleanup()
+            finally:
+                self._cleanup = None
+
+
+@dataclass
+class PipelineResult:
+    """Final outcome of a full capture/transcription/Codex run."""
+
+    transcript: str
+    prompt: str
+    codex_output: str | None
+    metrics: dict[str, float]
+    audio_path: str | None
+    transcript_path: str | None
+    artifacts_retained: bool
+
+    def to_dict(self) -> dict[str, object]:
+        """Return a JSON-safe dictionary describing the run."""
+        return {
+            "transcript": self.transcript,
+            "prompt": self.prompt,
+            "codex_output": self.codex_output,
+            "metrics": self.metrics,
+            "artifacts_retained": self.artifacts_retained,
+            "paths": {
+                "audio": self.audio_path,
+                "transcript": self.transcript_path,
+            },
+        }
+
+
+def _prepare_tmp_dir(keep_audio: bool) -> tuple[Path, bool, Callable[[], None]]:
+    """Return a temporary directory, a retention flag, and a cleanup callback."""
+    if keep_audio:
+        path = Path(tempfile.mkdtemp(prefix="codex_voice_"))
+        return path, True, lambda: None
+    tmp = tempfile.TemporaryDirectory(prefix="codex_voice_")
+    path = Path(tmp.name)
+
+    def _cleanup():
+        tmp.cleanup()
+
+    return path, False, _cleanup
+
+
+def capture_transcript(config: PipelineConfig) -> CaptureArtifacts:
+    """Record and transcribe audio according to `config`, returning artifacts."""
+    tmp_dir, retained, cleanup_cb = _prepare_tmp_dir(config.keep_audio)
+    try:
+        wav = tmp_dir / "audio.wav"
+        t0 = time.monotonic()
+        record_wav(str(wav), config.seconds, config.ffmpeg_cmd, config.ffmpeg_device)
+        t1 = time.monotonic()
+        transcript_text, transcript_path = transcribe(
+            str(wav),
+            config.whisper_cmd,
+            config.lang,
+            config.whisper_model,
+            model_path=config.whisper_model_path,
+            tmpdir=tmp_dir,
+        )
+        t2 = time.monotonic()
+        metrics = {
+            "record_s": round(t1 - t0, 3),
+            "stt_s": round(t2 - t1, 3),
+        }
+        return CaptureArtifacts(
+            transcript=transcript_text,
+            wav_path=wav,
+            transcript_path=transcript_path,
+            metrics=metrics,
+            tmp_dir=tmp_dir,
+            artifacts_retained=retained,
+            _cleanup=cleanup_cb,
+        )
+    except Exception:
+        cleanup_cb()
+        raise
+
+
+def finalize_pipeline(artifacts: CaptureArtifacts, config: PipelineConfig, prompt_override: str | None = None) -> PipelineResult:
+    """Send the chosen prompt to Codex (when enabled) and build a result."""
+    prompt = prompt_override if prompt_override is not None else artifacts.transcript
+    metrics = dict(artifacts.metrics)
+    codex_out: str | None = None
+    codex_duration = 0.0
+    if config.run_codex and prompt:
+        codex_start = time.monotonic()
+        codex_out = call_codex_auto(prompt, config.codex_cmd, timeout=config.codex_timeout)
+        codex_duration = time.monotonic() - codex_start
+    metrics["codex_s"] = round(codex_duration, 3)
+    metrics["total_s"] = round(metrics["record_s"] + metrics["stt_s"] + metrics["codex_s"], 3)
+    audio_path = str(artifacts.wav_path) if artifacts.artifacts_retained else None
+    transcript_path = str(artifacts.transcript_path) if artifacts.artifacts_retained and artifacts.transcript_path else None
+    return PipelineResult(
+        transcript=artifacts.transcript,
+        prompt=prompt,
+        codex_output=codex_out,
+        metrics=metrics,
+        audio_path=audio_path,
+        transcript_path=transcript_path,
+        artifacts_retained=artifacts.artifacts_retained,
+    )
+
+
+def run_pipeline(config: PipelineConfig, prompt_override: str | None = None) -> PipelineResult:
+    """Capture → transcribe → (optional) Codex in one shot, cleaning up safely."""
+    artifacts = capture_transcript(config)
+    try:
+        return finalize_pipeline(artifacts, config, prompt_override=prompt_override)
+    finally:
+        artifacts.cleanup()
+
 def main():
     """High-level CLI entrypoint for the voice → Whisper → Codex workflow.
 
@@ -284,7 +440,7 @@ def main():
     the transcript, reporting of latency metrics, and optional macOS voice
     feedback. It also handles polite cleanup of temporary audio artifacts.
     """
-    ap = argparse.ArgumentParser(description="Voice → STT → Codex CLI")
+    ap = argparse.ArgumentParser(description="Voice → STT → Codex CLI", allow_abbrev=False)
     ap.add_argument("--seconds", type=int, default=5)
     ap.add_argument("--lang", default="en")
     ap.add_argument("--whisper-cmd", default="whisper", help="OpenAI whisper CLI or whisper.cpp binary")
@@ -294,50 +450,72 @@ def main():
     ap.add_argument("--ffmpeg-cmd", default="ffmpeg")
     ap.add_argument("--ffmpeg-device", default=None, help="override input device string for ffmpeg")
     ap.add_argument("--codex-args", default="", help="extra arguments appended when invoking Codex")
+    ap.add_argument(
+        "--codex-arg",
+        action="append",
+        default=[],
+        help="repeatable Codex argument (avoids shell quoting issues)",
+    )
     ap.add_argument("--say-ready", action="store_true", help="macOS say after Codex returns")
-    ap.add_argument("--keep-audio", action="store_true")
+    ap.add_argument("--keep-audio", action="store_true", help="retain the temp directory with audio/transcript artifacts")
+    ap.add_argument("--auto-send", action="store_true", help="skip the edit prompt and immediately send the transcript to Codex")
+    ap.add_argument("--emit-json", action="store_true", help="print a machine-readable JSON summary (suppresses interactive prompts)")
+    ap.add_argument("--no-codex", action="store_true", help="stop after transcription instead of calling Codex")
+    ap.add_argument("--codex-timeout", type=int, default=180, help="timeout (seconds) for Codex invocations")
     args = ap.parse_args()
 
     global _EXTRA_CODEX_ARGS
     # Persist additional Codex flags so helper functions can reuse them.
-    _EXTRA_CODEX_ARGS = shlex.split(args.codex_args) if getattr(args, "codex_args", None) else []
+    _EXTRA_CODEX_ARGS = []
+    if getattr(args, "codex_args", None):
+        _EXTRA_CODEX_ARGS.extend(shlex.split(args.codex_args))
+    if getattr(args, "codex_arg", None):
+        _EXTRA_CODEX_ARGS.extend(args.codex_arg)
 
-    # Use a private temp directory for the short-lived audio file and transcripts.
-    tmp = Path(tempfile.mkdtemp(prefix="codex_voice_"))
-    wav = tmp / "audio.wav"
+    config = PipelineConfig(
+        seconds=args.seconds,
+        lang=args.lang,
+        whisper_cmd=args.whisper_cmd,
+        whisper_model=args.whisper_model,
+        whisper_model_path=args.whisper_model_path,
+        codex_cmd=args.codex_cmd,
+        ffmpeg_cmd=args.ffmpeg_cmd,
+        ffmpeg_device=args.ffmpeg_device,
+        codex_timeout=args.codex_timeout,
+        keep_audio=args.keep_audio,
+        run_codex=not args.no_codex,
+    )
 
-    t0 = time.monotonic()
-    # Record a single-channel clip that downstream whisper tools can consume directly.
-    record_wav(str(wav), args.seconds, args.ffmpeg_cmd, args.ffmpeg_device)
-    t1 = time.monotonic()
-    # Convert the captured audio into text using the selected Whisper implementation.
-    transcript = transcribe(str(wav), args.whisper_cmd, args.lang, args.whisper_model,
-                            model_path=args.whisper_model_path, tmpdir=tmp)
-    t2 = time.monotonic()
+    if args.emit_json or args.auto_send or args.no_codex:
+        # Non-interactive mode: run everything (or stop after STT) automatically.
+        result = run_pipeline(config)
+        if not args.emit_json:
+            _print_human_summary(result)
+        else:
+            print(json.dumps(result.to_dict(), ensure_ascii=False))
+        return
 
-    print("\n[Transcript]")
-    print(transcript)
-    print("\nPress Enter to send to Codex, or edit the text then Enter:")
-    edited = input("> ").strip()
-    prompt = edited if edited else transcript
+    # Interactive flow: capture once, allow manual edits, then send.
+    artifacts = capture_transcript(config)
+    try:
+        print("\n[Transcript]")
+        print(artifacts.transcript)
+        prompt = artifacts.transcript
+        if config.run_codex:
+            print("\nPress Enter to send to Codex, or edit the text then Enter:")
+            edited = input("> ").strip()
+            prompt = edited if edited else artifacts.transcript
 
-    # Forward the final prompt to the Codex CLI and capture its response.
-    print("\n[Codex output]")
-    sys.stdout.flush()  # Ensure headers are on screen before Codex starts talking.
-    out = call_codex_auto(prompt, args.codex_cmd, timeout=180)
-    t3 = time.monotonic()
-    if out is not None:
-        # Non-interactive runs buffer Codex output; emit it ourselves.
-        print(out)
+        if config.run_codex:
+            print("\n[Codex output]")
+            sys.stdout.flush()
 
-    # Track end-to-end timings so users can gauge latency across the pipeline.
-    metrics = {
-        "record_s": round(t1 - t0, 3),
-        "stt_s": round(t2 - t1, 3),
-        "codex_s": round(t3 - t2, 3),
-        "total_s": round(t3 - t0, 3),
-    }
-    print("\n[Latency]", json.dumps(metrics))
+        result = finalize_pipeline(artifacts, config, prompt_override=prompt)
+        if config.run_codex and result.codex_output is not None:
+            print(result.codex_output)
+        _print_human_summary(result, repeat_transcript=False, include_buffer=False)
+    finally:
+        artifacts.cleanup()
 
     if args.say_ready and platform.system() == "Darwin":
         # Offer audible feedback when the command completes on macOS.
@@ -346,12 +524,18 @@ def main():
         except Exception:
             pass
 
-    if not args.keep_audio:
-        # Clean up the temporary audio clip unless the caller asked to keep it.
-        try:
-            wav.unlink(missing_ok=True)
-        except Exception:
-            pass
+
+def _print_human_summary(result: PipelineResult, *, repeat_transcript: bool = True, include_buffer: bool = True) -> None:
+    """Render transcript, Codex output, and latency metrics for humans."""
+    if repeat_transcript:
+        print("\n[Transcript]")
+        print(result.transcript)
+
+    if include_buffer and result.codex_output is not None:
+        print("\n[Codex output]")
+        print(result.codex_output)
+
+    print("\n[Latency]", json.dumps(result.metrics))
 
 if __name__ == "__main__":
     try:

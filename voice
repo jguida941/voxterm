@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # Simple wrapper for Codex Voice with easy configuration
 
+# Resolve script directory early so helpers can reference it
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
 # Parse command-line arguments
 SECONDS=10  # Default to 10 seconds (more practical)
 
@@ -8,19 +11,22 @@ usage() {
     echo "Usage: voice [options]"
     echo ""
     echo "Options:"
-    echo "  -s, --seconds N     Recording duration in seconds (default: 10)"
-    echo "  -m, --model MODEL   Whisper model to use (default: base)"
-    echo "                      Options: tiny, base, small, medium, large"
-    echo "  -h, --help          Show this help message"
+    echo "  -s, --seconds N           Recording duration in seconds (default: 10)"
+    echo "  -m, --model MODEL         Whisper model hint (legacy; prefer --whisper-model-path)"
+    echo "  -h, --help                Show this help message"
+    printf '%s\n' \
+        "  (any other flags are passed directly to scripts/run_tui.sh, e.g." \
+        "     --whisper-model-path ./models/ggml-base.en.bin, --input-device …," \
+        "     --list-input-devices)"
     echo ""
     echo "Examples:"
-    echo "  voice                  # 10 seconds recording with base model"
-    echo "  voice -s 15            # 15 seconds recording"
-    echo "  voice --seconds 20     # 20 seconds recording"
-    echo "  voice -s 30 -m small   # 30 seconds with small model"
+    echo "  voice --list-input-devices"
+    echo "  WHISPER_MODEL_PATH=./models/ggml-base.en.bin voice -s 6"
+    echo "  voice -s 3 --input-device \"MacBook Pro Microphone\""
 }
 
 MODEL="base"
+EXTRA_ARGS=()
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -34,18 +40,29 @@ while [[ $# -gt 0 ]]; do
             ;;
         -h|--help)
             usage
+            echo ""
+            echo "Common options forwarded to scripts/run_tui.sh:"
+            cat <<'EOF'
+  --list-input-devices        Show detected audio inputs and exit
+  --input-device NAME         Record from a specific microphone
+  --no-persistent-codex       Disable the long-lived Codex PTY session
+  --log-timings               Print timing breakdowns for audio/STT/Codex
+  --whisper-model-path PATH   Use a whisper.cpp model file
+  --lang CODE                 Override the transcription language (en, fr, ...)
+  --codex-arg FLAG            Forward an extra flag to the Codex CLI (repeatable)
+EOF
+            echo ""
+            echo "Any other flags are passed straight through to scripts/run_tui.sh."
+            echo "Full Rust CLI help: scripts/run_tui.sh -- --help"
             exit 0
             ;;
         *)
-            echo "Unknown option: $1"
-            usage
-            exit 1
+            EXTRA_ARGS+=("$1")
+            shift
+            continue
             ;;
     esac
 done
-
-# Get script directory
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 echo "Starting Codex Voice TUI..."
 echo "  Recording duration: ${SECONDS} seconds"
@@ -61,4 +78,4 @@ echo ""
 export SECONDS_OVERRIDE="$SECONDS"
 export WHISPER_MODEL_OVERRIDE="$MODEL"
 
-exec "${SCRIPT_DIR}/scripts/run_tui.sh"
+exec "${SCRIPT_DIR}/scripts/run_tui.sh" "${EXTRA_ARGS[@]}"

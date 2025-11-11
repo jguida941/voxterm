@@ -82,7 +82,10 @@ def run_with_pty(argv: list[str], stdin_data: bytes | None) -> int:
         else:
             if time.monotonic() - start > 300:  # pragma: no cover
                 exit_code = 1
-                os.kill(pid, 9)
+                try:
+                    os.kill(pid, 9)
+                except ProcessLookupError:
+                    pass  # Child already exited
 
     # Drain any trailing output
     output.extend(_drain(master_fd))

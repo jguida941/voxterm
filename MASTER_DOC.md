@@ -1,5 +1,7 @@
 # Codex Voice - Master Documentation
 
+> **Docs index:** Supporting guides now live under `docs/` (e.g., `docs/README.md`, `docs/DEVELOPER_GUIDE.md`, `docs/HOW_TO_TEST_AUDIO.md`, `docs/chatgpt.md`). Use this master doc as the entry point and follow the links out to the new locations.
+
 ## Quick Start
 
 ### Install & Run
@@ -31,34 +33,37 @@ cd codex-voice
 ## Current Status
 
 ### ✅ What Works
-- Voice capture and transcription
+- Voice capture and transcription (native Rust pipeline)
 - Full Codex tool access (can edit files!)
 - Configurable recording duration
 - Multiple voice captures
 - Enter key fixed
+- Proper output formatting with newlines
+- Full permission mode enabled (`--danger-full-access`)
+- Persistent Codex PTY session (auto-started, falls back to single-shot CLI if it fails)
 
 ### 🚧 In Progress
-- Persistent Codex sessions (PTY has terminal emulation issues - disabled for now)
-- Streaming output (disabled until PTY fixed)
-- Session context preservation (needs proper PTY)
+- Streaming output over the PTY channel
+- Timing instrumentation rollout (LOG_TIMINGS override)
+- Native Whisper polish (model path setup, latency tuning)
 
 ### ❌ Known Issues
 - 3-4 second delay (spawning new processes)
-- Session doesn't persist yet (each message spawns new Codex)
+- Whisper process restarts per capture (no warm cache yet)
 
 ---
 
 ## Architecture
 
 ### The Problem
-Every voice input spawns 3 new processes (FFmpeg → Whisper → Codex), loses context, takes 5-6 seconds.
+The old Python pipeline spawned 3 processes (FFmpeg → Whisper → Codex) and reloaded everything.
+We now capture/transcribe in Rust, but still need to eliminate remaining latency (model load,
+Codex PTY handshake) and keep everything alive.
 
 ### The Solution
-Keep everything alive:
-- One persistent Codex session (PTY-based)
-- Whisper model loaded once
-- Audio device initialized once
-- Result: <200ms response time
+- Native Rust audio/Whisper pipeline (done)
+- Keep Codex session alive via PTY (in progress)
+- Reuse Whisper state + introduce streaming output to hit <200ms
 
 ### Implementation Status
 ```
@@ -69,8 +74,8 @@ Keep everything alive:
 
 🚧 Phase 2: Persistent Sessions (IN PROGRESS)
    - PTY handler implemented
-   - Session manager created
-   - Needs real-world testing
+   - Session manager enabled by default (auto-fallback to one-shot CLI)
+   - Requires more testing plus streaming output hooked back up
 
 📋 Phase 3: Performance (TODO)
    - Replace FFmpeg with cpal
@@ -156,6 +161,10 @@ ps aux | grep codex | grep -v grep
 # Different PIDs = not persistent (current issue)
 ```
 
+For the exact step-by-step commands we use during development (stubbed Python smoke
+tests, real mic runs, TUI launch overrides, log inspection), see
+[`DEVELOPER_GUIDE.md`](docs/DEVELOPER_GUIDE.md).
+
 ---
 
 ## Common Issues & Fixes
@@ -192,7 +201,8 @@ Still an issue. Persistent sessions will fix this (in progress).
 ## Roadmap
 
 ### Immediate (This Week)
-- [ ] Verify PTY session persistence works
+- [x] Add timing instrumentation (LOG_TIMINGS flag + JSON metrics logging)
+- [ ] Verify PTY session persistence works end-to-end
 - [ ] Fix any session bugs found in testing
 - [ ] Merge improvements to main
 

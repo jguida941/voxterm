@@ -23,6 +23,11 @@ Cargo.lock
 *.mp3
 *.m4a
 
+# Whisper models (too large for GitHub)
+models/*.bin
+models/*.ggml
+models/*.onnx
+
 # Whisper output
 *.txt
 *.srt
