@@ -5,8 +5,6 @@
 use crate::audio;
 use crate::log_debug;
 use crate::stt;
-#[cfg(feature = "vad_earshot")]
-use crate::vad_earshot::EarshotVad;
 use anyhow::{anyhow, Result};
 #[cfg(test)]
 use std::sync::OnceLock;
@@ -180,7 +178,7 @@ fn capture_voice_native(
     let vad_cfg: audio::VadConfig = (&pipeline_cfg).into();
     let record_start = Instant::now();
     let capture = {
-        let mut recorder_guard = recorder
+        let recorder_guard = recorder
             .lock()
             .map_err(|_| anyhow!("audio recorder lock poisoned"))?;
         let mut vad_engine = create_vad_engine(&pipeline_cfg);

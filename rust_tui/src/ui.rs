@@ -47,7 +47,9 @@ pub fn run_app(app: &mut App) -> Result<()> {
 /// Core event/render loop for the test-friendly UI entrypoint.
 fn app_loop(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App) -> Result<()> {
     loop {
+        app.poll_codex_job()?;
         app.poll_voice_job()?;
+        app.update_codex_spinner();
         terminal.draw(|frame| crate::ui::draw(frame, app))?;
 
         app.drain_persistent_output();
@@ -71,6 +73,9 @@ fn handle_key_event(app: &mut App, key: KeyEvent) -> Result<bool> {
     ));
 
     if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') {
+        if app.cancel_codex_job_if_active() {
+            return Ok(false);
+        }
         return Ok(true);
     }
 
@@ -86,7 +91,11 @@ fn handle_key_event(app: &mut App, key: KeyEvent) -> Result<bool> {
             app.send_current_input()?;
         }
         KeyCode::Backspace => app.backspace_input(),
-        KeyCode::Esc => app.clear_input(),
+        KeyCode::Esc => {
+            if !app.cancel_codex_job_if_active() {
+                app.clear_input();
+            }
+        }
         KeyCode::Char(c) => {
             if !key.modifiers.contains(KeyModifiers::CONTROL) {
                 app.push_input_char(c);

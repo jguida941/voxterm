@@ -3,7 +3,7 @@ use crate::log_debug;
 use anyhow::{anyhow, Context, Result};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{SampleFormat, StreamConfig};
-use crossbeam_channel::{bounded, Receiver, RecvTimeoutError, Sender, TrySendError};
+use crossbeam_channel::{bounded, RecvTimeoutError, Sender, TrySendError};
 #[cfg(feature = "high-quality-audio")]
 use rubato::{InterpolationParameters, InterpolationType, Resampler, SincFixedIn, WindowFunction};
 use std::collections::VecDeque;
@@ -530,7 +530,7 @@ impl FrameDispatcher {
         }
     }
 
-    fn push<T, F>(&mut self, data: &[T], channels: usize, mut convert: F)
+    fn push<T, F>(&mut self, data: &[T], channels: usize, convert: F)
     where
         T: Copy,
         F: FnMut(T) -> f32,

@@ -18,6 +18,7 @@ Central navigation guide for the Codex Voice project. Update this file at the en
   - Archived legacy references: [`docs/archive/OBSOLETE_REFERENCES_2025-11-12/`](docs/archive/OBSOLETE_REFERENCES_2025-11-12/).
   - External/third-party audits live in [`docs/audits/`](docs/audits/) (e.g., `READINESS_AUDIT_2025-11-12.md`, `claudeaudit.md`, `2025-11-12-chatgpt.md`).
 - `rust_tui/` — Primary Rust workspace containing the TUI wrapper (Cargo project). Includes source (`src/`), docs, scripts, and tests tied to the Rust implementation.
+  - Notable modules: `src/app.rs` (TUI state), `src/ui.rs` (render loop), the new `src/codex.rs` async worker for Codex calls, and `src/voice.rs` (voice/STT worker).
 - `voice/` — Legacy or auxiliary voice assets (verify contents before use).
 - `models/` — Whisper/STT model artifacts or pointers.
 - `scripts/` — Helper scripts (PTY helpers, automation utilities).

@@ -15,11 +15,11 @@ pub struct EarshotVad {
 
 impl EarshotVad {
     pub fn from_config(cfg: &VoicePipelineConfig) -> Self {
-        let profile = match cfg.vad_threshold_db as i32 {
-            t if t <= -50 => VoiceActivityProfile::VeryAggressive,
-            t if t <= -40 => VoiceActivityProfile::Aggressive,
-            t if t <= -30 => VoiceActivityProfile::LowBitrate,
-            _ => VoiceActivityProfile::Quality,
+        let profile = match cfg.vad_threshold_db {
+            t if t <= -50.0 => VoiceActivityProfile::VERY_AGGRESSIVE,
+            t if t <= -40.0 => VoiceActivityProfile::AGGRESSIVE,
+            t if t <= -30.0 => VoiceActivityProfile::LBR,
+            _ => VoiceActivityProfile::QUALITY,
         };
         let frame_ms = cfg.vad_frame_ms.clamp(10, 30) as usize;
         let frame_samples = ((cfg.sample_rate as usize) * frame_ms) / 1000;

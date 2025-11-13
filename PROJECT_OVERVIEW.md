@@ -10,16 +10,18 @@
 - Captured Phase 2A exit criteria (config surface, metrics, tests, CI hooks) to gate Phase 2B readiness.
 - Reaffirmed documentation/governance updates (`master_index.md`, `PROJECT_OVERVIEW.md`) pointing to the latest notes.
 - Landed the first Phase 2A code drop: `VadEngine` trait + Earshot feature gate + voice-pipeline wiring that now emits per-utterance metrics for future perf_smoke gating.
+- Shipped the async Codex worker (new `codex.rs`, `App::poll_codex_job`, spinner/cancel UX, telemetry, and unit tests), so the TUI stays responsive while Codex runs and Phase 2A work can resume.
 
 **In Progress**
 - Latency stabilization Phase 2A (Earshot-based VAD + early stop, config surface, metrics) — prerequisite for Phase 2B
 - CI perf/memory gating (`perf_smoke`, `memory_guard`) and documentation enforcement checks
 - Defining CI/doc lint checks for daily folder & changelog enforcement
 - Planning the `app.rs`/`pty_session.rs` decomposition (pending design options)
+- Tracking Codex worker telemetry in CI (add perf_smoke hook) now that the async path is live; any regressions should fail the pipeline.
 
 **Next Session**
-1. Execute Phase 2A plan: integrate Earshot VAD, early stop logic, config keys, and per-utterance metrics; capture before/after latency numbers.
-2. Add CI guards (`perf_smoke`, `memory_guard`, docs-check) so latency + documentation policies gate merges.
+1. Resume Phase 2A execution: finish Earshot VAD integration, early-stop logic, config keys, and latency benchmarks now that Codex calls no longer block the UI.
+2. Wire CI guards (`perf_smoke`, `memory_guard`, docs-check) so latency + documentation policies gate merges (including the new `timing|phase=codex_job` metrics).
 3. Feature-gate Python fallback (dev-only feature flag) and document UX/error handling.
 4. Draft design options for splitting `app.rs`/`pty_session.rs` into ≤300 LOC modules for approval before implementation.
 

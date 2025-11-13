@@ -3,24 +3,24 @@
 
 use std::{
     env, fs,
-    io::{self, Write},
-    path::{Path, PathBuf},
+    io::Write,
+    path::PathBuf,
     process::{Command, Stdio},
     sync::{mpsc::TryRecvError, Arc, Mutex},
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
+use crate::codex::{self, CodexJob, CodexJobMessage, CODEX_SPINNER_FRAMES};
 use crate::config::AppConfig;
-use crate::utf8_safe::window_by_columns;
 use crate::voice::{self, VoiceCaptureTrigger, VoiceJob, VoiceJobMessage};
 use crate::{audio, pty_session, stt};
 use anyhow::{anyhow, bail, Context, Result};
 use serde::Deserialize;
-use strip_ansi_escapes::strip;
-use unicode_width::UnicodeWidthStr;
 
 /// Maximum number of lines to retain in the scrollback buffer.
 const OUTPUT_MAX_LINES: usize = 500;
+/// Spinner cadence for Codex worker status updates.
+const CODEX_SPINNER_INTERVAL: Duration = Duration::from_millis(150);
 
 /// Path to the temp log file we rotate between runs.
 pub fn log_file_path() -> PathBuf {
@@ -51,427 +51,6 @@ pub fn init_debug_log_file() {
             let _ = fs::remove_file(&log_path);
         }
     }
-}
-
-/// Return a UTF-8 safe preview string for debug logging.
-fn preview_for_log(text: &str, max_cols: usize) -> String {
-    if max_cols == 0 || text.is_empty() {
-        return String::new();
-    }
-    let slice = window_by_columns(text, 0, max_cols);
-    let needs_ellipsis = UnicodeWidthStr::width(text) > UnicodeWidthStr::width(slice);
-    if needs_ellipsis {
-        format!("{slice}…")
-    } else {
-        slice.to_string()
-    }
-}
-
-/// Dispatch the current prompt to the persistent Codex session.
-fn send_prompt(app: &mut App) -> Result<Option<Vec<String>>> {
-    let prompt = app.input.trim().to_string();
-    if prompt.is_empty() {
-        app.status = "Nothing to send; prompt is empty.".into();
-        return Ok(None);
-    }
-
-    app.status = "Calling Codex...".into();
-
-    let codex_start = Instant::now();
-    let mut used_persistent = false;
-    let mut codex_result: Option<String> = None;
-
-    // Try the persistent PTY session first so replies show up faster.
-    if app.config.persistent_codex {
-        log_debug("Attempting persistent Codex session");
-        match call_codex_via_session(app, &prompt) {
-            Ok(text) => {
-                used_persistent = true;
-                codex_result = Some(text);
-            }
-            Err(err) => {
-                log_debug(&format!(
-                    "Persistent Codex session failed: {err:#}. Falling back to one-shot CLI."
-                ));
-                app.codex_session = None;
-                app.status =
-                    "Persistent Codex session failed; falling back to single invocation.".into();
-            }
-        }
-    }
-
-    let codex_output = match codex_result {
-        Some(text) => text,
-        None => call_codex(&app.config, &prompt)?,
-    };
-
-    if app.config.log_timings {
-        let elapsed = codex_start.elapsed().as_secs_f64();
-        log_debug(&format!(
-            "timing|phase=codex_cli|persistent={}|elapsed_s={:.3}|lines={}|chars={}",
-            used_persistent,
-            elapsed,
-            codex_output.lines().count(),
-            codex_output.len()
-        ));
-    }
-
-    // Count lines before consuming codex_output
-    let line_count = codex_output.lines().count();
-
-    // The output from call_codex_via_session is already sanitized,
-    // but call_codex might not be, so apply sanitization conditionally
-    let sanitized_output = if used_persistent {
-        // Already sanitized in call_codex_via_session
-        codex_output
-    } else {
-        // Need to sanitize output from direct call_codex
-        sanitize_pty_output(codex_output.as_bytes())
-    };
-    let sanitized_lines = prepare_for_display(&sanitized_output);
-
-    let mut lines = Vec::new();
-    // Ensure the prompt line is clean
-    let prompt_line = format!("> {}", prompt.trim());
-    log_debug(&format!(
-        "send_prompt: Adding prompt line: {:?}",
-        prompt_line
-    ));
-    lines.push(prompt_line);
-    lines.push(String::new()); // Add blank line after prompt
-
-    // Log the sanitized lines we're about to add
-    for (idx, line) in sanitized_lines.iter().enumerate() {
-        if !line.is_empty() {
-            log_debug(&format!(
-                "send_prompt: sanitized_line[{}] = {:?}",
-                idx,
-                preview_for_log(line, 50)
-            ));
-        }
-    }
-
-    lines.extend(sanitized_lines);
-    lines.push(String::new()); // Add blank line after Codex response
-    app.status = format!("Codex returned {} lines.", line_count);
-    app.input.clear();
-
-    if app.voice_enabled {
-        if let Err(err) = app.start_voice_capture(VoiceCaptureTrigger::Auto) {
-            app.status = format!("Voice capture failed after Codex call: {err:#}");
-        }
-    }
-
-    Ok(Some(lines))
-}
-
-/// Run the Codex CLI with the same fallbacks the Python pipeline uses (PTY helper ->
-/// direct interactive -> exec `-`) so tool calls behave consistently.
-fn call_codex(config: &AppConfig, prompt: &str) -> Result<String> {
-    // Prefer the PTY helper for full interactive support (streaming, tools, etc.).
-
-    // Use the current working directory for Codex (where user actually is)
-    let codex_working_dir = env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-
-    if config.pty_helper.exists() {
-        match try_python_pty(config, prompt, &codex_working_dir)? {
-            Some(PtyResult::Success(text)) => return Ok(text),
-            Some(PtyResult::Failure(_msg)) => {
-                // PTY failed, but continue to fallbacks
-                // Don't use eprintln in TUI mode - it corrupts the display
-            }
-            None => {
-                // PTY helper not available
-            }
-        }
-    }
-
-    // Fallback 1: spawn Codex directly; this keeps PTY-like behavior for most cases.
-    let mut interactive_cmd = Command::new(&config.codex_cmd);
-    interactive_cmd
-        .args(&config.codex_args)
-        .arg("-C")
-        .arg(&codex_working_dir)
-        .env("TERM", &config.term_value)
-        .env("CODEX_NONINTERACTIVE", "1") // Hint to Codex that we're piping
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
-
-    let mut interactive_child = interactive_cmd
-        .spawn()
-        .with_context(|| format!("failed to spawn interactive {}", config.codex_cmd))?;
-
-    if let Some(mut stdin) = interactive_child.stdin.take() {
-        write_prompt_with_newline(&mut stdin, prompt)
-            .context("failed to write prompt to codex stdin")?;
-    }
-
-    let interactive_output = interactive_child
-        .wait_with_output()
-        .context("failed to wait for interactive codex process")?;
-
-    if interactive_output.status.success() {
-        return Ok(String::from_utf8_lossy(&interactive_output.stdout).to_string());
-    }
-
-    let interactive_stderr = String::from_utf8_lossy(&interactive_output.stderr).to_string();
-
-    // Fallback 2: last resort is `codex exec -` which mirrors how the Python pipeline works.
-    let mut exec_cmd = Command::new(&config.codex_cmd);
-    exec_cmd
-        .arg("exec")
-        .arg("-C")
-        .arg(&codex_working_dir)
-        .args(&config.codex_args)
-        .env("TERM", &config.term_value)
-        .arg("-") // Read from stdin
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
-
-    let mut exec_child = exec_cmd
-        .spawn()
-        .with_context(|| format!("failed to spawn {} exec", config.codex_cmd))?;
-
-    if let Some(mut stdin) = exec_child.stdin.take() {
-        write_prompt_with_newline(&mut stdin, prompt)
-            .context("failed to write prompt to codex exec stdin")?;
-    }
-
-    let exec_output = exec_child
-        .wait_with_output()
-        .context("failed to wait for codex exec process")?;
-
-    if exec_output.status.success() {
-        // Using codex exec mode as fallback
-        return Ok(String::from_utf8_lossy(&exec_output.stdout).to_string());
-    }
-
-    bail!(
-        "All codex invocation methods failed:\n\
-           PTY Helper: Check if scripts/run_in_pty.py exists\n\
-           Interactive: {}\n\
-           Exec mode: {}",
-        interactive_stderr.trim(),
-        String::from_utf8_lossy(&exec_output.stderr).trim()
-    )
-}
-
-/// Send the prompt through the persistent PTY session so Codex keeps its shell
-/// state (tools, cwd, env vars) between prompts.
-fn call_codex_via_session(app: &mut App, prompt: &str) -> Result<String> {
-    app.ensure_codex_session()?;
-    let session = app
-        .codex_session
-        .as_mut()
-        .ok_or_else(|| anyhow!("Codex session failed to initialize"))?;
-    session
-        .send(prompt)
-        .context("failed to write prompt to persistent Codex session")?;
-    let mut combined_raw = Vec::new();
-    let start_time = Instant::now();
-    let overall_timeout = Duration::from_secs(30);
-    // Treat 350 ms of silence as the end of the response.
-    let quiet_grace = Duration::from_millis(350);
-    let mut last_progress = Instant::now();
-    let mut last_len = 0usize;
-
-    loop {
-        let output_chunks = session.read_output_timeout(Duration::from_millis(500));
-        for chunk in output_chunks {
-            // Log raw PTY bytes plus a short hexdump so we can trace stuck ANSI queries or prompts.
-            log_debug(&format!(
-                "pty_raw_chunk[{}] {}",
-                combined_raw.len(),
-                format_bytes_for_log(&chunk)
-            ));
-
-            combined_raw.extend_from_slice(&chunk);
-            last_progress = Instant::now();
-        }
-
-        if !combined_raw.is_empty() {
-            let sanitized = sanitize_pty_output(&combined_raw);
-            if sanitized.len() != last_len {
-                last_len = sanitized.len();
-                last_progress = Instant::now();
-            }
-            log_debug(&format!(
-                "pty_sanitized_output {} chars",
-                sanitized.chars().count()
-            ));
-            let idle = Instant::now().duration_since(last_progress);
-            if !sanitized.trim().is_empty() && idle >= quiet_grace {
-                return Ok(sanitized);
-            }
-            if idle >= overall_timeout {
-                if sanitized.trim().is_empty() {
-                    break;
-                }
-                return Ok(sanitized);
-            }
-        } else if Instant::now().duration_since(start_time) >= overall_timeout {
-            break;
-        }
-    }
-
-    log_debug("Persistent Codex session yielded no printable output; falling back");
-    bail!("persistent Codex session returned no text");
-}
-
-/// Render a small chunk of bytes as hex so the log shows what the PTY emitted (handy for CSI quirks).
-fn format_bytes_for_log(bytes: &[u8]) -> String {
-    const MAX_BYTES: usize = 64;
-    let mut parts = Vec::new();
-    for (idx, b) in bytes.iter().take(MAX_BYTES).enumerate() {
-        parts.push(format!("{b:02X}"));
-        if idx >= MAX_BYTES - 1 {
-            break;
-        }
-    }
-    if bytes.len() > MAX_BYTES {
-        parts.push("...".into());
-    }
-    parts.join(" ")
-}
-
-/// Normalize CR/LF pairs and strip ANSI escape sequences so the scrollback only shows readable text.
-fn sanitize_pty_output(raw: &[u8]) -> String {
-    if raw.is_empty() {
-        return String::new();
-    }
-
-    let normalized = normalize_control_bytes(raw);
-    let ansi_free = strip(&normalized);
-    let mut text = String::from_utf8_lossy(&ansi_free).to_string();
-    if raw.last() == Some(&b'\n') && !text.ends_with('\n') {
-        text.push('\n');
-    }
-    text
-}
-
-fn normalize_control_bytes(raw: &[u8]) -> Vec<u8> {
-    let mut output = Vec::with_capacity(raw.len());
-    let mut idx = 0;
-    let mut line_start = 0usize;
-
-    while idx < raw.len() {
-        match raw[idx] {
-            b'\r' => {
-                output.truncate(line_start);
-                idx += 1;
-            }
-            b'\n' => {
-                output.push(b'\n');
-                idx += 1;
-                line_start = output.len();
-            }
-            b'\x08' => {
-                idx += 1;
-                let removed_newline = pop_last_codepoint(&mut output);
-                if removed_newline {
-                    line_start = current_line_start(&output);
-                }
-            }
-            0 => {
-                idx += 1;
-            }
-            0x1B => {
-                if let Some(next) = raw.get(idx + 1) {
-                    if *next == b']' {
-                        idx = skip_osc_sequence(raw, idx + 2);
-                        continue;
-                    } else if *next == b'[' {
-                        if let Some((end, final_byte)) = find_csi_sequence(raw, idx) {
-                            if final_byte == b'm' {
-                                idx = end + 1;
-                                continue;
-                            }
-                            output.extend_from_slice(raw.get(idx..=end).unwrap_or(&[]));
-                            idx = end + 1;
-                            continue;
-                        }
-                    }
-                }
-                output.push(raw[idx]);
-                idx += 1;
-            }
-            byte => {
-                output.push(byte);
-                idx += 1;
-            }
-        }
-        if line_start > output.len() {
-            line_start = current_line_start(&output);
-        }
-    }
-
-    output
-}
-
-fn pop_last_codepoint(buf: &mut Vec<u8>) -> bool {
-    if buf.is_empty() {
-        return false;
-    }
-    if buf.last() == Some(&b'\n') {
-        buf.pop();
-        return true;
-    }
-    while let Some(byte) = buf.pop() {
-        if (byte & 0b1100_0000) != 0b1000_0000 {
-            break;
-        }
-    }
-    false
-}
-
-fn current_line_start(buf: &[u8]) -> usize {
-    buf.iter()
-        .rposition(|&b| b == b'\n')
-        .map(|pos| pos + 1)
-        .unwrap_or(0)
-}
-
-fn skip_osc_sequence(bytes: &[u8], mut cursor: usize) -> usize {
-    while cursor < bytes.len() {
-        match bytes[cursor] {
-            0x07 => return cursor + 1,
-            0x1B if cursor + 1 < bytes.len() && bytes[cursor + 1] == b'\\' => {
-                return cursor + 2;
-            }
-            _ => cursor += 1,
-        }
-    }
-    cursor
-}
-
-fn find_csi_sequence(bytes: &[u8], start: usize) -> Option<(usize, u8)> {
-    if bytes.get(start)? != &0x1B || bytes.get(start + 1)? != &b'[' {
-        return None;
-    }
-    let mut idx = start + 2;
-    while idx < bytes.len() {
-        let b = bytes[idx];
-        if (0x40..=0x7E).contains(&b) {
-            return Some((idx, b));
-        }
-        idx += 1;
-    }
-    None
-}
-
-fn prepare_for_display(text: &str) -> Vec<String> {
-    text.lines().map(|line| line.to_string()).collect()
-}
-
-/// Helper for the various Codex invocations to guarantee the prompt ends in a newline.
-fn write_prompt_with_newline<W: Write>(writer: &mut W, prompt: &str) -> io::Result<()> {
-    writer.write_all(prompt.as_bytes())?;
-    if !prompt.ends_with('\n') {
-        writer.write_all(b"\n")?;
-    }
-    Ok(())
 }
 
 /// JSON payload emitted by the Python fallback pipeline; we parse it to reuse the
@@ -608,72 +187,6 @@ pub(crate) fn run_python_transcription(config: &AppConfig) -> Result<PipelineJso
     Ok(parsed)
 }
 
-/// Outcome of the Python PTY helper invocation.
-enum PtyResult {
-    Success(String),
-    Failure(String),
-}
-
-/// Invoke the Python helper that wraps Codex in a pseudo-terminal, returning any output.
-fn try_python_pty(
-    config: &AppConfig,
-    prompt: &str,
-    working_dir: &Path,
-) -> Result<Option<PtyResult>> {
-    if !config.pty_helper.exists() {
-        return Ok(None);
-    }
-
-    let mut cmd = Command::new(&config.python_cmd);
-    cmd.arg(&config.pty_helper);
-    cmd.arg("--stdin");
-    cmd.arg(&config.codex_cmd);
-    cmd.arg("-C");
-    cmd.arg(working_dir);
-    cmd.args(&config.codex_args);
-    cmd.env("TERM", &config.term_value);
-
-    cmd.stdin(Stdio::piped());
-    cmd.stdout(Stdio::piped());
-    cmd.stderr(Stdio::piped());
-
-    let mut child = cmd
-        .spawn()
-        .with_context(|| format!("failed to run PTY helper {}", config.pty_helper.display()))?;
-
-    if let Some(mut stdin) = child.stdin.take() {
-        let mut payload = prompt.as_bytes().to_vec();
-        if !prompt.ends_with('\n') {
-            payload.push(b'\n');
-        }
-        stdin
-            .write_all(&payload)
-            .context("failed writing prompt to PTY helper")?;
-    }
-
-    let output = child
-        .wait_with_output()
-        .context("failed waiting for PTY helper")?;
-
-    if output.status.success() {
-        return Ok(Some(PtyResult::Success(
-            String::from_utf8_lossy(&output.stdout).to_string(),
-        )));
-    }
-
-    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-    let msg = if stderr.is_empty() {
-        format!(
-            "PTY helper exit {}: {}",
-            output.status,
-            config.pty_helper.display()
-        )
-    } else {
-        format!("PTY helper exit {}: {}", output.status, stderr)
-    };
-    Ok(Some(PtyResult::Failure(msg)))
-}
-
 /// Central application state shared between the event loop, renderer, and voice worker.
 pub struct App {
     config: AppConfig,
@@ -683,6 +196,9 @@ pub struct App {
     voice_enabled: bool,
     scroll_offset: u16,
     codex_session: Option<pty_session::PtyCodexSession>,
+    codex_job: Option<CodexJob>,
+    codex_spinner_index: usize,
+    codex_spinner_last_tick: Option<Instant>,
     audio_recorder: Option<Arc<Mutex<audio::Recorder>>>,
     transcriber: Option<Arc<Mutex<stt::Transcriber>>>,
     voice_job: Option<VoiceJob>,
@@ -699,6 +215,9 @@ impl App {
             voice_enabled: false,
             scroll_offset: 0,
             codex_session: None,
+            codex_job: None,
+            codex_spinner_index: 0,
+            codex_spinner_last_tick: None,
             audio_recorder: None,
             transcriber: None,
             voice_job: None,
@@ -768,6 +287,21 @@ impl App {
             }
         }
         Ok(())
+    }
+
+    fn take_codex_session_for_job(&mut self) -> Option<pty_session::PtyCodexSession> {
+        if !self.config.persistent_codex {
+            return None;
+        }
+        if self.codex_session.is_none() {
+            if let Err(err) = self.ensure_codex_session() {
+                let msg = format!("Persistent Codex unavailable: {err:#}");
+                log_debug(&msg);
+                self.status = msg;
+                return None;
+            }
+        }
+        self.codex_session.take()
     }
 
     /// Append output lines while trimming scrollback so the terminal stays snappy on long sessions.
@@ -867,9 +401,24 @@ impl App {
     }
 
     pub(crate) fn send_current_input(&mut self) -> Result<()> {
-        if let Some(output) = send_prompt(self)? {
-            self.append_output(output);
+        if self.codex_job.is_some() {
+            self.status = "Codex request already running; press Esc to cancel.".into();
+            return Ok(());
         }
+
+        let prompt = self.input.trim().to_string();
+        if prompt.is_empty() {
+            self.status = "Nothing to send; prompt is empty.".into();
+            return Ok(());
+        }
+
+        let session = self.take_codex_session_for_job();
+        let job = codex::start_codex_job(prompt, self.config.clone(), session);
+        self.codex_job = Some(job);
+        self.codex_spinner_index = 0;
+        self.codex_spinner_last_tick = Some(Instant::now());
+        let spinner = CODEX_SPINNER_FRAMES.first().copied().unwrap_or('-');
+        self.status = format!("Waiting for Codex {spinner} (Esc/Ctrl+C to cancel)");
         Ok(())
     }
 
@@ -903,6 +452,100 @@ impl App {
             self.voice_job = None;
         }
         Ok(())
+    }
+
+    pub(crate) fn poll_codex_job(&mut self) -> Result<()> {
+        let mut finished = false;
+        let mut message_to_handle: Option<CodexJobMessage> = None;
+
+        if let Some(job) = self.codex_job.as_mut() {
+            match job.receiver.try_recv() {
+                Ok(message) => {
+                    message_to_handle = Some(message);
+                    finished = true;
+                }
+                Err(TryRecvError::Empty) => {}
+                Err(TryRecvError::Disconnected) => {
+                    self.status = "Codex worker disconnected unexpectedly.".into();
+                    finished = true;
+                }
+            }
+            if finished {
+                if let Some(handle) = job.handle.take() {
+                    let _ = handle.join();
+                }
+            }
+        }
+
+        if let Some(message) = message_to_handle {
+            self.handle_codex_job_message(message);
+        }
+        if finished {
+            self.codex_job = None;
+            self.codex_spinner_last_tick = None;
+        }
+        Ok(())
+    }
+
+    fn handle_codex_job_message(&mut self, message: CodexJobMessage) {
+        match message {
+            CodexJobMessage::Completed {
+                lines,
+                status,
+                codex_session,
+            } => {
+                self.append_output(lines);
+                self.status = status;
+                self.codex_session = codex_session;
+                self.input.clear();
+                if self.voice_enabled {
+                    if let Err(err) = self.start_voice_capture(VoiceCaptureTrigger::Auto) {
+                        self.status = format!("Voice capture failed after Codex call: {err:#}");
+                    }
+                }
+            }
+            CodexJobMessage::Failed {
+                error,
+                codex_session,
+            } => {
+                self.status = format!("Codex failed: {error}");
+                self.codex_session = codex_session;
+            }
+            CodexJobMessage::Canceled { codex_session } => {
+                self.status = "Codex request canceled.".into();
+                self.codex_session = codex_session;
+            }
+        }
+    }
+
+    pub(crate) fn cancel_codex_job_if_active(&mut self) -> bool {
+        if let Some(job) = self.codex_job.as_ref() {
+            job.cancel();
+            self.status = "Canceling Codex request...".into();
+            true
+        } else {
+            false
+        }
+    }
+
+    pub(crate) fn update_codex_spinner(&mut self) {
+        if self.codex_job.is_none() {
+            return;
+        }
+        let now = Instant::now();
+        let last_tick = self
+            .codex_spinner_last_tick
+            .get_or_insert_with(Instant::now);
+        if now.duration_since(*last_tick) < CODEX_SPINNER_INTERVAL {
+            return;
+        }
+        self.codex_spinner_last_tick = Some(now);
+        if CODEX_SPINNER_FRAMES.is_empty() {
+            return;
+        }
+        self.codex_spinner_index = (self.codex_spinner_index + 1) % CODEX_SPINNER_FRAMES.len();
+        let spinner = CODEX_SPINNER_FRAMES[self.codex_spinner_index];
+        self.status = format!("Waiting for Codex {spinner} (Esc/Ctrl+C to cancel)");
     }
 
     /// Update UI state based on whatever the voice worker reported (transcript, silence, or error).
@@ -955,10 +598,6 @@ impl App {
         self.scroll_offset = offset as u16;
     }
 
-    pub(crate) fn input_text(&self) -> &str {
-        &self.input
-    }
-
     /// Returns the current input text for rendering in the UI.
     pub(crate) fn sanitized_input_text(&self) -> String {
         self.input.clone()
@@ -998,9 +637,9 @@ impl App {
                 for chunk in chunks {
                     raw.extend_from_slice(&chunk);
                 }
-                let sanitized = sanitize_pty_output(&raw);
+                let sanitized = codex::sanitize_pty_output(&raw);
                 if !sanitized.trim().is_empty() {
-                    let lines = prepare_for_display(&sanitized);
+                    let lines = codex::prepare_for_display(&sanitized);
                     if !lines.is_empty() {
                         self.append_output(lines);
                     }
@@ -1013,10 +652,15 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::codex;
     use clap::Parser;
+    use std::thread;
+    use std::time::Duration;
 
     fn test_config() -> AppConfig {
-        AppConfig::parse_from(["codex-voice-tests"])
+        let mut config = AppConfig::parse_from(["codex-voice-tests"]);
+        config.persistent_codex = false;  // Disable PTY in tests
+        config
     }
 
     #[test]
@@ -1040,34 +684,63 @@ mod tests {
     }
 
     #[test]
-    fn sanitize_handles_backspace() {
-        let cleaned = sanitize_pty_output(b"a\x08b\n");
-        assert_eq!(cleaned, "b\n");
+    fn codex_job_completion_updates_ui() {
+        let config = test_config();
+        let mut app = App::new(config);
+        app.input = "test prompt".into();
+        let (_result, hook_guard) = codex::with_job_hook(
+            Box::new(|prompt, _| CodexJobMessage::Completed {
+                lines: vec![format!("> {prompt}"), String::from("result line")],
+                status: "ok".into(),
+                codex_session: None,
+            }),
+            || {
+                app.send_current_input().unwrap();
+                wait_for_codex_job(&mut app);
+            },
+        );
+        drop(hook_guard);
+        let lines = app.output_lines();
+        assert_eq!(lines.len(), 2);
+        assert_eq!(lines[0], "> test prompt");
+        assert_eq!(lines[1], "result line");
+        assert_eq!(app.status_text(), "ok");
+        assert!(app.sanitized_input_text().is_empty());
     }
 
     #[test]
-    fn sanitize_strips_cursor_query_bytes() {
-        let cleaned = sanitize_pty_output(b"Hello\x1b[6nWorld\n");
-        assert_eq!(cleaned, "HelloWorld\n");
+    fn codex_job_cancellation_updates_status() {
+        let config = test_config();
+        let mut app = App::new(config);
+        app.input = "test prompt".into();
+        let (_result, hook_guard) = codex::with_job_hook(
+            Box::new(|_, cancel| {
+                while !cancel.is_cancelled() {
+                    thread::sleep(Duration::from_millis(10));
+                }
+                CodexJobMessage::Canceled {
+                    codex_session: None,
+                }
+            }),
+            || {
+                app.send_current_input().unwrap();
+                assert!(app.cancel_codex_job_if_active());
+                wait_for_codex_job(&mut app);
+            },
+        );
+        drop(hook_guard);
+        assert_eq!(app.status_text(), "Codex request canceled.");
+        assert!(!app.cancel_codex_job_if_active());
     }
 
-    #[test]
-    fn sanitize_preserves_numeric_lines() {
-        let sample = "2024\n0;1;2\n";
-        let cleaned = sanitize_pty_output(sample.as_bytes());
-        assert_eq!(cleaned, sample);
-    }
-
-    #[test]
-    fn sanitize_keeps_wide_glyphs() {
-        let sample = "│> Test 😊 你好\n";
-        let cleaned = sanitize_pty_output(sample.as_bytes());
-        assert_eq!(cleaned, sample);
-    }
-
-    #[test]
-    fn sanitize_strips_escape_wrapped_cursor_report() {
-        let cleaned = sanitize_pty_output(b"\x1b[>0;0;0uHello");
-        assert_eq!(cleaned, "Hello");
+    fn wait_for_codex_job(app: &mut App) {
+        for _ in 0..50 {
+            app.poll_codex_job().unwrap();
+            if app.codex_job.is_none() {
+                return;
+            }
+            thread::sleep(Duration::from_millis(5));
+        }
+        panic!("Codex job did not complete in time");
     }
 }

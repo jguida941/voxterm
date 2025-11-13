@@ -227,6 +227,29 @@ Silence-aware capture (Phase 2A) is considered *done* when all of the following 
   4. Add tests mirroring the voice worker tests (success, error, cancellation) and document the change in the daily changelog.
 - **Impact on Phase 2A:** Once the Codex worker fix lands, resume the EarshotVad + chunked recorder implementation using the existing scaffolding; the two efforts are independent but the Codex fix unblocks practical validation.
 
+### Detailed Design (Option 1 — Per-request Worker)
+- **Flow:** `App::send_current_input()` validates the prompt, moves the optional `PtyCodexSession` into a new `CodexJob`, and shows an async spinner while the job owns Codex execution. The worker thread replicates the current synchronous flow (persistent PTY → CLI fallback → `codex exec -`). When finished it returns sanitized output lines, status text, timing metrics, and the (possibly restarted) PTY session through an `mpsc` channel so the UI can resume rendering immediately.
+- **Cancellation:** Each `CodexJob` stores an `Arc<AtomicBool>` plus a shared `CodexChildHandle` (PID + `Instant` of spawn). `App::cancel_codex_job()` toggles the flag and, if a CLI child is alive, sends SIGTERM then SIGKILL after a guard delay. The worker periodically checks the flag between PTY polls, before/after spawning CLI fallbacks, and while waiting for process completion so we never block indefinitely. Cancellation results propagate via `CodexJobMessage::Canceled` and the UI clears the spinner.
+- **State Safety:** Ownership of `PtyCodexSession` is exclusive—`App` sets `codex_session.take()` when spawning a job and only reuses the session after the worker returns it in the message payload. This prevents concurrent writes and satisfies the guardrail called out under “Session ownership race”.
+- **UI Feedback:** `App` tracks `codex_spinner_index`, `last_codex_progress`, and a short `Vec<&'static str>` of ASCII spinner frames (`["-", "\\", "|", "/"]`). `ui.rs` renders “Waiting for Codex … (Esc to cancel)” whenever a job is active, ensuring an obvious heartbeat per the latency plan. If the worker reports partial progress, we update the status string with elapsed time + line counts.
+- **Telemetry:** The worker logs `timing|phase=codex_job|persistent_used|elapsed_s|lines|chars` so Phase 2B latency benchmarks can distinguish backend latency from UI overhead. Future CI hooks (perf_smoke) will consume these lines.
+
+### Implementation Notes (2025-11-13)
+- Landed the new `rust_tui/src/codex.rs` module housing `CodexJob`, the CLI + PTY helpers, PTY sanitization utilities, and the shared cancellation logic. `app.rs` now delegates all Codex work to this module and only orchestrates job lifecycle + UI state.
+- `App` gained `poll_codex_job`, `cancel_codex_job_if_active`, and spinner state. `ui.rs` updates the spinner every tick, renders “Esc/Ctrl+C to cancel”, and routes Esc/Ctrl+C to cancellation before falling back to the previous behaviors.
+- Tests: `cargo test --no-default-features` (necessary until `earshot` can be fetched) now exercises the codex worker success/error/cancellation flows via the new `with_job_hook` harness plus integration tests covering spinner/cancellation from `app.rs`. Hooks serialize themselves via a mutex guard so parallel tests cannot race each other.
+- Metrics/logging: every worker completion now emits `timing|phase=codex_job|...` plus spinner heartbeat logs, and cancellation attempts log both SIGTERM/SIGKILL escalations so we can debug stuck Codex processes.
+- The asynchronous worker keeps PTY sessions off the UI thread, enabling Phase 2A latency work to resume while guaranteeing the TUI stays responsive during multi-second Codex calls.
+
+### Alternatives Revisited
+1. **Dedicated Codex Worker Thread + Queue:** Keeps the PTY session alive on a single thread and would simplify streaming output later, but it adds queue management, request IDs, and lifecycle shutdown logic today. We capture it as a potential Phase 2C refactor once latency gates are green.
+2. **Full Async Runtime (Tokio/smol):** Clean cancellation primitives and better streaming ergonomics, yet it requires reworking every module (UI loop, voice worker, PTY reader) and introduces heavyweight dependencies. This violates the “no unapproved architecture” rule while the project is paused mid-phase, so we defer it until a dedicated design session can weigh the cost/benefit against SDLC constraints.
+
+### Testing & Benchmarks
+- Unit tests for `CodexJob` (success, CLI error, cancellation, session reuse) using mocked helpers around `call_codex` and synthetic `CodexJobMessage`.
+- UI integration tests that simulate spinner states by driving `App::poll_codex_job()` with canned messages, ensuring status text and output buffers update without hanging.
+- Manual regression: run `cargo run -p rust_tui` with a long Codex command, verify Esc cancels within ~500 ms, and ensure logs show the new `timing|phase=codex_job` entries required for the latency remediation plan.
+
 ## Notes & Adjustments (2025-11-13)
 - Relaxed the `rubato_rejects_aliasing_energy` unit-test threshold (alias tolerance from 1% to 2%) after observing a marginal (~1.08%) alias ratio on this hardware. Still enforces a guardrail while preventing unrelated Phase 2A work from being blocked; revisit if future audio QA detects regressions.
 - `cargo check` cannot yet download the `earshot` crate because the environment lacks network access; the dependency is wired behind `vad_earshot`, so once connectivity is available a normal `cargo check`/`test` run should verify the new code paths.
