@@ -4,16 +4,16 @@ echo
 echo "Available models:"
 ls -lh ../models/*.bin 2>/dev/null | awk '{print "  ✓", $NF, "("$5")"}'
 echo
-echo "Starting TUI test (will run for 8 seconds)..."
+echo "Starting TUI test (will run for ~8 seconds)..."
 echo
 
-# Run TUI with simulated keypresses
+# Run TUI with simulated key presses (Ctrl+R, then Ctrl+C)
 (
   sleep 2
-  printf "v"   # Start voice capture
+  printf '\022'   # Ctrl+R
   sleep 5      # Let it record/process
-  printf "q"   # Quit
-) | ./target/release/rust_tui --log-timings 2>&1 &
+  printf '\003'   # Ctrl+C
+) | cargo run --release -- --log-timings "$@" 2>&1 &
 
 PID=$!
 
@@ -24,7 +24,7 @@ kill $PID 2>/dev/null || true
 # Check the debug log
 echo
 echo "=== CHECKING DEBUG LOG ==="
-LOG_FILE="/tmp/codex_voice_tui.log"
+LOG_FILE="${TMPDIR:-/tmp}/codex_voice_tui.log"
 if [ -f "$LOG_FILE" ]; then
   echo "Recent log entries:"
   tail -20 "$LOG_FILE" | grep -E "(capture_voice|Recording|Transcr|pipeline|fallback)" | tail -10
@@ -46,5 +46,7 @@ else
 fi
 
 echo
-echo "To run manually: ./target/release/rust_tui"
-echo "Press 'v' for voice, 'q' to quit"
+echo "To run manually:"
+echo "  cd $(pwd)"
+echo "  cargo run --release -- --whisper-model-path ../models/ggml-base.en.bin"
+echo "Then press Ctrl+R for voice and Ctrl+C to quit."

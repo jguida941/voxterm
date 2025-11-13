@@ -9,6 +9,17 @@ use std::{
 
 const MAX_CODEX_ARGS: usize = 64;
 const MAX_CODEX_ARG_BYTES: usize = 8 * 1024;
+const DEFAULT_VOICE_SAMPLE_RATE: u32 = 16_000;
+const DEFAULT_VOICE_MAX_CAPTURE_MS: u64 = 10_000;
+const DEFAULT_VOICE_SILENCE_TAIL_MS: u64 = 500;
+const DEFAULT_VOICE_MIN_SPEECH_MS: u64 = 300;
+const DEFAULT_VOICE_LOOKBACK_MS: u64 = 500;
+const DEFAULT_VOICE_BUFFER_MS: u64 = 10_000;
+const DEFAULT_VOICE_CHANNEL_CAPACITY: usize = 100;
+const DEFAULT_VOICE_STT_TIMEOUT_MS: u64 = 10_000;
+const DEFAULT_VOICE_VAD_THRESHOLD_DB: f32 = -40.0;
+const DEFAULT_VOICE_VAD_FRAME_MS: u64 = 20;
+const MAX_CAPTURE_HARD_LIMIT_MS: u64 = 30_000;
 const ISO_639_1_CODES: &[&str] = &[
     "af", "am", "ar", "az", "be", "bg", "bn", "bs", "ca", "cs", "cy", "da", "de", "el", "en", "es",
     "et", "eu", "fa", "fi", "fil", "fr", "ga", "gl", "gu", "he", "hi", "hr", "hu", "hy", "id",
@@ -89,6 +100,55 @@ pub struct AppConfig {
     #[arg(long, default_value_t = 5)]
     pub seconds: u64,
 
+    /// Target sample rate for the voice pipeline (Hz)
+    #[arg(long = "voice-sample-rate", default_value_t = DEFAULT_VOICE_SAMPLE_RATE)]
+    pub voice_sample_rate: u32,
+
+    /// Maximum capture duration before a hard stop (milliseconds)
+    #[arg(long = "voice-max-capture-ms", default_value_t = DEFAULT_VOICE_MAX_CAPTURE_MS)]
+    pub voice_max_capture_ms: u64,
+
+    /// Trailing silence required before stopping capture (milliseconds)
+    #[arg(long = "voice-silence-tail-ms", default_value_t = DEFAULT_VOICE_SILENCE_TAIL_MS)]
+    pub voice_silence_tail_ms: u64,
+
+    /// Minimum speech before STT can begin (milliseconds)
+    #[arg(
+        long = "voice-min-speech-ms-before-stt",
+        default_value_t = DEFAULT_VOICE_MIN_SPEECH_MS
+    )]
+    pub voice_min_speech_ms_before_stt_start: u64,
+
+    /// Amount of audio retained prior to silence stop (milliseconds)
+    #[arg(long = "voice-lookback-ms", default_value_t = DEFAULT_VOICE_LOOKBACK_MS)]
+    pub voice_lookback_ms: u64,
+
+    /// Total buffered audio budget (milliseconds)
+    #[arg(long = "voice-buffer-ms", default_value_t = DEFAULT_VOICE_BUFFER_MS)]
+    pub voice_buffer_ms: u64,
+
+    /// Frame channel capacity between capture and STT workers
+    #[arg(
+        long = "voice-channel-capacity",
+        default_value_t = DEFAULT_VOICE_CHANNEL_CAPACITY
+    )]
+    pub voice_channel_capacity: usize,
+
+    /// STT worker timeout before triggering fallback (milliseconds)
+    #[arg(long = "voice-stt-timeout-ms", default_value_t = DEFAULT_VOICE_STT_TIMEOUT_MS)]
+    pub voice_stt_timeout_ms: u64,
+
+    /// Voice activity detection threshold (decibels)
+    #[arg(
+        long = "voice-vad-threshold-db",
+        default_value_t = DEFAULT_VOICE_VAD_THRESHOLD_DB
+    )]
+    pub voice_vad_threshold_db: f32,
+
+    /// Voice activity detection frame size (milliseconds)
+    #[arg(long = "voice-vad-frame-ms", default_value_t = DEFAULT_VOICE_VAD_FRAME_MS)]
+    pub voice_vad_frame_ms: u64,
+
     /// Language passed to Whisper
     #[arg(long, default_value = "en")]
     pub lang: String,
@@ -96,6 +156,22 @@ pub struct AppConfig {
     /// Fail instead of using the python STT fallback
     #[arg(long = "no-python-fallback")]
     pub no_python_fallback: bool,
+}
+
+/// Tunable parameters for the voice capture + STT pipeline.
+#[derive(Debug, Clone)]
+pub struct VoicePipelineConfig {
+    pub sample_rate: u32,
+    pub max_capture_ms: u64,
+    pub silence_tail_ms: u64,
+    pub min_speech_ms_before_stt_start: u64,
+    pub lookback_ms: u64,
+    pub buffer_ms: u64,
+    pub channel_capacity: usize,
+    pub stt_timeout_ms: u64,
+    pub vad_threshold_db: f32,
+    pub vad_frame_ms: u64,
+    pub python_fallback_allowed: bool,
 }
 
 impl AppConfig {
@@ -116,6 +192,74 @@ impl AppConfig {
             bail!(
                 "--seconds must be between {MIN_RECORD_SECONDS} and {MAX_RECORD_SECONDS}, got {}",
                 self.seconds
+            );
+        }
+
+        if !(8_000..=96_000).contains(&self.voice_sample_rate) {
+            bail!(
+                "--voice-sample-rate must be between 8000 and 96000 Hz, got {}",
+                self.voice_sample_rate
+            );
+        }
+        if self.voice_max_capture_ms == 0 || self.voice_max_capture_ms > MAX_CAPTURE_HARD_LIMIT_MS {
+            bail!(
+                "--voice-max-capture-ms must be between 1 and {MAX_CAPTURE_HARD_LIMIT_MS} ms, got {}",
+                self.voice_max_capture_ms
+            );
+        }
+        if self.voice_silence_tail_ms < 200
+            || self.voice_silence_tail_ms > self.voice_max_capture_ms
+        {
+            bail!(
+                "--voice-silence-tail-ms must be >=200 and <= --voice-max-capture-ms ({})",
+                self.voice_max_capture_ms
+            );
+        }
+        if self.voice_min_speech_ms_before_stt_start < 50
+            || self.voice_min_speech_ms_before_stt_start > self.voice_max_capture_ms
+        {
+            bail!(
+                "--voice-min-speech-ms-before-stt must be between 50 and {}",
+                self.voice_max_capture_ms
+            );
+        }
+        if self.voice_lookback_ms > self.voice_max_capture_ms {
+            bail!(
+                "--voice-lookback-ms ({}) cannot exceed --voice-max-capture-ms ({})",
+                self.voice_lookback_ms,
+                self.voice_max_capture_ms
+            );
+        }
+        if self.voice_buffer_ms < self.voice_max_capture_ms || self.voice_buffer_ms > 120_000 {
+            bail!(
+                "--voice-buffer-ms must be between {} and 120000 (ms)",
+                self.voice_max_capture_ms
+            );
+        }
+        if !(8..=1024).contains(&self.voice_channel_capacity) {
+            bail!(
+                "--voice-channel-capacity must be between 8 and 1024, got {}",
+                self.voice_channel_capacity
+            );
+        }
+        if self.voice_stt_timeout_ms < self.voice_max_capture_ms
+            || self.voice_stt_timeout_ms > 120_000
+        {
+            bail!(
+                "--voice-stt-timeout-ms must be between {} and 120000",
+                self.voice_max_capture_ms
+            );
+        }
+        if !(-120.0..=0.0).contains(&self.voice_vad_threshold_db) {
+            bail!(
+                "--voice-vad-threshold-db must be between -120.0 and 0.0 dB, got {}",
+                self.voice_vad_threshold_db
+            );
+        }
+        if !(5..=120).contains(&self.voice_vad_frame_ms) {
+            bail!(
+                "--voice-vad-frame-ms must be between 5 and 120, got {}",
+                self.voice_vad_frame_ms
             );
         }
 
@@ -214,6 +358,23 @@ impl AppConfig {
         }
 
         Ok(())
+    }
+
+    /// Snapshot the current CLI-controlled voice/VAD settings for downstream consumers.
+    pub fn voice_pipeline_config(&self) -> VoicePipelineConfig {
+        VoicePipelineConfig {
+            sample_rate: self.voice_sample_rate,
+            max_capture_ms: self.voice_max_capture_ms,
+            silence_tail_ms: self.voice_silence_tail_ms,
+            min_speech_ms_before_stt_start: self.voice_min_speech_ms_before_stt_start,
+            lookback_ms: self.voice_lookback_ms,
+            buffer_ms: self.voice_buffer_ms,
+            channel_capacity: self.voice_channel_capacity,
+            stt_timeout_ms: self.voice_stt_timeout_ms,
+            vad_threshold_db: self.voice_vad_threshold_db,
+            vad_frame_ms: self.voice_vad_frame_ms,
+            python_fallback_allowed: !self.no_python_fallback,
+        }
     }
 }
 
@@ -395,5 +556,29 @@ mod tests {
         );
 
         let _ = fs::remove_file(&temp_path);
+    }
+
+    #[test]
+    fn rejects_invalid_voice_sample_rate() {
+        let mut cfg = AppConfig::parse_from(["test-app", "--voice-sample-rate", "4000"]);
+        assert!(cfg.validate().is_err());
+    }
+
+    #[test]
+    fn rejects_voice_buffer_smaller_than_capture_window() {
+        let mut cfg = AppConfig::parse_from([
+            "test-app",
+            "--voice-max-capture-ms",
+            "15000",
+            "--voice-buffer-ms",
+            "10000",
+        ]);
+        assert!(cfg.validate().is_err());
+    }
+
+    #[test]
+    fn rejects_voice_channel_capacity_out_of_bounds() {
+        let mut cfg = AppConfig::parse_from(["test-app", "--voice-channel-capacity", "4"]);
+        assert!(cfg.validate().is_err());
     }
 }

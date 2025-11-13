@@ -1,3 +1,5 @@
+> **Legacy Note (2025-11-12):** This plan captures the original roadmap discussed before the Rust TUI existed. Keep it for historical context only. The authoritative view of current priorities now lives in `PROJECT_OVERVIEW.md` and the dated architecture folders under `docs/architecture/YYYY-MM-DD/`.
+
 Here’s the full plan, end to end, based on everything we just hammered out.
 
 0. Goal in one sentence

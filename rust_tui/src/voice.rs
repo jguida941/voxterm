@@ -5,6 +5,8 @@
 use crate::audio;
 use crate::log_debug;
 use crate::stt;
+#[cfg(feature = "vad_earshot")]
+use crate::vad_earshot::EarshotVad;
 use anyhow::{anyhow, Result};
 #[cfg(test)]
 use std::sync::OnceLock;
@@ -173,26 +175,19 @@ fn capture_voice_native(
     config: &crate::config::AppConfig,
 ) -> Result<Option<String>> {
     log_debug("capture_voice_native: Starting");
-    let seconds = config.seconds;
     let lang = config.lang.clone();
-
-    log_debug(&format!(
-        "capture_voice_native: Recording for {seconds} seconds"
-    ));
+    let pipeline_cfg = config.voice_pipeline_config();
+    let vad_cfg: audio::VadConfig = (&pipeline_cfg).into();
     let record_start = Instant::now();
-    let samples = {
-        let recorder_guard = recorder
+    let capture = {
+        let mut recorder_guard = recorder
             .lock()
             .map_err(|_| anyhow!("audio recorder lock poisoned"))?;
-        recorder_guard.record(seconds)?
-    };
+        let mut vad_engine = create_vad_engine(&pipeline_cfg);
+        recorder_guard.record_with_vad(&vad_cfg, vad_engine.as_mut())
+    }?;
+    log_voice_metrics(&capture.metrics);
     let record_elapsed = record_start.elapsed().as_secs_f64();
-
-    log_debug(&format!(
-        "capture_voice_native: Recorded {} samples in {:.2}s",
-        samples.len(),
-        record_elapsed
-    ));
 
     log_debug("capture_voice_native: Starting transcription");
     let stt_start = Instant::now();
@@ -201,7 +196,7 @@ fn capture_voice_native(
             .lock()
             .map_err(|_| anyhow!("transcriber lock poisoned"))?;
         // Output suppression is now handled inside transcribe() method
-        transcriber_guard.transcribe(&samples, &lang)?
+        transcriber_guard.transcribe(&capture.audio, &lang)?
     };
     let stt_elapsed = stt_start.elapsed().as_secs_f64();
 
@@ -223,6 +218,29 @@ fn capture_voice_native(
         Ok(None)
     } else {
         Ok(Some(cleaned))
+    }
+}
+
+fn log_voice_metrics(metrics: &audio::CaptureMetrics) {
+    log_debug(&format!(
+        "voice_metrics|speech_ms={} silence_ms={} frames_processed={} frames_dropped={} reason={:?}",
+        metrics.speech_ms,
+        metrics.silence_tail_ms,
+        metrics.frames_processed,
+        metrics.frames_dropped,
+        metrics.early_stop_reason
+    ));
+}
+
+fn create_vad_engine(cfg: &crate::config::VoicePipelineConfig) -> Box<dyn audio::VadEngine> {
+    #[cfg(feature = "vad_earshot")]
+    {
+        return Box::new(crate::vad_earshot::EarshotVad::from_config(cfg));
+    }
+
+    #[cfg(not(feature = "vad_earshot"))]
+    {
+        return Box::new(audio::SimpleThresholdVad::new(cfg.vad_threshold_db));
     }
 }
 

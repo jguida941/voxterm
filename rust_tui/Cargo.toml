@@ -5,8 +5,9 @@ edition = "2021"
 default-run = "rust_tui"
 
 [features]
-default = ["high-quality-audio"]
+default = ["high-quality-audio", "vad_earshot"]
 high-quality-audio = ["rubato"]
+vad_earshot = ["earshot"]
 
 [dependencies]
 anyhow = "1"
@@ -25,6 +26,7 @@ whisper-rs-sys = "0.14"
 num_cpus = "1.17"
 gag = "1.0"
 rubato = { version = "0.12", optional = true }
+earshot = { version = "0.1", optional = true }
 
 [[bin]]
 name = "test_audio"

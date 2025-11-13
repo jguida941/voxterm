@@ -1,4 +1,12 @@
-# Architecture Overview
+# Architecture Notes — 2025-11-11
+
+*Previous day: (project inception)*
+
+## Summary
+- Captured the original architecture overview for the Codex Voice pipeline (Python MVP + Rust TUI) before the daily-folder structure existed.
+- Documented the end-to-end microphone → Whisper → Codex flow, dual frontends, and extension strategies.
+
+## Legacy Overview
 
 This repository implements a voice-driven interface for the Codex CLI. Two
 frontends share the same three-stage pipeline:
@@ -12,7 +20,7 @@ serves as the canonical definition of how each stage should behave. The Rust
 TUI (`rust_tui/`) builds on top of those contracts to deliver a richer terminal
 experience without reimplementing signal-processing logic.
 
-## Core Pipeline
+### Core Pipeline
 
 1. **Audio capture** – `ffmpeg` records a mono, 16 kHz WAV file using
    platform-specific defaults (see `record_wav`).
@@ -27,7 +35,7 @@ experience without reimplementing signal-processing logic.
 Each step shells out to an external tool. This keeps the implementation small
 and makes it easy to reproduce the pipeline from other languages.
 
-## `codex_voice.py`
+### `codex_voice.py`
 
 - Provides CLI flags for tweaking capture duration, Whisper model, device names,
   and Codex invocation details.
@@ -41,7 +49,7 @@ and makes it easy to reproduce the pipeline from other languages.
 - Offers macOS voice feedback (`say`) when requested and cleans up temporary
   audio artifacts unless `--keep-audio` is set.
 
-## `rust_tui/`
+### `rust_tui/`
 
 - Uses `ratatui` and `crossterm` to render a split-screen UI with scrollback,
   prompt input, and status bar.
@@ -56,7 +64,7 @@ and makes it easy to reproduce the pipeline from other languages.
 - Stores application state (`App`) separately from configuration (`AppConfig`)
   to keep rendering logic deterministic.
 
-## Test Stubs (`stubs/`)
+### Test Stubs (`stubs/`)
 
 The `stubs/` directory contains lightweight drop-in replacements for `ffmpeg`,
 `whisper`, and `codex`. They generate deterministic outputs, which makes it
@@ -68,7 +76,7 @@ Codex CLI.
 - `fake_codex` echoes the received prompt regardless of whether the input was
   passed as an argument or via stdin.
 
-## Extending the System
+### Extending the System
 
 - **Alternate frontends** – Any new UI can reuse the Python helpers as a spec.
   As long as it shells out to the same commands, the behavior will match.
@@ -77,13 +85,15 @@ Codex CLI.
 - **Automation** – `--codex-args` makes it easy to append Codex-specific flags
   (e.g., temperature or model selection) without modifying code.
 
-## Failure Handling
+### Failure Handling
 
-- Missing binaries raise descriptive `RuntimeError`s in Python and `anyhow`
-  errors in Rust thanks to `_require` and `Context`.
-- Timeouts propagate with stderr attached, making it clear which tool stalled.
-- PTY emulation only runs on POSIX platforms; Windows callers receive a clear
-  error message if Codex requires a terminal.
+- Implements retries for Codex CLI invocations.
+- Falls back to stdin piping if argv invocation fails.
+- Dumps debug logs for end-to-end timings and errors.
 
-Keep this document aligned with code changes so future contributors can quickly
-grasp how audio capture, transcription, and Codex integration fit together.
+## Next Steps (Historical)
+- Build the Rust TUI while reusing the same Python pipeline contracts.
+- Gradually replace shell-outs with native Rust modules once parity is proven.
+
+## Benchmarks / Metrics
+- Not captured in this legacy note; refer to newer dated entries for performance data.

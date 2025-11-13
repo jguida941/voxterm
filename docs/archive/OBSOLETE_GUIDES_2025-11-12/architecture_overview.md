@@ -11,13 +11,12 @@ Codex Voice is a voice-controlled interface for the Codex AI assistant, featurin
 └────────────────────┬───────────────────────────┬────────┘
                       │                           │
                       ▼                           ▼
-┌─────────────────────────────┐   ┌──────────────────────┐
-│      RUST TUI (Main)        │   │   Voice Input ('v')   │
-│   rust_tui/src/main.rs      │   │                      │
-│   - Terminal UI (ratatui)   │◄──┤  Captures audio      │
-│   - Event loop              │   │  Transcribes speech  │
-│   - Status display          │   │  Sends to Codex     │
-└─────────────┬───────────────┘   └──────────────────────┘
+┌─────────────────────────────┐   ┌──────────────────────────┐
+│      RUST TUI (Main)        │   │ Voice Input (Ctrl+R)      │
+│   rust_tui/src/main.rs      │   │  • Captures audio         │
+│   - Terminal UI (ratatui)   │◄──┤  • Transcribes w/ Whisper │
+│   - Event loop              │   │  • Sends prompt to Codex  │
+│   - Status display          │   └──────────────────────────┘
               │
               ▼
 ┌─────────────────────────────────────────────────────────┐
@@ -80,9 +79,9 @@ codex_voice/
 │   ├── ggml-tiny.en.bin      # Fastest (74MB)
 │   └── ggml-base.en.bin      # Better quality (141MB)
 │
-├── codex_voice.py             # Python fallback pipeline
-├── scripts/                    # Helper scripts
-└── ARCHITECTURE.md            # This file
+├── codex_voice.py             # Python fallback pipeline (legacy but available)
+├── scripts/                    # Helper scripts (launchers, PTY utilities)
+└── docs/guides/architecture_overview.md  # This guide
 
 ```
 
@@ -125,39 +124,49 @@ curl -L "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.en
 
 ### Command Line Arguments
 ```bash
-# Show all options
-./target/release/rust_tui --help
+# Show all options (from rust_tui/)
+cargo run --release -- --help
 
-# Common options
---seconds 2                    # Recording duration (default: 3)
---lang en                      # Language (default: en)
---input-device "MacBook Pro Microphone"  # Select microphone
---list-input-devices           # List available mics
---log-timings                  # Enable performance logging
---model ../models/ggml-tiny.en.bin  # Specify model path
---codex-cmd /path/to/codex    # Path to Codex binary
---no-python-fallback           # Disable Python fallback
+# Common flags
+--seconds 5                          # Recording duration (default 5s)
+--lang en                            # Whisper language/tokens
+--input-device "MacBook Pro Microphone"   # Force a specific microphone
+--list-input-devices                 # Enumerate microphones and exit
+--log-timings                        # Emit timing breakdown to log file
+--whisper-model-path ../models/ggml-base.en.bin   # GGML file for whisper-rs
+--codex-cmd /path/to/codex           # Codex CLI binary
+--codex-arg="--danger-full-access"   # Forward extra Codex CLI flags safely
+--no-python-fallback                 # Disable Python pipeline (error if native fails)
 ```
 
 ### Examples
 ```bash
-# Fast setup (2 sec recording, tiny model)
-./target/release/rust_tui --seconds 2 --model ../models/ggml-tiny.en.bin
+# Fast setup (2 s recording, tiny model)
+cargo run --release -- \
+  --seconds 2 \
+  --whisper-model-path ../models/ggml-tiny.en.bin
 
-# High quality (5 sec recording, base model)
-./target/release/rust_tui --seconds 5 --model ../models/ggml-base.en.bin
+# High quality (5 s recording, base model)
+cargo run --release -- \
+  --seconds 5 \
+  --whisper-model-path ../models/ggml-base.en.bin
 
-# Debug performance issues
-./target/release/rust_tui --log-timings
+# Debug performance issues with timings enabled
+cargo run --release -- \
+  --log-timings \
+  --whisper-model-path ../models/ggml-base.en.bin
 
-# Use specific microphone
-./target/release/rust_tui --input-device "MacBook Pro Microphone"
+# Use a specific microphone and custom Codex flag
+cargo run --release -- \
+  --input-device "MacBook Pro Microphone" \
+  --codex-arg="--danger-full-access" \
+  --whisper-model-path ../models/ggml-base.en.bin
 ```
 
 ## 🎤 Voice Pipeline Decision Tree
 
 ```
-User presses 'v'
+User presses Ctrl+R (or auto voice mode triggers)
     │
     ▼
 Is Whisper model available?
@@ -186,12 +195,12 @@ Is Whisper model available?
 - UTF-8 safe text processing
 
 ### 2. Audio Recording (`audio.rs`)
-- Uses `cpal` for cross-platform audio
-- Downmixes to mono
-- Resamples to 16kHz (Whisper requirement)
+- Uses `cpal` for cross-platform audio capture
+- Downmixes to mono and recenters unsigned samples
+- Resamples to 16 kHz (Whisper requirement)
 - Two resamplers:
   - High-quality: Rubato (feature-gated)
-  - Basic: Linear interpolation
+  - Basic: FIR + linear interpolation
 
 ### 3. Speech-to-Text (`stt.rs`)
 - Uses `whisper-rs` bindings
@@ -217,6 +226,14 @@ Is Whisper model available?
 - UTF-8 safe text display
 - No text wrapping (avoids ratatui bug)
 
+#### Key Bindings
+- `Ctrl+R` – start a voice capture immediately
+- `Ctrl+V` – toggle automatic voice capture after each Codex reply
+- `Enter` – send the current prompt to Codex
+- `Esc` – clear the input buffer
+- `PageUp/PageDown` or `K/J` – scroll Codex output
+- `Ctrl+C` – exit the TUI
+
 ## 🐛 Debug & Logs
 
 ### Log File Location
@@ -237,7 +254,7 @@ grep -E "(Rust pipeline|Python fallback)" /tmp/codex_voice_tui.log
 ### Performance Analysis
 ```bash
 # Run with timing logs
-./target/release/rust_tui --log-timings
+cargo run --release -- --log-timings --whisper-model-path ../models/ggml-base.en.bin
 
 # Check timings in log
 grep "timing|phase=voice_capture" /tmp/codex_voice_tui.log
@@ -259,7 +276,7 @@ grep "timing|phase=voice_capture" /tmp/codex_voice_tui.log
 ### Speed Improvements
 ```bash
 # Use tiny model (fastest)
---model ../models/ggml-tiny.en.bin
+--whisper-model-path ../models/ggml-tiny.en.bin
 
 # Reduce recording time
 --seconds 2
@@ -267,10 +284,10 @@ grep "timing|phase=voice_capture" /tmp/codex_voice_tui.log
 # Ensure release build
 cargo build --release
 
-# Use native Rust path (avoid Python)
-# (Requires Whisper model in models/)
+# Prefer native Rust path (avoid Python fallback)
+--no-python-fallback
 
-# Select best audio device
+# Select the best audio device
 --list-input-devices
 --input-device "Your Best Mic"
 ```
@@ -288,60 +305,46 @@ cargo build --release --no-default-features
 
 ### Unit Tests
 ```bash
-# Run all tests
 cargo test
-
-# With high-quality audio feature
 cargo test --features high-quality-audio
-
-# Specific test
-cargo test test_name
+cargo test voice::tests::python_fallback_returns_trimmed_transcript
 ```
 
-### Integration Test
+### Manual Integration Test
 ```bash
-# Test audio devices
-./target/release/rust_tui --list-input-devices
+# Enumerate microphones
+cargo run --release -- --list-input-devices
 
-# Test voice capture (manual)
-./target/release/rust_tui
-# Press 'v', speak, check status line
+# Full TUI + voice capture
+cargo run --release -- \
+  --seconds 5 \
+  --whisper-model-path ../models/ggml-base.en.bin
 ```
+1. Press `Ctrl+R`, speak, and confirm the transcript appears in the prompt.
+2. Press `Enter` to send it to Codex and verify the response in the output pane.
+3. Review `${TMPDIR}/codex_voice_tui.log` for `timing|phase=voice_capture` entries.
 
 ## 📊 Status Line Indicators
 
-When running the TUI, the bottom status line shows:
-
-- **"Ready"** - Waiting for input
-- **"Recording..."** - Capturing audio
-- **"Processing..."** - Transcribing speech
-- **"Rust pipeline"** - Using native Rust path (fast)
-- **"Python fallback"** - Using Python subprocess (slow)
-- **Error messages** - If something fails
-
-## 🔑 Key Bindings
-
-- `v` - Start voice capture
-- `Enter` - Send text input to Codex
-- `Tab` - Cycle between input modes
-- `↑/↓` - Scroll through history
-- `Ctrl+C` or `q` - Quit
+- **Ready. Press Ctrl+R...** – waiting for input
+- **Recording voice...** – `audio.rs` actively capturing samples
+- **Transcribing...** – Whisper inference running
+- **Rust pipeline/Python fallback** – which STT path produced the transcript
+- **Errors** – surfaced directly (e.g., microphone permissions)
 
 ## 🎯 Common Issues & Solutions
 
-### Issue: "Python fallback" (slow)
-**Solution:** Download Whisper model
-```bash
-curl -L "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.en.bin" \
-     -o models/ggml-tiny.en.bin
-```
+### "Fallback to Python pipeline" when native should work
+- Ensure `--whisper-model-path` points to an existing GGML file.
+- Check `cargo run --bin test_audio` to confirm the microphone captures anything.
 
-### Issue: No audio devices found
-**Solution:** Check permissions
-```bash
-# macOS: System Preferences → Security & Privacy → Microphone
-# Grant terminal/app microphone access
-```
+### No devices listed / permission errors
+- On macOS grant microphone permission to your terminal (System Settings → Privacy & Security → Microphone).
+- Provide a device explicitly with `--input-device` to avoid default device confusion.
+
+### Voice capture feels slow
+- Reduce `--seconds` (recording duration) until silence-aware capture lands.
+- Enable `--log-timings` and attach the log when filing performance bugs.
 
 ### Issue: Panic with large byte index
 **Solution:** Already fixed! Our patches handle:
@@ -351,9 +354,11 @@ curl -L "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.en.
 - Terminal query responses
 
 ### Issue: Slow transcription
-**Solution:** Use tiny model + shorter recording
+**Solution:** Use the tiny model + shorter recording
 ```bash
-./target/release/rust_tui --seconds 2 --model ../models/ggml-tiny.en.bin
+cargo run --release -- \
+  --seconds 2 \
+  --whisper-model-path ../models/ggml-tiny.en.bin
 ```
 
 ## 📝 Development Workflow
@@ -372,7 +377,7 @@ cargo test
 cargo build --release
 
 # 5. Test manually
-./target/release/rust_tui
+cargo run --release -- --whisper-model-path ../models/ggml-base.en.bin
 
 # 6. Check logs
 tail -f /tmp/codex_voice_tui.log
@@ -397,14 +402,16 @@ tail -f /tmp/codex_voice_tui.log
 cd rust_tui && cargo build --release
 
 # RUN
-./target/release/rust_tui
+cargo run --release -- --whisper-model-path ../models/ggml-base.en.bin
 
 # TEST VOICE
-Press 'v', speak, check status line
+Press Ctrl+R, speak, verify transcript, press Enter
 
 # CHECK LOGS
 tail -f /tmp/codex_voice_tui.log
 
-# FAST MODE
-./target/release/rust_tui --seconds 2 --model ../models/ggml-tiny.en.bin
+# FAST MODE (short capture + tiny model)
+cargo run --release -- \
+  --seconds 2 \
+  --whisper-model-path ../models/ggml-tiny.en.bin
 ```

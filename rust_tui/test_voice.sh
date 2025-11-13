@@ -4,15 +4,21 @@
 export RUST_LOG=debug
 export CODEX_LOG=1
 
-echo "Starting TUI with debug logging..."
-echo "Press 'v' to start voice capture when TUI opens"
-echo "Check debug.log for which path is used"
+LOG_FILE="${TMPDIR:-/tmp}/codex_voice_tui.log"
+MODEL_PATH=${MODEL_PATH:-../models/ggml-base.en.bin}
 
-./target/release/rust_tui --log-file debug.log 2>&1 | tee tui_output.log &
+echo "Starting TUI with debug logging..."
+echo "Press Ctrl+R to start voice capture when the TUI opens"
+echo "Check $LOG_FILE for whether the Rust or Python path was used"
+
+cargo run --release -- \
+  --log-timings \
+  ${MODEL_PATH:+--whisper-model-path "$MODEL_PATH"} \
+  "$@" 2>&1 | tee tui_output.log &
 TUI_PID=$!
 
 echo "TUI started with PID $TUI_PID"
-echo "Log will be in debug.log"
+echo "Log will be in $LOG_FILE"
 echo "Press Ctrl+C to stop monitoring"
 
 wait $TUI_PID
