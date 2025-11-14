@@ -9,7 +9,7 @@
 - Created the Earshot-aware SLA for short utterances (≤3 s speech) based on today’s measurements: conservative guardrails of `capture_ms ≤ 1.8 s` for ~1 s speech and `≤ 4.2 s` for <3 s speech (≈20 % headroom above today’s data); future perf smoke runs will adopt these thresholds.
 - Deferred config file support (documented in `ARCHITECTURE.md`) to keep Phase 2A focused on CLI exposure + benchmarks per today’s approval.
 - Logged the Phase 1 backend decision (“Option 2.5”) in `ARCHITECTURE.md`, including the full Wrapper Scope Correction + Instruction blocks to confirm SDLC alignment before coding.
-- Drafted the Phase 2B design proposal (chunked capture + overlapped STT) with three architectural options, tradeoffs, and a recommended bounded SPSC queue approach awaiting approval.
+- Authored `PHASE_2B_CORRECTED_DESIGN.md`, rejecting the earlier chunked-Whisper plan and documenting the streaming Whisper (Option B) architecture, measurement gate, fallback ladder, and approval gates required before Phase 2B coding begins.
 - Created `.github/workflows/perf_smoke.yml` (timing log enforcement) and `.github/workflows/memory_guard.yml` (backend thread cleanup loop) so CI now checks the telemetry and worker-lifecycle gates mandated by the latency plan.
 - Added `app::tests::perf_smoke_emits_timing_log` and `memory_guard_backend_threads_drop` plus the supporting backend thread counters so perf/memory guards can run deterministically in CI.
 - Implemented the `CodexBackend` trait, `BackendJob` event queue, and `CliBackend` (bounded channel + drop-oldest policy) plus the refactored `run_codex_job` emitting `BackendEventKind` streams so the UI is now decoupled from PTY/CLI details.

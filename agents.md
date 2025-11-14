@@ -77,10 +77,12 @@ Python Reference
 
 Codex must audit the following:
 - **Latency**
-  - Round-trip from voice input to Codex output should not exceed a few hundred milliseconds; 10 seconds is unacceptable.
+  - Voice processing (capture + STT) should target <750ms on CI hardware for short utterances; <2s is acceptable with good UX.
+  - Total voice→Codex round-trip includes external Codex API latency (5-30s typical) which is not under wrapper control.
+  - Voice pipeline must comply with `docs/audits/latency_remediation_plan_2025-11-12.md` and the corrected Phase 2B design (`docs/architecture/2025-11-13/PHASE_2B_CORRECTED_DESIGN.md`).
+  - Implementation requires: non-blocking audio callback, streaming mel + Whisper FFI OR cloud STT, bounded queues with drop-oldest backpressure, graded fallback ladder (streaming → batch → manual), and per-request latency metrics with CI gates.
   - Investigate race conditions, async vs sync boundaries, blocking file/log I/O, misconfigured channels, cross-thread contention, and unintended Python fallbacks.
   - Provide diagnostic logs and a performance trace for each call path.
-  - Voice pipeline must comply with `docs/audits/latency_remediation_plan_2025-11-12.md`, including: non-blocking audio callback, bounded SPSC queue (drop-oldest backpressure), enforced resource limits, state-machine lifecycle, graded fallback ladder (streaming → batch → dev-only Python → manual), and per-request latency metrics + CI SLAs.
 	2.	Architecture Goal
 	•	The wrapper must sit on top of Codex, not Codex on top of the wrapper
 	•	The wrapper extends Codex with:
