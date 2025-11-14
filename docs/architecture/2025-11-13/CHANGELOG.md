@@ -30,6 +30,7 @@
 - Ensured `cargo test --no-default-features` runs warning-free by gating unused imports and adding perf/memory guard tests that assert backend telemetry + thread counters behave as expected.
 - `App::poll_codex_job` no longer races cleared jobs vs. final events; the backend event queue drains fully, joins worker threads deterministically, and avoids the prior “worker disconnected” false-positive statuses in tests.
 - Restored Phase 1A build hygiene after the audit by importing `Ordering` under all relevant cfgs and deleting the duplicate `#![cfg(feature = "vad_earshot")]` attribute, then re-running `cargo clippy --all-features` and `cargo test --no-default-features` to confirm green builds.
+- Fixed the codex backend import ordering issue raised by CI (moved the `#[cfg(test)]` attribute directly above the `AtomicUsize` import), ran `cargo fmt`/`cargo clippy --no-default-features`, and updated both perf/memory workflows to install ALSA headers so Ubuntu runners can build `cpal`.
 
 ## Pending
 - Implementation of Earshot-based silence-aware capture and the accompanying metrics/tests.

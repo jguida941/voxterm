@@ -13,6 +13,7 @@
 - Updated the voice pipeline to call `record_with_vad`, instantiate the correct VAD engine per feature flag, and log the per-utterance metrics for future perf_smoke gating.
 - Documented and logged the rubato threshold tweak plus the new VAD wiring; changelog now tracks the code changes for Phase 2A scaffolding.
 - Closed the Phase 1A build hygiene gap: reintroduced the unconditional `Ordering` import needed by the resampler guard, removed the redundant `#![cfg(feature = "vad_earshot")]` attribute from `vad_earshot.rs`, and re-ran `cargo clippy --all-features` plus `cargo test --no-default-features` to verify the tree is green again.
+- Followed up on the CI failures noted earlier: moved the `#[cfg(test)]` gate ahead of the `AtomicUsize` import in `codex.rs`, ran `cargo fmt` + `cargo clippy --no-default-features`, and added ALSA header installation to both perf/memory workflows so Linux runners satisfy `cpal`’s `alsa-sys` dependency.
 
 ## Decisions (2025-11-13)
 ### VAD Library Selection for Phase 2A

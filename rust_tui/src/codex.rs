@@ -5,6 +5,8 @@
 
 use crate::{config::AppConfig, log_debug, pty_session::PtyCodexSession};
 use anyhow::{anyhow, Context, Result};
+#[cfg(test)]
+use std::sync::atomic::AtomicUsize;
 use std::{
     collections::{HashMap, VecDeque},
     env,
@@ -19,8 +21,6 @@ use std::{
     thread::{self, JoinHandle},
     time::{Duration, Instant},
 };
-#[cfg(test)]
-use std::sync::atomic::AtomicUsize;
 use strip_ansi_escapes::strip;
 
 /// Spinner frames used by the UI when a Codex request is inflight.
