@@ -1,6 +1,6 @@
 # Project Overview
 
-## 🎯 You Are Here
+## You Are Here
 
 - **Current Session**: 2025-11-13
 - **Latest Notes**: [`docs/architecture/2025-11-13/`](docs/architecture/2025-11-13/)
