@@ -391,46 +391,49 @@ fn start_claude_job(claude_cmd: &str, prompt: &str) -> Result<ClaudeJob, String>
 
     log_debug(&format!("Starting Claude job with prompt: {}...", &prompt[..prompt.len().min(30)]));
 
+    // Use --print with --dangerously-skip-permissions for non-interactive operation
+    // This allows file operations without permission prompts
+    // TODO: Add PTY support to show thinking/tool calls in real-time
     let mut child = Command::new(claude_cmd)
-        .arg("--print") // Non-interactive mode
-        .arg("--dangerously-skip-permissions") // Auto-approve tool use (user initiated via voice)
+        .arg("--print")
+        .arg("--dangerously-skip-permissions")
         .arg(prompt)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped()) // Capture stderr for errors
+        .stderr(Stdio::piped())
         .spawn()
         .map_err(|e| format!("Failed to start claude: {}", e))?;
 
     let stdout = child.stdout.take().ok_or("Failed to capture stdout")?;
     let stderr = child.stderr.take().ok_or("Failed to capture stderr")?;
 
-    // Spawn thread to read stdout
     let (tx, rx) = mpsc::channel();
-    let tx_clone = tx.clone();
+    let tx_err = tx.clone();
+
+    // Read stdout
     thread::spawn(move || {
         let reader = io::BufReader::new(stdout);
-        for line in reader.lines() {
-            if let Ok(line) = line {
-                if tx.send(line).is_err() {
-                    break;
-                }
+        for line in reader.lines().map_while(Result::ok) {
+            if tx.send(line).is_err() {
+                break;
             }
         }
     });
 
-    // Spawn thread to read stderr and forward as output
+    // Read stderr
     thread::spawn(move || {
         let reader = io::BufReader::new(stderr);
-        for line in reader.lines() {
-            if let Ok(line) = line {
-                if tx_clone.send(format!("[stderr] {}", line)).is_err() {
+        for line in reader.lines().map_while(Result::ok) {
+            // Only show non-empty stderr lines
+            if !line.trim().is_empty() {
+                if tx_err.send(format!("[info] {}", line)).is_err() {
                     break;
                 }
             }
         }
     });
 
-    log_debug("Claude job started successfully");
+    log_debug("Claude job started");
     Ok(ClaudeJob {
         child,
         stdout_rx: rx,

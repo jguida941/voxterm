@@ -16,7 +16,7 @@ use std::time::{Duration, Instant};
 pub struct PtyCodexSession {
     master_fd: RawFd,
     child_pid: i32,
-    output_rx: Receiver<Vec<u8>>,
+    pub output_rx: Receiver<Vec<u8>>,
     _output_thread: thread::JoinHandle<()>,
 }
 
@@ -52,14 +52,14 @@ impl PtyCodexSession {
             let (tx, rx) = bounded(100);
             let output_thread = spawn_reader_thread(master_fd, tx);
 
-            thread::sleep(Duration::from_millis(500));
-
-            Ok(Self {
+            let session = Self {
                 master_fd,
                 child_pid,
                 output_rx: rx,
                 _output_thread: output_thread,
-            })
+            };
+
+            Ok(session)
         }
     }
 
@@ -109,31 +109,33 @@ impl PtyCodexSession {
         output
     }
 
-    /// Probe whether the PTY echoes back within a tight timeout.
-    /// Drains all stale output first to avoid false positives from buffered data.
-    pub fn is_responsive(&mut self, timeout: Duration) -> bool {
-        use crate::log_debug;
+    /// Check if the PTY session is responsive by verifying the process is alive.
+    /// Note: Codex doesn't output anything until you send a prompt, so we can't
+    /// require output for health check - just verify the process started.
+    pub fn is_responsive(&mut self, _timeout: Duration) -> bool {
+        // Drain any startup output (banner, prompts, etc.) without blocking
+        let _ = self.read_output();
 
-        // Aggressively drain all stale bytes to avoid false positives
-        for _ in 0..5 {
-            if self.read_output().is_empty() {
-                break;
-            }
-            std::thread::sleep(Duration::from_millis(10));
-        }
-
-        // Just check if the process is alive - don't send prompts that pollute the session
-        // Any actual prompt sent here becomes permanent conversation history
-        let is_alive = self.is_alive();
-        if !is_alive {
+        if !self.is_alive() {
             log_debug("PTY health check: process not alive");
             return false;
         }
 
-        // Process is alive - that's sufficient for health check
-        // We can't test responsiveness without polluting the conversation
         log_debug("PTY health check: process alive, assuming responsive");
         true
+    }
+
+    /// Wait up to `timeout` for at least one output chunk, then drain any remaining bytes.
+    pub fn wait_for_output(&self, timeout: Duration) -> Vec<Vec<u8>> {
+        let mut output = Vec::new();
+        match self.output_rx.recv_timeout(timeout) {
+            Ok(chunk) => {
+                output.push(chunk);
+                output.extend(self.read_output());
+            }
+            Err(_) => {}
+        }
+        output
     }
 
     /// Peek whether the child is still running (without reaping it).
@@ -188,12 +190,20 @@ unsafe fn spawn_codex_child(
 ) -> Result<(RawFd, i32)> {
     let mut master_fd: RawFd = -1;
     let mut slave_fd: RawFd = -1;
+
+    // Set a proper terminal size - codex checks this for terminal detection
+    let mut winsize: libc::winsize = mem::zeroed();
+    winsize.ws_row = 24;
+    winsize.ws_col = 80;
+    winsize.ws_xpixel = 0;
+    winsize.ws_ypixel = 0;
+
     if libc::openpty(
         &mut master_fd,
         &mut slave_fd,
         ptr::null_mut(),
         ptr::null_mut(),
-        ptr::null_mut(),
+        &mut winsize,
     ) != 0
     {
         return Err(errno_error("openpty failed"));
@@ -421,7 +431,23 @@ fn respond_to_terminal_queries(buffer: &mut Vec<u8>, master_fd: RawFd) {
 }
 
 fn should_strip_without_reply(params: &[u8], final_byte: u8) -> bool {
-    final_byte == b'u' && (params.starts_with(b"?") || params.starts_with(b">"))
+    // Strip keyboard protocol queries (Kitty keyboard protocol)
+    if final_byte == b'u' && (params.starts_with(b"?") || params.starts_with(b">")) {
+        return true;
+    }
+    // Strip mode set/reset sequences (h/l) - these don't need responses
+    // Examples: ?2004h (bracketed paste), ?1004h (focus events), ?25h (cursor visible)
+    if (final_byte == b'h' || final_byte == b'l') && params.starts_with(b"?") {
+        return true;
+    }
+    // Strip cursor movement and styling sequences
+    if matches!(
+        final_byte,
+        b'A' | b'B' | b'C' | b'D' | b'H' | b'J' | b'K' | b'm' | b'r'
+    ) {
+        return true;
+    }
+    false
 }
 
 fn csi_reply(params: &[u8], final_b: u8, rows: u16, cols: u16) -> Option<Vec<u8>> {
