@@ -1,6 +1,6 @@
 use anyhow::Result;
 use rust_tui::{
-    audio::Recorder, config::AppConfig, init_debug_log_file, log_debug, log_file_path, ui, App,
+    audio::Recorder, config::AppConfig, init_debug_log_file, ipc, log_debug, log_file_path, ui, App,
 };
 
 fn main() -> Result<()> {
@@ -10,10 +10,19 @@ fn main() -> Result<()> {
     log_debug(&format!("Log file: {log_path:?}"));
 
     let config = AppConfig::parse_args()?;
+
     if config.list_input_devices {
         list_input_devices()?;
         return Ok(());
     }
+
+    // Run in JSON IPC mode for external UI integration
+    if config.json_ipc {
+        log_debug("Running in JSON IPC mode");
+        return ipc::run_ipc_mode(config);
+    }
+
+    // Normal TUI mode
     let mut app = App::new(config);
     let result = ui::run_app(&mut app);
 

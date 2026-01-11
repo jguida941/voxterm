@@ -222,11 +222,7 @@ fn measure_single_run(
             codex_output.chars().take(100).collect::<String>()
         );
 
-        (
-            Some(codex_elapsed_ms),
-            codex_output.len(),
-            total_elapsed_ms,
-        )
+        (Some(codex_elapsed_ms), codex_output.len(), total_elapsed_ms)
     };
 
     Ok(LatencyMeasurement {
@@ -314,11 +310,7 @@ fn measure_synthetic_run(
 
         eprintln!("Codex complete: {} ms", codex_elapsed_ms);
 
-        (
-            Some(codex_elapsed_ms),
-            codex_output.len(),
-            total_elapsed_ms,
-        )
+        (Some(codex_elapsed_ms), codex_output.len(), total_elapsed_ms)
     };
 
     Ok(LatencyMeasurement {
@@ -519,7 +511,10 @@ fn print_analysis(measurements: &[LatencyMeasurement], voice_only: bool) {
 
             println!("\nRecommendations:");
             if codex_pct > 70.0 {
-                println!("  ⚠️  Codex API is the primary bottleneck ({:.1}%)", codex_pct);
+                println!(
+                    "  ⚠️  Codex API is the primary bottleneck ({:.1}%)",
+                    codex_pct
+                );
                 println!(
                     "  → Voice optimization (Phase 2B) would save <{:.0}% of total latency",
                     voice_pct

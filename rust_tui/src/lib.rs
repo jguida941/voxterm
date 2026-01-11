@@ -1,6 +1,7 @@
 pub mod audio;
 pub mod codex;
 pub mod config;
+pub mod ipc;
 pub mod pty_session;
 pub mod stt;
 pub mod ui;

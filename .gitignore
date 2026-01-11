@@ -23,9 +23,6 @@ ts_cli/node_modules/
 ts_cli/dist/
 node_modules/
 
-# macOS App Bundle (build artifact)
-Codex Voice.app/
-
 # Audio/Media
 *.wav
 *.mp3

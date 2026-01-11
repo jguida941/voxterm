@@ -1,82 +1,132 @@
-# Codex Voice TUI
+# Codex Voice Backend
 
-Rust terminal UI that wraps the Codex Voice pipeline. It mirrors the Python prototype but uses `ratatui` + `crossterm` for rendering, `cpal` for cross‑platform audio capture, and `whisper-rs` for local STT. The app keeps a persistent Codex PTY session so tool calls and shell state survive between prompts, while falling back to the original Python pipeline any time native capture or transcription fails.
+Rust backend for Codex Voice - handles audio capture, speech-to-text, and provider communication.
 
-## Features
+## Role
 
-- Persistent PTY-backed Codex session with full terminal emulation
-- Optional high-quality resampling powered by `rubato`
-- Local Whisper transcription with transparent Python fallback
-- Scrollback-limited TUI with keyboard shortcuts for sending prompts, paging, and toggling voice capture
-- Structured logging (`log_timings`, `log_debug`) for performance investigations
+This is the **backend** component that:
+- Captures audio via CPAL
+- Transcribes speech using Whisper
+- Communicates with Codex/Claude CLIs
+- Exposes a JSON-IPC interface for the TypeScript frontend
 
-## Quick Start
+## Building
 
 ```bash
 cd rust_tui
-cargo run -- --seconds 5 --lang en --codex-cmd codex
+cargo build --release
 ```
 
-Helpful flags (run `cargo run -- --help` for the full list):
+The binary is at `target/release/rust_tui`.
 
-| Flag | Purpose |
-| ---- | ------- |
-| `--input-device` | Force a specific microphone instead of the OS default |
-| `--list-input-devices` | Print detected microphones and exit without launching the TUI |
-| `--no-persistent-codex` | Disable the PTY session and spawn Codex per prompt |
-| `--codex-arg <ARG>` | Forward extra flags to the Codex CLI (validated/size-limited) |
-| `--whisper-model-path <PATH>` | Point at a local ggml model (auto-detected from `../models/` otherwise) |
-| `--ffmpeg-device <NAME>` | Override the device passed to the Python recorder |
-| `--log-timings` | Emit timing summaries to `~/.cache/codex_voice_tui.log` |
+## Usage
 
-### Voice Capture Flow
+### As IPC Backend (Primary Mode)
 
-1. Recorder (`audio::Recorder`) captures raw PCM via `cpal` and down-mixes/ resamples to 16 kHz mono.
-2. `stt::Transcriber` loads Whisper (once) and transcribes the samples on a background thread.
-3. Failures or missing components fall back to `codex_voice.py`, which streams JSON back into the TUI.
-4. Prompts go through the PTY session (`pty_session::PtyCodexSession`) when `--persistent-codex` is enabled; otherwise we spawn `codex exec -`.
-
-### Keyboard Shortcuts (default bindings)
-
-- `Enter` – send typed prompt
-- `Ctrl+R` – start voice capture immediately
-- `Ctrl+V` – toggle automatic capture after each Codex response
-- `PageUp/PageDown` or `K/J` – scroll the Codex output window
-- `Esc` – clear input
-
-## Project Layout
-
-| Module | Responsibility |
-| ------ | -------------- |
-| `src/app.rs` | Core App state + event handlers shared by UI + worker threads |
-| `src/ui.rs` | `ratatui` widgets and layout |
-| `src/audio.rs` | Device discovery, capture, and (optional) high-quality resampling |
-| `src/stt.rs` | Whisper wrapper with stderr suppression |
-| `src/voice.rs` | Voice job orchestration and fallback management |
-| `src/pty_session.rs` | Unsafe PTY glue that manages the Codex child process |
-
-Run `cargo doc --open` for rustdoc on all modules; most public APIs have usage notes inline.
-
-## Development Workflow
+Used by the TypeScript CLI:
 
 ```bash
-# Format + lint
-cargo fmt
-cargo clippy --workspace --all-features
-
-# Run the full suite (unit tests live inside modules)
-cargo test
+./target/release/rust_tui --json-ipc
 ```
 
-Some tests mock OS interactions (e.g., PTY escape handling) but anything that touches real audio hardware is exercised through the CLI rather than unit tests.
+Communicates via JSON-lines on stdin/stdout.
+
+### Standalone TUI Mode
+
+Can also run as a standalone terminal UI:
+
+```bash
+cargo run --release -- --seconds 5 --whisper-model-path ../models/ggml-base.en.bin
+```
+
+## CLI Options
+
+| Flag | Purpose |
+|------|---------|
+| `--json-ipc` | Run in IPC mode (for TypeScript frontend) |
+| `--whisper-model-path <PATH>` | Path to Whisper GGML model |
+| `--codex-cmd <CMD>` | Path to Codex CLI [default: codex] |
+| `--persistent-codex` | Enable PTY session for Codex |
+| `--input-device <NAME>` | Preferred audio input device |
+| `--list-input-devices` | Print available devices and exit |
+| `--log-timings` | Emit timing summaries to log file |
+
+Run `cargo run -- --help` for full list.
+
+## IPC Protocol
+
+### Commands (TypeScript → Rust)
+
+```json
+{"cmd": "send_prompt", "prompt": "hello", "provider": "claude"}
+{"cmd": "start_voice"}
+{"cmd": "set_provider", "provider": "codex"}
+{"cmd": "cancel"}
+{"cmd": "auth", "provider": "codex"}
+```
+
+### Events (Rust → TypeScript)
+
+```json
+{"event": "capabilities", "mic_available": true, "whisper_model_loaded": true, ...}
+{"event": "token", "text": "Hello there!"}
+{"event": "job_start", "provider": "claude"}
+{"event": "job_end", "provider": "claude", "success": true}
+{"event": "voice_start"}
+{"event": "transcript", "text": "user said this", "duration_ms": 1200}
+{"event": "error", "message": "...", "recoverable": true}
+```
+
+## Architecture
+
+```
+src/
+├── main.rs          # Entry point, CLI parsing
+├── lib.rs           # Module exports
+├── ipc.rs           # JSON-IPC protocol handler
+├── codex.rs         # Codex backend (PTY + CLI modes)
+├── voice.rs         # Voice capture orchestration
+├── audio.rs         # CPAL recording, VAD
+├── stt.rs           # Whisper transcription
+├── pty_session.rs   # Unix PTY wrapper
+├── config.rs        # Configuration and validation
+├── ui.rs            # TUI rendering (standalone mode)
+└── app.rs           # TUI state machine (standalone mode)
+```
+
+## Providers
+
+### Claude
+
+Uses `claude --print <prompt>` for simple, non-interactive responses.
+
+### Codex
+
+Two modes:
+- **CLI mode** (default): `codex exec - -C <dir>` per prompt
+- **PTY mode** (`--persistent-codex`): Persistent pseudo-terminal session
+
+## Development
+
+```bash
+# Format
+cargo fmt
+
+# Lint
+cargo clippy --all-features
+
+# Test
+cargo test
+
+# Generate docs
+cargo doc --open
+```
 
 ## Troubleshooting
 
-- **`no samples captured`** – ensure microphone permissions are granted, or pass `--input-device` to pick the right device.
-- **Whisper model not found** – either drop a ggml model into `../models/` or pass both `--whisper-model` and `--whisper-model-path`.
-- **Codex command fails** – verify `--codex-cmd` is executable and that any repeated `--codex-arg` values are listed in the allowlist; the CLI validates paths and byte limits up front.
-- **PTY session issues** – use `--no-persistent-codex` to fall back to one-off processes while debugging, or inspect `$(mktemp)/codex_voice_tui.log` for the PTY logs.
+- **No audio captured**: Check microphone permissions, try `--list-input-devices`
+- **Whisper model not found**: Ensure model exists at specified path
+- **Provider not responding**: Verify CLI is installed and authenticated
+- **PTY issues**: Try without `--persistent-codex`
 
-## CI Expectations
-
-The repository uses `cargo fmt`, `cargo clippy --all-features`, and `cargo test` as the baseline gates. See `.github/workflows/rust_tui.yml` for the exact command matrix.
+Logs are written to `$TMPDIR/codex_voice_tui.log`.

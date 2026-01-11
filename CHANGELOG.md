@@ -4,6 +4,31 @@ All notable changes to this project will be documented here, following the SDLC 
 
 ## [Unreleased]
 
+### PTY Readiness + Auth Flow (2026-01-11) - COMPLETE
+- **PTY readiness handshake**: wait for initial output and fail fast when only control output appears, preventing 20-30s stalls on persistent sessions.
+- **/auth login flow**: new IPC command + wrapper command runs provider login via /dev/tty, with auth_start/auth_end events and raw mode suspension in TS.
+- **Output delivery fix**: Codex Finished output is delivered even if the worker signal channel disconnects.
+- **CI/testing updates**: added `mutation-testing.yml` and extended integration test coverage for the auth command.
+
+### Provider-Agnostic Backend + TypeScript CLI (2026-01-10) - COMPLETE
+- **Implemented provider-agnostic backend**: `rust_tui/src/ipc.rs` rewritten with non-blocking event loop, supporting both Codex and Claude CLIs with full slash-command parity.
+- **TypeScript CLI functional**: `ts_cli/` contains thin wrapper with ANSI art banner, Ctrl+R voice capture, provider switching, and full IPC integration.
+- **Rust IPC mode**: `--json-ipc` flag enables JSON-lines protocol with capability handshake on startup.
+- **All critical bugs fixed**:
+  - IPC no longer blocks during job processing (stdin reader thread)
+  - Codex/Claude output streams to TypeScript
+  - Ctrl+R wired for voice capture (raw mode)
+  - Unknown `/` commands forwarded to provider
+- **New features**:
+  - Capability handshake with full system info (`capabilities` event)
+  - Session-level provider switching (`/provider claude`)
+  - One-off provider commands (`/codex <prompt>`, `/claude <prompt>`)
+  - Setup script for Whisper model download (`scripts/setup.sh`)
+- **Test coverage**:
+  - 18 unit tests for provider routing and IPC protocol
+  - 12 integration tests for end-to-end flow
+  - All tests passing
+
 ### CRITICAL - Phase 2B Design Correction (2025-11-13 Evening)
 - **Rejected original Phase 2B "chunked Whisper" proposal (Option A)** after identifying fatal architectural flaw: sequential chunk transcription provides NO latency improvement (capture + Σchunks often slower than capture + single_batch). Original proposal would have wasted weeks implementing slower approach.
 - **Documented corrected design** in `docs/architecture/2025-11-13/PHASE_2B_CORRECTED_DESIGN.md` specifying streaming mel + Whisper FFI architecture (Option B) as only viable path to <750ms voice latency target. User confirmed requirement: "we need to do option 2 i want it to be responsive not slow".

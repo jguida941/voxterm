@@ -27,10 +27,10 @@ use strip_ansi_escapes::strip;
 pub const CODEX_SPINNER_FRAMES: &[char] = &['-', '\\', '|', '/'];
 // Codex is an AI that takes seconds to respond, not milliseconds
 // These timeouts must be realistic for AI response times
-const PTY_FIRST_BYTE_TIMEOUT_MS: u64 = 10000;  // 10s for first byte (was 150ms)
-const PTY_OVERALL_TIMEOUT_MS: u64 = 30000;     // 30s overall (was 500ms)
-const PTY_QUIET_GRACE_MS: u64 = 2000;          // 2s quiet period (was 350ms)
-const PTY_HEALTHCHECK_TIMEOUT_MS: u64 = 5000;  // 5s health check (was 2000ms)
+const PTY_FIRST_BYTE_TIMEOUT_MS: u64 = 3000; // 3s for first byte - fail fast if PTY not working
+const PTY_OVERALL_TIMEOUT_MS: u64 = 60000; // 60s overall for long responses
+const PTY_QUIET_GRACE_MS: u64 = 2000; // 2s quiet period (was 350ms)
+const PTY_HEALTHCHECK_TIMEOUT_MS: u64 = 5000; // 5s health check (was 2000ms)
 const BACKEND_EVENT_CAPACITY: usize = 1024;
 
 /// Unique identifier for Codex requests routed through the backend.
@@ -326,12 +326,20 @@ impl CliBackend {
 
     fn ensure_codex_session(&self, state: &mut CliBackendState) -> Result<()> {
         let working_dir = self.working_dir.clone();
-        log_debug(&format!("Attempting to create PTY session with codex_cmd={}, working_dir={}",
-            self.config.codex_cmd, working_dir.to_str().unwrap_or(".")));
+        let wd_str = working_dir.to_str().unwrap_or(".");
+        log_debug(&format!(
+            "Attempting to create PTY session with codex_cmd={}, working_dir={}",
+            self.config.codex_cmd, wd_str
+        ));
+
+        // Build args with -C flag for working directory
+        let mut pty_args = vec!["-C".to_string(), wd_str.to_string()];
+        pty_args.extend(self.config.codex_args.clone());
+
         match PtyCodexSession::new(
             &self.config.codex_cmd,
-            working_dir.to_str().unwrap_or("."),
-            &self.config.codex_args,
+            wd_str,
+            &pty_args,
             &self.config.term_value,
         ) {
             Ok(mut session) => {
@@ -427,6 +435,12 @@ impl CliBackend {
     fn cleanup_job(registry: Arc<Mutex<HashMap<JobId, CancelToken>>>, job_id: JobId) {
         let mut registry = registry.lock().unwrap();
         registry.remove(&job_id);
+    }
+
+    /// Drop the cached PTY session so the next request can re-establish state.
+    pub fn reset_session(&self) {
+        let mut state = self.state.lock().unwrap();
+        state.codex_session = None;
     }
 
     fn restore_static_state(
@@ -631,11 +645,8 @@ fn run_codex_job(
     stats.bytes_transferred = output_text.len();
     stats.disable_pty = outcome.disable_pty;
 
-    let sanitized_output = if outcome.codex_session.is_some() && config.persistent_codex {
-        output_text
-    } else {
-        sanitize_pty_output(output_text.as_bytes())
-    };
+    // Always sanitize output - PTY has control chars, CLI is already clean (sanitize is no-op)
+    let sanitized_output = sanitize_pty_output(output_text.as_bytes());
     let sanitized_lines = prepare_for_display(&sanitized_output);
     let mut lines = Vec::with_capacity(sanitized_lines.len() + 4);
     let prompt_line = format!("> {}", prompt.trim());
@@ -675,45 +686,17 @@ fn call_codex_cli(
     working_dir: &Path,
     cancel: &CancelToken,
 ) -> Result<String, CodexCallError> {
-    // Skip broken Python PTY helper - use direct CLI invocation
-    // The helper fails because codex checks if stdout is a TTY before we can attach the PTY
-    // Persistent PTY (PtyCodexSession) is the proper solution
-
-    // Primary fallback: interactive Codex invocation
-    let mut interactive_cmd = Command::new(&config.codex_cmd);
-    interactive_cmd
-        .args(&config.codex_args)
-        .arg("-C")
-        .arg(working_dir)
-        .env("TERM", &config.term_value)
-        .env("CODEX_NONINTERACTIVE", "1")
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
-
-    let interactive_output =
-        spawn_with_cancel(interactive_cmd, Some(prompt), cancel).map_err(|err| match err {
-            CodexCallError::Cancelled => CodexCallError::Cancelled,
-            CodexCallError::Failure(e) => CodexCallError::Failure(
-                e.context(format!("failed to spawn interactive {}", config.codex_cmd)),
-            ),
-        })?;
-
-    if interactive_output.status.success() {
-        return Ok(String::from_utf8_lossy(&interactive_output.stdout).to_string());
-    }
-
-    let interactive_stderr = String::from_utf8_lossy(&interactive_output.stderr).to_string();
-
-    // Last resort: codex exec -
+    // Use codex exec - directly (most reliable non-PTY path)
+    // The interactive mode (codex -C ...) always fails with "stdin is not a terminal"
+    // so we skip it to reduce latency
     let mut exec_cmd = Command::new(&config.codex_cmd);
     exec_cmd
         .arg("exec")
+        .arg("-") // Read from stdin - must be right after "exec"
         .arg("-C")
         .arg(working_dir)
         .args(&config.codex_args)
         .env("TERM", &config.term_value)
-        .arg("-")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
@@ -731,11 +714,7 @@ fn call_codex_cli(
     }
 
     Err(CodexCallError::Failure(anyhow!(
-        "All codex invocation methods failed:\n\
-           PTY Helper: Check if scripts/run_in_pty.py exists\n\
-           Interactive: {}\n\
-           Exec mode: {}",
-        interactive_stderr.trim(),
+        "codex exec failed: {}",
         String::from_utf8_lossy(&exec_output.stderr).trim()
     )))
 }
@@ -754,41 +733,61 @@ fn call_codex_via_session(
     let overall_timeout = Duration::from_millis(PTY_OVERALL_TIMEOUT_MS);
     let first_output_deadline = start_time + Duration::from_millis(PTY_FIRST_BYTE_TIMEOUT_MS);
     let quiet_grace = Duration::from_millis(PTY_QUIET_GRACE_MS);
-    let mut last_progress = Instant::now();
-    let mut last_len = 0usize;
+    let control_only_timeout = Duration::from_millis(5000); // 5s max if only control sequences
+    let mut last_printable_output = start_time;
+    let mut first_raw_output: Option<Instant> = None;
+    let mut last_raw_output = start_time;
 
     loop {
         if cancel.is_cancelled() {
             return Err(CodexCallError::Cancelled);
         }
 
-        // Use 50ms polling interval (much smaller than overall timeout)
+        // Use 50ms polling interval
         let output_chunks = session.read_output_timeout(Duration::from_millis(50));
         for chunk in output_chunks {
-            // Removed excessive debug logging - was writing 100k+ lines per request
             combined_raw.extend_from_slice(&chunk);
-            last_progress = Instant::now();
+            last_raw_output = Instant::now();
+            if first_raw_output.is_none() {
+                first_raw_output = Some(last_raw_output);
+            }
         }
+
+        let now = Instant::now();
 
         if !combined_raw.is_empty() {
             let sanitized = sanitize_pty_output(&combined_raw);
-            if sanitized.len() != last_len {
-                last_len = sanitized.len();
-                last_progress = Instant::now();
+            let has_printable = !sanitized.trim().is_empty();
+
+            if has_printable {
+                last_printable_output = now;
             }
-            // Removed excessive debug logging that writes 500k+ lines per request
-            let idle = Instant::now().duration_since(last_progress);
-            if !sanitized.trim().is_empty() && idle >= quiet_grace {
+
+            let idle_since_raw = now.duration_since(last_raw_output);
+            let idle_since_printable = now.duration_since(last_printable_output);
+
+            // Success: got printable output and no new data for quiet_grace period
+            if has_printable && idle_since_raw >= quiet_grace {
                 return Ok(sanitized);
             }
-            if idle >= overall_timeout {
-                if sanitized.trim().is_empty() {
-                    break;
+
+            // Fail fast: raw output but no printable content for control_only_timeout
+            if !has_printable && idle_since_printable >= control_only_timeout {
+                log_debug("Persistent Codex session produced only control sequences; falling back");
+                return Err(CodexCallError::Failure(anyhow!(
+                    "persistent Codex session produced no printable output"
+                )));
+            }
+
+            // Overall timeout with output
+            if now.duration_since(start_time) >= overall_timeout {
+                if has_printable {
+                    return Ok(sanitized);
                 }
-                return Ok(sanitized);
+                break;
             }
         } else {
-            let now = Instant::now();
+            // No output yet - check first byte timeout
             if now >= first_output_deadline {
                 log_debug(&format!(
                     "Persistent Codex session produced no output within {PTY_FIRST_BYTE_TIMEOUT_MS}ms; falling back"
@@ -956,18 +955,23 @@ fn normalize_control_bytes(raw: &[u8]) -> Vec<u8> {
             0x1B => {
                 if let Some(next) = raw.get(idx + 1) {
                     if *next == b']' {
+                        // Skip OSC sequences entirely
                         idx = skip_osc_sequence(raw, idx + 2);
                         continue;
                     } else if *next == b'[' {
-                        if let Some((end, final_byte)) = find_csi_sequence(raw, idx) {
-                            if final_byte == b'm' {
-                                idx = end + 1;
-                                continue;
-                            }
-                            output.extend_from_slice(raw.get(idx..=end).unwrap_or(&[]));
+                        // Skip ALL CSI sequences - don't preserve any
+                        if let Some((end, _final_byte)) = find_csi_sequence(raw, idx) {
                             idx = end + 1;
                             continue;
                         }
+                    } else if *next == b'(' || *next == b')' {
+                        // Skip character set designation sequences (ESC ( or ESC ))
+                        idx += 3;
+                        continue;
+                    } else if *next == b'>' || *next == b'=' {
+                        // Skip keypad mode sequences
+                        idx += 2;
+                        continue;
                     }
                 }
                 output.push(raw[idx]);

@@ -1,0 +1,25 @@
+#!/bin/bash
+#
+# Codex Voice App Launcher
+# Opens Terminal and runs the CLI
+#
+
+SCRIPT_DIR="$(cd "$(dirname "$0")/../../.." && pwd)"
+
+# Ask user to select a project folder
+PROJECT_DIR=$(osascript -e 'tell application "System Events"
+    activate
+    set selectedFolder to choose folder with prompt "Select your project folder:" default location (path to home folder)
+    return POSIX path of selectedFolder
+end tell' 2>/dev/null)
+
+# If user cancelled, exit
+if [ -z "$PROJECT_DIR" ]; then
+    exit 0
+fi
+
+# Open Terminal and run the CLI in the selected project folder
+osascript -e "tell application \"Terminal\"
+    activate
+    do script \"cd '$PROJECT_DIR' && '$SCRIPT_DIR/start.sh'\"
+end tell"
