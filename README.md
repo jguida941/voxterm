@@ -117,8 +117,8 @@ Claude: I'll help you add that feature...
 
 ```
 ┌─────────────────┐     JSON-IPC      ┌─────────────────┐
-│  TypeScript CLI │ ◄──────────────► │   Rust Backend   │
-│   (ts_cli/)     │                   │   (rust_tui/)    │
+│  TypeScript CLI │ ◄──────────────►  │   Rust Backend  │
+│   (ts_cli/)     │                   │   (rust_tui/)   │
 └─────────────────┘                   └─────────────────┘
         │                                     │
         │                              ┌──────┴──────┐
