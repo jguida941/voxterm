@@ -29,7 +29,8 @@ const ISO_639_1_CODES: &[&str] = &[
 ];
 // FFmpeg devices are passed to the shell, so strip characters that would let users sneak commands in.
 const FORBIDDEN_DEVICE_CHARS: &[char] = &[';', '|', '&', '$', '`', '<', '>', '\\', '\'', '"'];
-const DEFAULT_PIPELINE_SCRIPT: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../scripts/codex_voice.py");
+const DEFAULT_PIPELINE_SCRIPT: &str =
+    concat!(env!("CARGO_MANIFEST_DIR"), "/../scripts/codex_voice.py");
 // PTY helper removed - using native Rust PtyCodexSession instead
 
 /// CLI options for the Codex Voice TUI. Validated values keep downstream subprocesses safe.

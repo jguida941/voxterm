@@ -389,7 +389,10 @@ fn spawn_stdin_reader(tx: Sender<IpcCommand>) -> thread::JoinHandle<()> {
 fn start_claude_job(claude_cmd: &str, prompt: &str) -> Result<ClaudeJob, String> {
     use std::process::{Command, Stdio};
 
-    log_debug(&format!("Starting Claude job with prompt: {}...", &prompt[..prompt.len().min(30)]));
+    log_debug(&format!(
+        "Starting Claude job with prompt: {}...",
+        &prompt[..prompt.len().min(30)]
+    ));
 
     // Use --print with --dangerously-skip-permissions for non-interactive operation
     // This allows file operations without permission prompts
@@ -579,7 +582,11 @@ pub fn run_ipc_mode(config: AppConfig) -> Result<()> {
     loop {
         loop_count += 1;
         if loop_count % 1000 == 0 {
-            log_debug(&format!("IPC loop iteration {}, job active: {}", loop_count, state.current_job.is_some()));
+            log_debug(&format!(
+                "IPC loop iteration {}, job active: {}",
+                loop_count,
+                state.current_job.is_some()
+            ));
         }
 
         // Check for new commands (non-blocking)
@@ -1054,7 +1061,10 @@ fn process_claude_events(job: &mut ClaudeJob, cancelled: bool) -> bool {
     // Check for stdout output
     match job.stdout_rx.try_recv() {
         Ok(line) => {
-            log_debug(&format!("Claude job: got line: {}", &line[..line.len().min(50)]));
+            log_debug(&format!(
+                "Claude job: got line: {}",
+                &line[..line.len().min(50)]
+            ));
             send_event(&IpcEvent::Token {
                 text: format!("{}\n", line),
             });
@@ -1064,7 +1074,10 @@ fn process_claude_events(job: &mut ClaudeJob, cancelled: bool) -> bool {
             // Check if process has exited
             match job.child.try_wait() {
                 Ok(Some(status)) => {
-                    log_debug(&format!("Claude job: process exited with status {:?}", status));
+                    log_debug(&format!(
+                        "Claude job: process exited with status {:?}",
+                        status
+                    ));
                     send_event(&IpcEvent::JobEnd {
                         provider: "claude".to_string(),
                         success: status.success(),
@@ -1092,7 +1105,10 @@ fn process_claude_events(job: &mut ClaudeJob, cancelled: bool) -> bool {
             // stdout closed, check if process has exited (non-blocking)
             match job.child.try_wait() {
                 Ok(Some(status)) => {
-                    log_debug(&format!("Claude job: process already exited with {:?}", status));
+                    log_debug(&format!(
+                        "Claude job: process already exited with {:?}",
+                        status
+                    ));
                     send_event(&IpcEvent::JobEnd {
                         provider: "claude".to_string(),
                         success: status.success(),
