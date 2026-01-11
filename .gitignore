@@ -78,6 +78,10 @@ credentials.json
 *.key
 *.cert
 
+# Legacy scripts and binaries
+/test
+/voice
+
 # Internal development docs
 PROJECT_OVERVIEW.md
 master_index.md
