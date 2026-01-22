@@ -21,7 +21,9 @@ cd /path/to/codex-voice
 
 If `codex-voice` is not found, the installer used the first writable directory in this order:
 `/opt/homebrew/bin`, `/usr/local/bin`, `~/.local/bin`, or `/path/to/codex-voice/bin`. Add that
-directory to PATH or set `CODEX_VOICE_INSTALL_DIR` before running `./install.sh`.
+directory to PATH or set `CODEX_VOICE_INSTALL_DIR` before running `./install.sh`. If a
+`codex-voice` command already exists (npm/brew), the installer skips that location; uninstall it
+or set `CODEX_VOICE_INSTALL_DIR` to override.
 
 ## 3) Run from any project
 

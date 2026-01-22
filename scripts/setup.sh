@@ -8,7 +8,18 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-MODELS_DIR="$PROJECT_ROOT/models"
+DEFAULT_MODELS_DIR="$PROJECT_ROOT/models"
+FALLBACK_MODELS_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/codex-voice/models"
+
+if [ -n "${CODEX_VOICE_MODEL_DIR:-}" ]; then
+    MODELS_DIR="$CODEX_VOICE_MODEL_DIR"
+else
+    if mkdir -p "$DEFAULT_MODELS_DIR" 2>/dev/null && [ -w "$DEFAULT_MODELS_DIR" ]; then
+        MODELS_DIR="$DEFAULT_MODELS_DIR"
+    else
+        MODELS_DIR="$FALLBACK_MODELS_DIR"
+    fi
+fi
 
 # Colors for output
 RED='\033[0;31m'
@@ -218,26 +229,49 @@ build_typescript_cli() {
 
 install_wrapper() {
     local install_dir=""
+    local wrapper_path=""
 
     if [ -n "${CODEX_VOICE_INSTALL_DIR:-}" ]; then
         install_dir="$CODEX_VOICE_INSTALL_DIR"
+        wrapper_path="$install_dir/codex-voice"
     else
-        if [ -d "/opt/homebrew/bin" ] && [ -w "/opt/homebrew/bin" ]; then
-            install_dir="/opt/homebrew/bin"
-        elif [ -d "/usr/local/bin" ] && [ -w "/usr/local/bin" ]; then
-            install_dir="/usr/local/bin"
-        elif mkdir -p "$HOME/.local/bin" 2>/dev/null && [ -w "$HOME/.local/bin" ]; then
-            install_dir="$HOME/.local/bin"
-        elif mkdir -p "$PROJECT_ROOT/bin" 2>/dev/null && [ -w "$PROJECT_ROOT/bin" ]; then
-            install_dir="$PROJECT_ROOT/bin"
-        else
-            print_error "No writable install directory found."
-            print_warning "Set CODEX_VOICE_INSTALL_DIR to a writable path and rerun."
-            return 1
-        fi
+        local candidates=(
+            "/opt/homebrew/bin"
+            "/usr/local/bin"
+            "$HOME/.local/bin"
+            "$PROJECT_ROOT/bin"
+        )
+
+        for candidate in "${candidates[@]}"; do
+            if mkdir -p "$candidate" 2>/dev/null && [ -w "$candidate" ]; then
+                local candidate_path="$candidate/codex-voice"
+                if [ -e "$candidate_path" ]; then
+                    case "$candidate" in
+                        "$HOME/.local/bin"|"$PROJECT_ROOT/bin")
+                            install_dir="$candidate"
+                            wrapper_path="$candidate_path"
+                            break
+                            ;;
+                        *)
+                            print_warning "Found existing $candidate_path; skipping."
+                            continue
+                            ;;
+                    esac
+                fi
+                install_dir="$candidate"
+                wrapper_path="$candidate_path"
+                break
+            fi
+        done
     fi
 
-    local wrapper_path="$install_dir/codex-voice"
+    if [ -z "$install_dir" ]; then
+        print_error "No writable install directory found."
+        print_warning "Set CODEX_VOICE_INSTALL_DIR to a writable path and rerun."
+        return 1
+    fi
+
+    wrapper_path="${wrapper_path:-$install_dir/codex-voice}"
 
     print_step "Installing codex-voice wrapper into $install_dir"
 
