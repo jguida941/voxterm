@@ -4,6 +4,16 @@ All notable changes to this project will be documented here, following the SDLC 
 
 ## [Unreleased]
 
+### Rust Overlay Mode + Packaging (2026-01-22) - COMPLETE
+- **Added Rust overlay mode**: new `codex_overlay` binary runs Codex in a PTY, forwards raw ANSI output, and injects voice transcripts as keystrokes.
+- **Prompt-aware auto-voice**: prompt detection with idle fallback plus configurable regex overrides for auto-voice triggering.
+- **Serialized output writer**: PTY output + status line rendering go through a single writer thread to avoid terminal corruption.
+- **PTY passthrough improvements**: new raw PTY session that answers DSR/DA queries without stripping ANSI.
+- **Resizing support**: SIGWINCH handling updates PTY size and keeps the overlay stable.
+- **Startup/launcher updates**: `start.sh` now defaults to overlay, ensures a Whisper model exists, and passes `--whisper-model-path`; macOS app launcher now uses overlay mode.
+- **Docs refresh**: new `ARCHITECTURE.md` with detailed Rust-only diagrams and flows; README expanded with install paths, commands, and Homebrew instructions.
+- **Repo hygiene**: `docs/architecture`, `docs/archive`, and `docs/references` are now ignored by git and removed from the tracked set.
+
 ### Project Cleanup + macOS Launcher (2026-01-11) - COMPLETE
 - **Added macOS app launcher**: `Codex Voice.app` now in repo alongside `start.sh` and `start.bat` for cross-platform consistency.
 - **Major project structure cleanup**:

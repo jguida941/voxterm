@@ -1,50 +1,277 @@
-# Codex Voice Architecture
+# Codex Voice (Rust Overlay) Architecture
 
-This repo has two user-facing modes:
+This document describes the Rust-only overlay mode. It runs the Codex CLI in a PTY and
+adds voice capture + a minimal status overlay without touching Codex’s native UI.
 
-1. **Overlay mode (default):** Rust-only. Runs Codex in a PTY and forwards raw ANSI output.
-2. **Legacy TypeScript CLI:** Node frontend + Rust backend via JSON-IPC.
+## Goals
 
-## Overlay Mode (Rust-only)
+- Preserve the **full Codex TUI** (raw ANSI passthrough).
+- Add **voice capture** and **auto-voice** without corrupting terminal output.
+- Keep a **minimal overlay** (one status line) and avoid custom UI rendering.
+
+## System Overview (Rust Only)
+
+```mermaid
+graph LR
+  Terminal[Terminal (TTY)] <--> Input[Raw input reader]
+  Input --> Overlay[codex_overlay main loop]
+  Overlay --> PTY[PtyOverlaySession]
+  PTY --> Codex[Codex CLI]
+  Codex --> PTY
+  PTY --> Writer[Serialized writer]
+  Writer --> Terminal
+
+  Voice[Voice pipeline] --> Overlay
+  Overlay -->|transcript| PTY
+
+  Prompt[Prompt detector] <-- PTY
+  Prompt --> Overlay
+```
+
+What this means:
+- The **terminal is the frontend**; the overlay doesn’t replace Codex’s UI.
+- The overlay **injects transcripts** as if typed by the user.
+- The status line is drawn at the bottom using ANSI save/restore.
+
+## Threads + Channels
 
 ```mermaid
 graph TD
-  UserInput[Keyboard input] --> Overlay[codex_overlay (Rust)]
-  Voice[Voice capture (cpal + VAD + Whisper)] --> Overlay
-  Overlay -->|PTY| Codex[Codex CLI]
-  Codex -->|ANSI output| Terminal[Your terminal]
-  Overlay -->|Status line| Terminal
+  Main[codex_overlay main loop]
+  InputThread[Input thread\n(reads stdin bytes)]
+  PtyReader[PTY reader thread\n(raw ANSI output)]
+  WriterThread[Writer thread\n(serializes output + status)]
+  VoiceThread[Voice worker thread\n(capture + STT)]
+
+  InputThread -->|InputEvent| Main
+  PtyReader -->|PTY output| Main
+  Main -->|WriterMessage| WriterThread
+  Main -->|start voice| VoiceThread
+  VoiceThread -->|VoiceJobMessage| Main
 ```
 
-Key points:
-- `codex_overlay` spawns Codex in a PTY and **does not** parse slash commands.
-- Voice transcripts are injected as keystrokes into the PTY.
-- A status line is rendered at the bottom without corrupting Codex output.
+Why this matters:
+- **Input thread** intercepts Ctrl+R/Ctrl+V/Ctrl+Q without blocking Codex.
+- **PTY reader** keeps ANSI intact while replying to terminal queries (DSR/DA).
+- **Writer thread** prevents output + status line interleaving.
+- **Voice thread** keeps audio/Whisper work off the main loop.
 
-## Legacy TypeScript CLI (IPC)
+## Startup Sequence
+
+```mermaid
+sequenceDiagram
+  participant User
+  participant Start as start.sh
+  participant Overlay as codex_overlay
+  participant PTY as PTY Session
+  participant Threads as Threads
+
+  User->>Start: run start.sh
+  Start->>Start: locate/download Whisper model
+  Start->>Overlay: launch codex_overlay\n(+ --whisper-model-path)
+  Overlay->>Overlay: parse & validate config
+  Overlay->>PTY: spawn Codex in PTY
+  Overlay->>Threads: start input/reader/writer
+  Overlay->>Overlay: enter main loop
+```
+
+## Core Flows
+
+### 1) Keyboard → Codex → Terminal
+
+```mermaid
+sequenceDiagram
+  participant User
+  participant Input as InputThread
+  participant Main as codex_overlay
+  participant PTY as PTY Session
+  participant Codex
+  participant Writer as WriterThread
+  participant Terminal
+
+  User->>Input: keystrokes
+  Input->>Main: InputEvent::Bytes
+  Main->>PTY: write bytes
+  PTY->>Codex: stdin
+  Codex-->>PTY: ANSI output
+  PTY-->>Main: output chunk
+  Main->>Writer: WriterMessage::PtyOutput
+  Writer->>Terminal: raw ANSI output
+```
+
+### 2) Voice → Whisper → Transcript → Codex
+
+```mermaid
+sequenceDiagram
+  participant User
+  participant Main as codex_overlay
+  participant Voice as VoiceThread
+  participant Whisper as Whisper STT
+  participant PTY as PTY Session
+  participant Codex
+
+  User->>Main: Ctrl+R or auto-voice
+  Main->>Voice: start_voice_job()
+  Voice->>Whisper: transcribe audio
+  Whisper-->>Voice: transcript text
+  Voice-->>Main: VoiceJobMessage::Transcript
+  Main->>PTY: inject transcript\n(+ newline if auto mode)
+  PTY->>Codex: stdin
+```
+
+### 3) Auto-Voice (Prompt Detection)
+
+```mermaid
+sequenceDiagram
+  participant PTY as PTY Session
+  participant Main as codex_overlay
+  participant Prompt as PromptTracker
+
+  PTY-->>Main: output chunk
+  Main->>Prompt: feed_output(bytes)
+  Prompt-->>Main: prompt detected or idle-ready
+  Main->>Main: if auto-voice enabled -> start capture
+```
+
+## Overlay State Machine
+
+```mermaid
+stateDiagram-v2
+  [*] --> Idle
+  Idle --> Listening: Ctrl+R / auto-voice
+  Listening --> Transcribing: audio capture ends
+  Transcribing --> Injecting: transcript ready
+  Injecting --> Idle: transcript injected
+  Listening --> Idle: silence/empty/error
+```
+
+## Whisper Integration (Rust)
+
+- **Primary path:** `stt::Transcriber` uses `whisper-rs` with the model at
+  `--whisper-model-path`.
+- **Fallback:** if no model is configured or native capture fails, the code falls
+  back to Python (`scripts/codex_voice.py`) unless `--no-python-fallback` is set.
+
+Common setup path:
+- `./scripts/setup.sh models --base` downloads `models/ggml-base.en.bin`.
+- `start.sh` passes `--whisper-model-path` into `codex_overlay`.
+
+## Voice Error + Fallback Flow
+
+```mermaid
+flowchart TD
+  Start([Start voice capture]) --> Model{Whisper model configured?}
+  Model -- no --> NoPy{--no-python-fallback?}
+  NoPy -- yes --> ErrNoModel[Error: no model + no fallback]
+  NoPy -- no --> PyFallback[Python pipeline]
+
+  Model -- yes --> Rec{Recorder available?}
+  Rec -- no --> NoPy2{--no-python-fallback?}
+  NoPy2 -- yes --> ErrRec[Error: recorder unavailable]
+  NoPy2 -- no --> PyFallback
+
+  Rec -- yes --> Native[Native capture + STT]
+  Native -- ok --> Transcript[Transcript ready]
+  Native -- empty --> Empty[No speech detected]
+  Native -- error --> PyFallback
+
+  PyFallback -- ok --> Transcript
+  PyFallback -- error --> ErrPy[Error: python fallback failed]
+```
+
+Notes:
+- Python fallback requires `python3`, `ffmpeg`, and the `whisper` CLI on PATH.
+- Use `--no-python-fallback` to force native Whisper and surface errors early.
+
+## Timing + Latency (Voice + Codex)
+
+```mermaid
+graph LR
+  Capture[Capture audio with VAD] --> STT[Whisper transcription]
+  STT --> Inject[Inject transcript into PTY]
+  Inject --> Codex[Codex response (external)]
+```
+
+Timing observability:
+- Voice capture logs: `voice_metrics|capture_ms=...|speech_ms=...|...`
+- If `--log-timings` is set, also logs:
+  `timing|phase=voice_capture|record_s=...|stt_s=...|chars=...`
+
+## Safety + External Dependencies
 
 ```mermaid
 graph TD
-  User[Keyboard input] --> TS[TypeScript CLI]
-  TS -->|JSON IPC| Rust[rust_tui backend]
-  Rust -->|CLI/PTY| Providers[Codex/Claude CLI]
-  Rust -->|Voice pipeline| Whisper[Whisper STT]
-  Providers --> TS
+  Overlay[codex_overlay] --> Codex[Codex CLI]
+  Overlay --> Whisper[Whisper (native, whisper-rs)]
+  Overlay --> Py[Python fallback]
+  Py --> WhisperCli[whisper CLI]
+  Py --> FFmpeg[ffmpeg]
 ```
 
-Key points:
-- The TS CLI handles `/voice`, `/auto`, `/provider`, etc.
-- Rust handles audio + STT + provider execution, and streams tokens back over IPC.
+Safety constraints in code:
+- CLI binary paths are validated (`--codex-cmd`, `--python-cmd`, `--ffmpeg-cmd`, `--whisper-cmd`).
+- `--ffmpeg-device` is restricted to avoid shell metacharacters.
+- `--whisper-model-path` must exist and is canonicalized.
+- Overlay only intercepts control hotkeys; all other bytes go directly to Codex.
 
-## Main Components
+## Resource Lifecycle (Startup / Shutdown)
 
-- `rust_tui/src/bin/codex_overlay.rs`: Overlay entry point.
-- `rust_tui/src/pty_session.rs`: PTY handling (raw passthrough for overlay).
-- `rust_tui/src/voice.rs`: Voice pipeline orchestration.
-- `rust_tui/src/ipc.rs`: JSON-IPC protocol (legacy mode).
-- `ts_cli/src/index.ts`: Legacy CLI front end.
+```mermaid
+sequenceDiagram
+  participant Main as codex_overlay
+  participant PTY as PTY Session
+  participant Threads as Input/Reader/Writer
 
-## Data Flow Summary
+  Main->>Main: init logs + parse config
+  Main->>PTY: spawn Codex in PTY
+  Main->>Main: enable raw mode
+  Main->>Threads: spawn input/reader/writer
+  Main->>Main: run event loop
+  Main-->>Threads: send Shutdown to writer
+  Main->>Main: disable raw mode
+  Main->>PTY: drop PTY (exit/terminate if needed)
+```
 
-- **Overlay:** Keyboard + voice -> PTY -> Codex -> ANSI output -> Terminal
-- **Legacy:** Keyboard -> TS -> Rust IPC -> Providers -> TS
+## Prompt Detection (Auto-Voice)
+
+- Strip ANSI escape sequences from PTY output.
+- Track the current line + last completed line.
+- If a regex is provided (`--prompt-regex`), match against it.
+- Otherwise, **learn** the prompt from the first idle line and match it later.
+- Fallback: if no prompt is known, trigger auto-voice after an idle timeout.
+
+## PTY Handling + Resize
+
+- `PtyOverlaySession` uses `openpty` and forks Codex into the slave PTY.
+- It **replies to terminal queries** (DSR/DA) but leaves all ANSI intact.
+- On SIGWINCH, `ioctl(TIOCSWINSZ)` updates the PTY size and forwards SIGWINCH to Codex.
+
+## Output Serialization
+
+All terminal output is serialized through one writer thread to avoid
+interleaving PTY output with the status line. The status line is drawn using
+ANSI save/restore (`ESC 7` / `ESC 8`) to avoid corrupting Codex’s screen.
+
+## Key Files
+
+- `rust_tui/src/bin/codex_overlay.rs` – main loop, input handling, prompt detection
+- `rust_tui/src/pty_session.rs` – raw PTY passthrough + query replies
+- `rust_tui/src/voice.rs` – voice capture job orchestration
+- `rust_tui/src/audio.rs` – CPAL recorder + VAD
+- `rust_tui/src/stt.rs` – Whisper transcription
+- `rust_tui/src/config.rs` – CLI flags + validation
+
+## Config Knobs
+
+- `--whisper-model-path` – load native Whisper model
+- `--voice-send-mode auto|insert` – auto-send transcript or insert for editing
+- `--auto-voice` – enable auto mode on startup
+- `--auto-voice-idle-ms` – idle timeout before auto-voice triggers
+- `--prompt-regex` – override prompt detection
+- `CODEX_VOICE_CWD` – run Codex in a chosen project directory
+
+## Debugging + Logs
+
+- Logs: `${TMPDIR}/codex_voice_tui.log`
+- Prompt detection log: `${TMPDIR}/codex_overlay_prompt.log`
+- Use `--no-python-fallback` to force native Whisper and surface errors early.

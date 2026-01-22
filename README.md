@@ -12,6 +12,8 @@ Voice-enabled CLI wrapper for Codex and Claude. Speak your prompts, get AI respo
 
 ## Quick Start
 
+If you want the shortest path, see `QUICK_START.md`.
+
 ### Prerequisites
 
 - Node.js 18+ (legacy TypeScript CLI only)
@@ -306,6 +308,7 @@ Options:
 ```
 codex-voice/
 ├── Codex Voice.app/     # macOS double-click launcher
+├── QUICK_START.md       # Fast setup and commands
 ├── ARCHITECTURE.md      # Architecture diagrams and data flow
 ├── ts_cli/              # TypeScript frontend
 │   └── src/
