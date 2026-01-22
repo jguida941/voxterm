@@ -222,7 +222,11 @@ install_wrapper() {
     if [ -n "${CODEX_VOICE_INSTALL_DIR:-}" ]; then
         install_dir="$CODEX_VOICE_INSTALL_DIR"
     else
-        if mkdir -p "$HOME/.local/bin" 2>/dev/null && [ -w "$HOME/.local/bin" ]; then
+        if [ -d "/opt/homebrew/bin" ] && [ -w "/opt/homebrew/bin" ]; then
+            install_dir="/opt/homebrew/bin"
+        elif [ -d "/usr/local/bin" ] && [ -w "/usr/local/bin" ]; then
+            install_dir="/usr/local/bin"
+        elif mkdir -p "$HOME/.local/bin" 2>/dev/null && [ -w "$HOME/.local/bin" ]; then
             install_dir="$HOME/.local/bin"
         elif mkdir -p "$PROJECT_ROOT/bin" 2>/dev/null && [ -w "$PROJECT_ROOT/bin" ]; then
             install_dir="$PROJECT_ROOT/bin"

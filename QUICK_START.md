@@ -19,8 +19,9 @@ cd /path/to/codex-voice
 ./install.sh
 ```
 
-If `codex-voice` is not found, add the install dir to PATH (default: `~/.local/bin`), or set
-`CODEX_VOICE_INSTALL_DIR` to a writable folder before running `./install.sh`.
+If `codex-voice` is not found, the installer used the first writable directory in this order:
+`/opt/homebrew/bin`, `/usr/local/bin`, `~/.local/bin`, or `/path/to/codex-voice/bin`. Add that
+directory to PATH or set `CODEX_VOICE_INSTALL_DIR` before running `./install.sh`.
 
 ## 3) Run from any project
 
