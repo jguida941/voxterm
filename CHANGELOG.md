@@ -9,6 +9,11 @@ All notable changes to this project will be documented here, following the SDLC 
 - **Overlay-first defaults**: `scripts/setup.sh` now defaults to `install` so it no longer builds the TypeScript CLI unless requested.
 - **Docs updated**: README + QUICK_START now point to `./install.sh` and `codex-voice` for the simplest path.
 
+### Homebrew Runtime Fixes (2026-01-23) - COMPLETE
+- **Prebuilt overlay reuse**: `start.sh` now uses `codex-overlay` from PATH when available, skipping builds in Homebrew installs.
+- **User-writable model storage**: model downloads fall back to `~/.local/share/codex-voice/models` when the repo/libexec is not writable.
+- **Install wrapper safety**: skip existing global `codex-voice` commands and prefer safe locations unless overridden.
+
 ### Rust Overlay Mode + Packaging (2026-01-22) - COMPLETE
 - **Added Rust overlay mode**: new `codex_overlay` binary runs Codex in a PTY, forwards raw ANSI output, and injects voice transcripts as keystrokes.
 - **Prompt-aware auto-voice**: prompt detection with idle fallback plus configurable regex overrides for auto-voice triggering.
