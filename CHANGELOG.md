@@ -7,6 +7,7 @@ All notable changes to this project will be documented here, following the SDLC 
 ### Startup UX Polish (2026-01-24) - COMPLETE
 - **Codex Voice banner**: `start.sh` now uses the Rust launch banner from the TS CLI.
 - **Compact quickstart tables**: launch output shows quick controls + common commands in green tables.
+- **Adaptive layout**: smaller banner + dual-color columns keep tables visible in shorter terminals.
 
 ### Simplified Install Flow (2026-01-23) - COMPLETE
 - **New installer**: added `install.sh` plus `scripts/setup.sh install` to download the Whisper model, build the Rust overlay, and install a `codex-voice` wrapper.

@@ -12,13 +12,22 @@ cd "$SCRIPT_DIR"
 
 # Colors
 GREEN='\033[0;32m'
+GOLD='\033[38;5;214m'
 YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m'
 
-echo ""
-echo -e "${GREEN}"
-cat <<'BANNER'
+TERM_COLS=$(tput cols 2>/dev/null || true)
+if ! [ "$TERM_COLS" -gt 0 ] 2>/dev/null; then
+    TERM_COLS=80
+fi
+TERM_LINES=$(tput lines 2>/dev/null || true)
+if ! [ "$TERM_LINES" -gt 0 ] 2>/dev/null; then
+    TERM_LINES=24
+fi
+
+print_large_banner() {
+    cat <<'BANNER'
    ██████╗ ██████╗ ██████╗ ███████╗██╗  ██╗
   ██╔════╝██╔═══██╗██╔══██╗██╔════╝╚██╗██╔╝
   ██║     ██║   ██║██║  ██║█████╗   ╚███╔╝
@@ -32,33 +41,130 @@ cat <<'BANNER'
            ╚████╔╝ ╚██████╔╝██║╚██████╗███████╗
             ╚═══╝   ╚═════╝ ╚═╝ ╚═════╝╚══════╝
 BANNER
+}
+
+print_small_banner() {
+    cat <<'BANNER'
+  ┌─────────────────────────────────────┐
+  │  CODEX VOICE                        │
+  │  AI-powered coding with voice       │
+  └─────────────────────────────────────┘
+BANNER
+}
+
+print_banner() {
+    if [ "$TERM_LINES" -ge 33 ] && [ "$TERM_COLS" -ge 80 ]; then
+        print_large_banner
+    else
+        print_small_banner
+    fi
+}
+
+truncate() {
+    local value="$1"
+    local width="$2"
+
+    if [ "$width" -le 0 ]; then
+        printf ""
+        return
+    fi
+    if [ ${#value} -le "$width" ]; then
+        printf "%s" "$value"
+        return
+    fi
+    if [ "$width" -le 3 ]; then
+        printf "%.*s" "$width" "$value"
+        return
+    fi
+    printf "%s" "${value:0:$((width - 3))}..."
+}
+
+echo ""
+echo -e "${GREEN}"
+print_banner
 echo -e "${NC}"
 echo -e "${GREEN}Starting Codex Voice...${NC}"
-echo ""
 EXAMPLE_CMD="codex-voice"
 if ! command -v codex-voice &> /dev/null; then
     EXAMPLE_CMD="./start.sh"
 fi
 
-print_controls_table() {
-    local col1=14
-    local col2=34
+print_controls_table_wide() {
+    local col_key=9
+    local col_action=$(( (TERM_COLS - 13 - (col_key * 2)) / 2 ))
+    local border_key
+    local border_action
+    local row
+
+    if [ "$col_action" -lt 14 ]; then
+        col_action=14
+    fi
+
+    border_key=$(printf '%*s' $((col_key + 2)) '' | tr ' ' '-')
+    border_action=$(printf '%*s' $((col_action + 2)) '' | tr ' ' '-')
+
+    printf "${GREEN}+%s+%s+${GOLD}%s+%s+${NC}\n" "$border_key" "$border_action" "$border_key" "$border_action"
+    printf "${GREEN}| %-*s | %-*s |${GOLD} %-*s | %-*s |${NC}\n" \
+        "$col_key" "Control" "$col_action" "Action" "$col_key" "Control" "$col_action" "Action"
+    printf "${GREEN}+%s+%s+${GOLD}%s+%s+${NC}\n" "$border_key" "$border_action" "$border_key" "$border_action"
+
+    for row in \
+        "Ctrl+R|Record (push-to-talk)|Ctrl+V|Toggle auto-voice" \
+        "Ctrl+T|Toggle send mode|Ctrl+=/++|Mic sensitivity +5 dB" \
+        "Ctrl+-|Mic sensitivity -5 dB|Ctrl+Q|Quit overlay"; do
+        IFS='|' read -r key_left action_left key_right action_right <<< "$row"
+        key_left="$(truncate "$key_left" "$col_key")"
+        action_left="$(truncate "$action_left" "$col_action")"
+        key_right="$(truncate "$key_right" "$col_key")"
+        action_right="$(truncate "$action_right" "$col_action")"
+        printf "${GREEN}| %-*s | %-*s |${GOLD} %-*s | %-*s |${NC}\n" \
+            "$col_key" "$key_left" "$col_action" "$action_left" \
+            "$col_key" "$key_right" "$col_action" "$action_right"
+    done
+
+    printf "${GREEN}+%s+%s+${GOLD}%s+%s+${NC}\n" "$border_key" "$border_action" "$border_key" "$border_action"
+}
+
+print_controls_table_narrow() {
+    local col1=12
+    local col2=$((TERM_COLS - col1 - 7))
     local border1
     local border2
+    local row
+
+    if [ "$col2" -lt 10 ]; then
+        col2=10
+    fi
 
     border1=$(printf '%*s' $((col1 + 2)) '' | tr ' ' '-')
     border2=$(printf '%*s' $((col2 + 2)) '' | tr ' ' '-')
 
-    echo -e "${GREEN}+${border1}+${border2}+${NC}"
-    printf "${GREEN}| %-*s | %-*s |${NC}\n" "$col1" "Control" "$col2" "Action"
-    echo -e "${GREEN}+${border1}+${border2}+${NC}"
-    printf "${GREEN}| %-*s | %-*s |${NC}\n" "$col1" "Ctrl+R" "$col2" "Record (push-to-talk)"
-    printf "${GREEN}| %-*s | %-*s |${NC}\n" "$col1" "Ctrl+V" "$col2" "Toggle auto-voice"
-    printf "${GREEN}| %-*s | %-*s |${NC}\n" "$col1" "Ctrl+T" "$col2" "Toggle send mode"
-    printf "${GREEN}| %-*s | %-*s |${NC}\n" "$col1" "Ctrl+=/++" "$col2" "Mic sensitivity +5 dB"
-    printf "${GREEN}| %-*s | %-*s |${NC}\n" "$col1" "Ctrl+-" "$col2" "Mic sensitivity -5 dB"
-    printf "${GREEN}| %-*s | %-*s |${NC}\n" "$col1" "Ctrl+Q" "$col2" "Quit overlay"
-    echo -e "${GREEN}+${border1}+${border2}+${NC}"
+    printf "${GREEN}+%s+${GOLD}%s+${NC}\n" "$border1" "$border2"
+    printf "${GREEN}| %-*s |${GOLD} %-*s |${NC}\n" "$col1" "Control" "$col2" "Action"
+    printf "${GREEN}+%s+${GOLD}%s+${NC}\n" "$border1" "$border2"
+
+    for row in \
+        "Ctrl+R|Record (push-to-talk)" \
+        "Ctrl+V|Toggle auto-voice" \
+        "Ctrl+T|Toggle send mode" \
+        "Ctrl+=/++|Mic sensitivity +5 dB" \
+        "Ctrl+-|Mic sensitivity -5 dB" \
+        "Ctrl+Q|Quit overlay"; do
+        IFS='|' read -r key action <<< "$row"
+        key="$(truncate "$key" "$col1")"
+        action="$(truncate "$action" "$col2")"
+        printf "${GREEN}| %-*s |${GOLD} %-*s |${NC}\n" "$col1" "$key" "$col2" "$action"
+    done
+
+    printf "${GREEN}+%s+${GOLD}%s+${NC}\n" "$border1" "$border2"
+}
+
+print_controls_table() {
+    if [ "$TERM_COLS" -ge 68 ]; then
+        print_controls_table_wide
+    else
+        print_controls_table_narrow
+    fi
 }
 
 print_commands_table() {
@@ -66,27 +172,46 @@ print_commands_table() {
     local col2=24
     local border1
     local border2
+    local row
+
+    if [ "$TERM_COLS" -lt $((col1 + col2 + 7)) ]; then
+        col2=20
+        col1=$((TERM_COLS - col2 - 7))
+    fi
+    if [ "$col1" -lt 24 ]; then
+        col1=24
+        col2=$((TERM_COLS - col1 - 7))
+    fi
+    if [ "$col2" -lt 14 ]; then
+        col2=14
+        col1=$((TERM_COLS - col2 - 7))
+    fi
 
     border1=$(printf '%*s' $((col1 + 2)) '' | tr ' ' '-')
     border2=$(printf '%*s' $((col2 + 2)) '' | tr ' ' '-')
 
-    echo -e "${GREEN}+${border1}+${border2}+${NC}"
-    printf "${GREEN}| %-*s | %-*s |${NC}\n" "$col1" "Command" "$col2" "Purpose"
-    echo -e "${GREEN}+${border1}+${border2}+${NC}"
-    printf "${GREEN}| %-*s | %-*s |${NC}\n" "$col1" "$EXAMPLE_CMD --auto-voice" "$col2" "Start in auto-voice"
-    printf "${GREEN}| %-*s | %-*s |${NC}\n" "$col1" "$EXAMPLE_CMD --voice-send-mode insert" "$col2" "Start in insert mode"
-    printf "${GREEN}| %-*s | %-*s |${NC}\n" "$col1" "$EXAMPLE_CMD --voice-vad-threshold-db -50" "$col2" "Set mic threshold"
-    printf "${GREEN}| %-*s | %-*s |${NC}\n" "$col1" "$EXAMPLE_CMD --auto-voice-idle-ms 700" "$col2" "Auto-voice idle"
-    echo -e "${GREEN}+${border1}+${border2}+${NC}"
+    printf "${GREEN}+%s+${GOLD}%s+${NC}\n" "$border1" "$border2"
+    printf "${GREEN}| %-*s |${GOLD} %-*s |${NC}\n" "$col1" "Command" "$col2" "Purpose"
+    printf "${GREEN}+%s+${GOLD}%s+${NC}\n" "$border1" "$border2"
+
+    for row in \
+        "$EXAMPLE_CMD --auto-voice|Start in auto-voice" \
+        "$EXAMPLE_CMD --voice-send-mode insert|Start in insert mode" \
+        "$EXAMPLE_CMD --voice-vad-threshold-db -50|Set mic threshold" \
+        "$EXAMPLE_CMD --auto-voice-idle-ms 700|Auto-voice idle"; do
+        IFS='|' read -r command purpose <<< "$row"
+        command="$(truncate "$command" "$col1")"
+        purpose="$(truncate "$purpose" "$col2")"
+        printf "${GREEN}| %-*s |${GOLD} %-*s |${NC}\n" "$col1" "$command" "$col2" "$purpose"
+    done
+
+    printf "${GREEN}+%s+${GOLD}%s+${NC}\n" "$border1" "$border2"
 }
 
-echo -e "${GREEN}Quick Controls${NC}"
 print_controls_table
-echo -e "${GREEN}Note: Ctrl++ is often Ctrl+=; Ctrl+- may require Ctrl+Shift+-${NC}"
-echo ""
-echo -e "${GREEN}Common Commands${NC}"
+echo -e "${GOLD}Note: Ctrl++ is often Ctrl+=; Ctrl+- may require Ctrl+Shift+-${NC}"
 print_commands_table
-echo -e "${GREEN}Default auto-voice idle: 1200ms (adjust with --auto-voice-idle-ms)${NC}"
+echo -e "${GOLD}Auto-voice idle default: 1200ms (set with --auto-voice-idle-ms)${NC}"
 echo ""
 
 # Resolve overlay binary (prefer local build, fall back to PATH)
