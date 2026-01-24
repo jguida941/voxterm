@@ -1,13 +1,13 @@
 # Codex Voice
 
-Voice-enabled CLI wrapper for Codex and Claude. Speak your prompts, get AI responses.
+Voice-enabled CLI wrapper for Codex. Speak your prompts, get AI responses.
 
 ## Features
 
 - Voice input via microphone (Whisper STT)
-- Supports both **Codex** and **Claude** providers
 - Rust overlay mode that preserves the full Codex TUI (PTY passthrough)
 - Auto-voice mode for continuous conversation
+- Optional Python fallback when native capture is unavailable
 
 ## Quick Start
 
@@ -16,13 +16,14 @@ If you want the shortest path, see `QUICK_START.md`.
 ### Prerequisites
 
 - Rust toolchain (stable)
-- Codex CLI (`npm install -g @anthropic-ai/codex`) and/or Claude CLI
+- Codex CLI (`npm install -g @anthropic-ai/codex`)
 - Whisper model (GGML format) in `models/` directory
 
 ### Install & Run
 
 ```bash
 # Clone and enter project
+git clone https://github.com/jguida941/codex-voice.git
 cd codex-voice
 
 # One-time install (downloads model, builds overlay, installs wrapper)
@@ -36,21 +37,16 @@ codex-voice
 If `codex-voice` is not found, the installer used the first writable directory in this order:
 `/opt/homebrew/bin`, `/usr/local/bin`, `~/.local/bin`, or `/path/to/codex-voice/bin`. Add that
 directory to PATH or set `CODEX_VOICE_INSTALL_DIR` before running `./install.sh`. If a
-`codex-voice` command already exists (npm/brew), the installer skips that location; uninstall it
-or set `CODEX_VOICE_INSTALL_DIR` to override.
+`codex-voice` command already exists, the installer skips that location; remove the conflicting
+binary or set `CODEX_VOICE_INSTALL_DIR` to override.
 
-Or manually:
+Manual build (Rust only):
 ```bash
-# Build and run overlay mode
 cd rust_tui && cargo build --release --bin codex_overlay
 ./target/release/codex_overlay
-
-# Legacy TypeScript CLI
-cd rust_tui && cargo build --release && cd ..
-
-# Install and run TypeScript CLI
-cd ts_cli && npm install && npm start
 ```
+
+Use `./start.sh` if you want automatic model download and setup.
 
 ## Install Options
 
@@ -74,13 +70,7 @@ brew tap jguida941/homebrew-codex-voice
 brew install codex-voice
 ```
 
-3. Download a Whisper model once:
-
-```bash
-$(brew --prefix)/opt/codex-voice/libexec/scripts/setup.sh models --base
-```
-
-4. Run from any project:
+3. Run from any project (first run downloads the model if missing):
 
 ```bash
 cd ~/my-project
@@ -89,6 +79,12 @@ codex-voice
 
 Model storage defaults to `~/.local/share/codex-voice/models` for Homebrew installs (or when the
 repo directory is not writable). Override with `CODEX_VOICE_MODEL_DIR` if you want a custom path.
+
+Optional pre-download:
+
+```bash
+$(brew --prefix)/opt/codex-voice/libexec/scripts/setup.sh models --base
+```
 
 ### Manual (no Homebrew)
 
@@ -111,11 +107,10 @@ Codex Voice works with **any codebase** - just run it from your project director
 cd ~/my-project
 /path/to/codex-voice/start.sh
 ```
-Set `CODEX_VOICE_MODE=legacy` to use the TypeScript CLI instead of the overlay.
 
 ### Windows
 
-Double-click **start.bat** - it will prompt you to select your project folder.
+Windows native is not supported yet (the overlay uses a Unix PTY). Use WSL2 or a macOS/Linux machine.
 
 ### Linux / Command Line
 
@@ -123,9 +118,8 @@ Double-click **start.bat** - it will prompt you to select your project folder.
 cd ~/my-project
 /path/to/codex-voice/start.sh
 ```
-Set `CODEX_VOICE_MODE=legacy` to use the TypeScript CLI instead of the overlay.
 
-### Install Globally (All Platforms)
+### Install Globally (macOS/Linux)
 
 ```bash
 cd /path/to/codex-voice
@@ -149,6 +143,9 @@ slash commands; you interact directly with Codex's native UI.
 |-----|--------|
 | `Ctrl+R` | Start voice capture |
 | `Ctrl+V` | Toggle auto-voice mode |
+| `Ctrl+T` | Toggle send mode (auto vs insert) |
+| `Ctrl++` | Increase mic threshold by 5 dB (less sensitive, often Ctrl+=) |
+| `Ctrl+-` | Decrease mic threshold by 5 dB (more sensitive, may be Ctrl+Shift+-) |
 | `Ctrl+Q` | Exit overlay |
 | `Ctrl+C` | Forward to Codex |
 
@@ -160,48 +157,11 @@ slash commands; you interact directly with Codex's native UI.
 | `--auto-voice-idle-ms <MS>` | Idle timeout before auto-voice triggers |
 | `--prompt-regex <REGEX>` | Prompt detection override |
 | `--voice-send-mode <auto|insert>` | Auto-send transcript or insert for editing |
-
-### Legacy TypeScript CLI
-
-Requires Node.js 18+ and npm.
-
-#### Commands
-
-| Command | Description |
-|---------|-------------|
-| `/help` | Show all commands |
-| `/voice` | Start voice capture |
-| `/auto` | Toggle auto-voice mode |
-| `/status` | Show backend status |
-| `/provider` | Show/set active provider (codex/claude) |
-| `/auth [provider]` | Login via provider CLI |
-| `/codex <msg>` | Send to Codex (one-off or switch) |
-| `/claude <msg>` | Send to Claude (one-off or switch) |
-| `/clear` | Clear the screen |
-| `/exit` | Exit the application |
-
-#### Shortcuts
-
-| Key | Action |
-|-----|--------|
-| `Ctrl+R` | Start voice capture |
-| `Ctrl+V` | Toggle auto-voice mode |
-| `Ctrl+C` | Cancel/Exit |
-
-### Example Session (Legacy CLI)
-
-```
-[codex] > /provider claude
-Switched to claude
-
-[claude] > explain this codebase
-Claude: This is a voice-enabled CLI wrapper...
-
-[claude] > /voice
-Listening... (speak now)
-Transcribed: "add a new feature for..."
-Claude: I'll help you add that feature...
-```
+| `--voice-vad-threshold-db <DB>` | Mic sensitivity (lower = more sensitive) |
+| `--input-device <NAME>` | Preferred audio input device |
+| `--list-input-devices` | Print available audio devices and exit |
+| `--whisper-model-path <PATH>` | Path to Whisper GGML model |
+| `--no-python-fallback` | Fail instead of using Python fallback |
 
 ## How It Works
 
@@ -221,61 +181,19 @@ Keyboard / voice
 The overlay does not parse slash commands; it keeps Codex's native UI intact and only handles
 its own hotkeys (Ctrl+R/Ctrl+V/Ctrl+Q).
 
-## Commands Reference
-
-### Overlay Mode
-
-| Input | Action |
-|-------|--------|
-| `Ctrl+R` | Start voice capture |
-| `Ctrl+V` | Toggle auto-voice mode |
-| `Ctrl+Q` | Exit overlay |
-| `Ctrl+C` | Forward to Codex |
-| `--auto-voice` | Start auto-voice immediately |
-| `--voice-send-mode <auto|insert>` | Auto-send transcript or insert for editing |
-| `--prompt-regex <REGEX>` | Prompt detection override |
-
-### Legacy TypeScript CLI
-
-| Command | Description |
-|---------|-------------|
-| `/voice` | Start voice capture |
-| `/auto` | Toggle auto-voice mode |
-| `/provider` | Show/set provider (codex/claude) |
-| `/auth [provider]` | Login via provider CLI |
-| `/exit` | Exit the application |
-
 ## Architecture
 
-Overlay mode (default) is Rust-only: `codex_overlay` spawns Codex in a PTY, forwards raw terminal
-output to your terminal, and injects voice transcripts as keystrokes.
-
-Legacy TypeScript CLI architecture:
-
-```
-┌─────────────────┐     JSON-IPC      ┌─────────────────┐
-│  TypeScript CLI │ ◄──────────────►  │   Rust Backend  │
-│   (ts_cli/)     │                   │   (rust_tui/)   │
-└─────────────────┘                   └─────────────────┘
-        │                                     │
-        │                              ┌──────┴──────┐
-        │                              │             │
-        ▼                              ▼             ▼
-   User Input                     Audio Capture   Provider CLI
-   (keyboard)                     (CPAL + VAD)    (codex/claude)
-                                       │
-                                       ▼
-                                  Whisper STT
-```
+Overlay mode is Rust-only: `codex_overlay` spawns Codex in a PTY, forwards raw terminal output, and
+injects voice transcripts as keystrokes. The terminal itself is the UI, with a minimal status line.
 
 ### Components
 
 | Component | Path | Purpose |
 |-----------|------|---------|
 | Rust Overlay | `rust_tui/src/bin/codex_overlay.rs` | PTY passthrough UI with voice overlay |
-| TypeScript CLI | `ts_cli/` | User interface, input handling, display |
-| Rust Backend | `rust_tui/` | Audio capture, STT, provider communication |
-| IPC Protocol | JSON-lines over stdin/stdout | TypeScript ↔ Rust communication |
+| Voice Pipeline | `rust_tui/src/voice.rs` | Audio capture orchestration + STT |
+| PTY Session | `rust_tui/src/pty_session.rs` | Raw PTY passthrough and prompt-safe output |
+| Python fallback | `scripts/codex_voice.py` | Optional fallback STT pipeline |
 
 See `ARCHITECTURE.md` for full diagrams and data flow.
 
@@ -285,30 +203,16 @@ See `ARCHITECTURE.md` for full diagrams and data flow.
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `CODEX_VOICE_PROVIDER` | Default provider (`codex` or `claude`) | `codex` |
-| `CLAUDE_CMD` | Path to Claude CLI | `claude` |
-| `CODEX_VOICE_MODE` | Launcher mode (`overlay` or `legacy`) | `overlay` |
+| `CODEX_VOICE_MODEL_DIR` | Override model storage directory | auto (repo `models/` or `~/.local/share/codex-voice/models`) |
+| `CODEX_VOICE_CWD` | Run Codex in a chosen project directory | current directory |
+| `CODEX_VOICE_INSTALL_DIR` | Override global install location for `./install.sh` | unset |
 | `CODEX_OVERLAY_PROMPT_REGEX` | Override prompt detection regex | unset |
 | `CODEX_OVERLAY_PROMPT_LOG` | Prompt detection log path | `${TMPDIR}/codex_overlay_prompt.log` |
-
-### CLI Options (Rust Backend)
-
-```bash
-cargo run --release -- --help
-
-Options:
-  --codex-cmd <CMD>           Path to Codex CLI [default: codex]
-  --whisper-model-path <PATH> Path to Whisper GGML model
-  --persistent-codex          Enable PTY session for Codex
-  --json-ipc                  Run in IPC mode (used by TypeScript CLI)
-  --input-device <NAME>       Preferred audio input device
-  --list-input-devices        Print available audio devices and exit
-```
 
 ### CLI Options (Overlay)
 
 ```bash
-cargo run --release --bin codex_overlay -- --help
+codex-voice --help
 
 Options:
   --prompt-regex <REGEX>      Regex to detect Codex prompt
@@ -316,6 +220,11 @@ Options:
   --auto-voice                Start in auto-voice mode
   --auto-voice-idle-ms <MS>   Idle timeout before auto-voice triggers
   --voice-send-mode <MODE>    auto (send newline) or insert (edit before Enter)
+  --input-device <NAME>       Preferred audio input device
+  --list-input-devices        Print available audio devices and exit
+  --whisper-model-path <PATH> Path to Whisper GGML model
+  --no-python-fallback        Fail instead of using Python fallback
+  --voice-vad-threshold-db <DB> Mic sensitivity (lower = more sensitive)
 ```
 
 ## Development
@@ -327,23 +236,16 @@ codex-voice/
 ├── Codex Voice.app/     # macOS double-click launcher
 ├── QUICK_START.md       # Fast setup and commands
 ├── ARCHITECTURE.md      # Architecture diagrams and data flow
-├── ts_cli/              # TypeScript frontend
-│   └── src/
-│       ├── index.ts     # Main entry, input handling
-│       ├── bridge/      # Rust IPC communication
-│       └── ui/          # Spinner, colors, banner
-├── rust_tui/            # Rust backend
+├── rust_tui/            # Rust overlay + voice pipeline
 │   └── src/
 │       ├── main.rs      # Entry point
-│       ├── ipc.rs       # JSON IPC protocol
-│       ├── codex.rs     # Codex/Claude backend
+│       ├── codex.rs     # Provider backend
 │       ├── voice.rs     # Voice capture orchestration
 │       ├── audio.rs     # CPAL recording, VAD
 │       ├── stt.rs       # Whisper transcription
 │       └── pty_session.rs # PTY wrapper
 ├── scripts/             # Setup and test scripts
 ├── models/              # Whisper GGML models
-├── docs/                # Local notes (ignored by git)
 ├── start.sh             # Linux/macOS launcher
 └── start.bat            # Windows launcher
 ```
@@ -351,14 +253,11 @@ codex-voice/
 ### Building
 
 ```bash
-# Rust backend
-cd rust_tui && cargo build --release
-
 # Rust overlay
 cd rust_tui && cargo build --release --bin codex_overlay
 
-# TypeScript CLI
-cd ts_cli && npm run build
+# Rust backend (optional dev binary)
+cd rust_tui && cargo build --release
 ```
 
 ### Testing
@@ -369,9 +268,6 @@ cd rust_tui && cargo test
 
 # Overlay tests
 cd rust_tui && cargo test --bin codex_overlay
-
-# Run with debug output
-cd ts_cli && DEBUG=1 npm start
 ```
 
 ## Troubleshooting
@@ -379,34 +275,27 @@ cd ts_cli && DEBUG=1 npm start
 ### Voice not working
 
 1. Check microphone permissions
-2. Verify Whisper model exists: `ls models/*.bin`
-3. Run with debug: `DEBUG=1 npm start`
-4. Check `/status` for backend capabilities
+2. Verify a Whisper model exists (or run `./scripts/setup.sh models --base`)
+3. List devices: `codex-voice --list-input-devices`
+4. If the status line shows "Python pipeline", install `python3`, `ffmpeg`, and the `whisper` CLI or use `--no-python-fallback`
 
-### Provider not responding
+### Codex not responding
 
-1. Ensure CLI is installed: `which codex` or `which claude`
-2. Check authentication: `codex login` or `claude login`
-3. Try switching providers: `/provider claude`
+1. Ensure Codex CLI is installed: `which codex`
+2. Check authentication: `codex login`
+3. Restart `codex-voice` if the PTY session is stuck
 
-### Backend connection failed
+### Logs
 
-1. Rebuild Rust backend: `cd rust_tui && cargo build --release`
-2. Check for compilation errors
-3. Verify binary exists: `ls rust_tui/target/release/rust_tui`
+- `${TMPDIR}/codex_voice_tui.log`
+- `${TMPDIR}/codex_overlay_prompt.log`
 
 ### Homebrew link conflict
 
-If `brew install codex-voice` cannot link because `codex-voice` already exists (often from npm):
+If `brew install codex-voice` cannot link because `codex-voice` already exists:
 
 ```bash
 brew link --overwrite codex-voice
-```
-
-Or uninstall the npm CLI:
-
-```bash
-npm uninstall -g codex-voice-cli
 ```
 
 ## License

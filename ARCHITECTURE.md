@@ -182,6 +182,7 @@ flowchart TD
 Notes:
 - Python fallback requires `python3`, `ffmpeg`, and the `whisper` CLI on PATH.
 - Use `--no-python-fallback` to force native Whisper and surface errors early.
+- When fallback is active, the overlay status line shows "Python pipeline" and logs record the switch.
 
 ## Timing + Latency (Voice + Codex)
 

@@ -137,26 +137,6 @@ check_rust() {
     fi
 }
 
-check_node() {
-    print_step "Checking Node.js..."
-
-    if command -v node &> /dev/null; then
-        local node_version=$(node --version 2>/dev/null || echo "unknown")
-        print_success "Node.js found: $node_version"
-
-        if command -v npm &> /dev/null; then
-            local npm_version=$(npm --version 2>/dev/null || echo "unknown")
-            print_success "npm found: $npm_version"
-        else
-            print_warning "npm not found"
-        fi
-        return 0
-    else
-        print_warning "Node.js not found. TypeScript CLI will not work."
-        return 0
-    fi
-}
-
 check_codex() {
     print_step "Checking Codex CLI..."
 
@@ -165,36 +145,8 @@ check_codex() {
         return 0
     else
         print_warning "Codex CLI not found in PATH"
-        echo "         Install from: npm install -g @openai/codex"
+        echo "         Install from: npm install -g @anthropic-ai/codex"
         return 0
-    fi
-}
-
-check_claude() {
-    print_step "Checking Claude CLI..."
-
-    local claude_cmd="${CLAUDE_CMD:-claude}"
-    if command -v "$claude_cmd" &> /dev/null; then
-        print_success "Claude CLI found: $claude_cmd"
-        return 0
-    else
-        print_warning "Claude CLI not found"
-        echo "         Install from: npm install -g @anthropic/claude-cli"
-        return 0
-    fi
-}
-
-build_rust_backend() {
-    print_step "Building Rust backend..."
-
-    cd "$PROJECT_ROOT/rust_tui"
-
-    if cargo build --release; then
-        print_success "Rust backend built successfully"
-        return 0
-    else
-        print_error "Failed to build Rust backend"
-        return 1
     fi
 }
 
@@ -208,28 +160,6 @@ build_rust_overlay() {
         return 0
     else
         print_error "Failed to build Rust overlay"
-        return 1
-    fi
-}
-
-build_typescript_cli() {
-    print_step "Building TypeScript CLI..."
-
-    cd "$PROJECT_ROOT/ts_cli"
-
-    if [ ! -d "node_modules" ]; then
-        print_step "Installing npm dependencies..."
-        npm install || {
-            print_error "Failed to install npm dependencies"
-            return 1
-        }
-    fi
-
-    if npm run build; then
-        print_success "TypeScript CLI built successfully"
-        return 0
-    else
-        print_error "Failed to build TypeScript CLI"
         return 1
     fi
 }
@@ -283,10 +213,9 @@ install_wrapper() {
     print_step "Installing codex-voice wrapper into $install_dir"
 
     mkdir -p "$install_dir"
-    cat > "$wrapper_path" <<EOF
+cat > "$wrapper_path" <<EOF
 #!/bin/bash
 export CODEX_VOICE_CWD="\$(pwd)"
-export CODEX_VOICE_MODE=overlay
 exec "$PROJECT_ROOT/start.sh" "\$@"
 EOF
     chmod 0755 "$wrapper_path"
@@ -307,11 +236,10 @@ show_usage() {
     echo ""
     echo "Commands:"
     echo "  install          Full overlay install (model + build + wrapper) (recommended, default)"
-    echo "  all              Run full setup (Rust + TypeScript, legacy)"
     echo "  overlay          Setup overlay only (model + build)"
     echo "  models           Download Whisper models only"
     echo "  check            Check dependencies only"
-    echo "  build            Build Rust and TypeScript only"
+    echo "  build            Build Rust overlay only"
     echo ""
     echo "Model options (for 'models' command):"
     echo "  --tiny           Download tiny.en model (75M, fastest)"
@@ -357,40 +285,6 @@ main() {
             echo ""
             echo "Run from any project:"
             echo "  codex-voice"
-            echo ""
-            ;;
-
-        all)
-            # Default: download base.en model
-            local model
-            model="$(resolve_single_model "${1:-}")"
-
-            check_rust || exit 1
-            check_node
-            check_codex
-            check_claude
-
-            echo ""
-            download_whisper_model "$model"
-
-            echo ""
-            build_rust_backend || exit 1
-
-            if command -v npm &> /dev/null; then
-                echo ""
-                build_typescript_cli || exit 1
-            fi
-
-            echo ""
-            echo -e "${GREEN}╔══════════════════════════════════════════════════════════════╗${NC}"
-            echo -e "${GREEN}║${NC}                    Setup Complete!                           ${GREEN}║${NC}"
-            echo -e "${GREEN}╚══════════════════════════════════════════════════════════════╝${NC}"
-            echo ""
-            echo "To start Codex Voice:"
-            echo "  ./start.sh"
-            echo ""
-            echo "Or with TypeScript CLI:"
-            echo "  cd ts_cli && npm start"
             echo ""
             ;;
 
@@ -460,9 +354,7 @@ main() {
 
         check)
             check_rust
-            check_node
             check_codex
-            check_claude
 
             echo ""
             print_step "Checking Whisper models..."
@@ -478,12 +370,7 @@ main() {
             ;;
 
         build)
-            build_rust_backend || exit 1
-
-            if command -v npm &> /dev/null; then
-                echo ""
-                build_typescript_cli || exit 1
-            fi
+            build_rust_overlay || exit 1
 
             print_success "Build complete!"
             ;;

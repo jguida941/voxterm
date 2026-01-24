@@ -21,5 +21,5 @@ fi
 # Open Terminal and run the overlay in the selected project folder
 osascript -e "tell application \"Terminal\"
     activate
-    do script \"cd '$PROJECT_DIR' && CODEX_VOICE_MODE=overlay '$SCRIPT_DIR/start.sh'\"
+    do script \"cd '$PROJECT_DIR' && '$SCRIPT_DIR/start.sh'\"
 end tell"

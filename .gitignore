@@ -19,6 +19,7 @@ build/
 Cargo.lock
 
 # TypeScript/Node
+ts_cli/
 ts_cli/node_modules/
 ts_cli/dist/
 node_modules/

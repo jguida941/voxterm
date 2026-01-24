@@ -17,11 +17,28 @@ RED='\033[0;31m'
 NC='\033[0m'
 
 echo ""
+echo -e "${GREEN}"
+cat <<'BANNER'
+  ____          _           __     __      _
+ / ___|___   __| | ___ _ __ \ \   / /__ _ _| |_ ___
+| |   / _ \ / _` |/ _ \ '__| \ \ / / _ \ '__| __/ __|
+| |__| (_) | (_| |  __/ |     \ V /  __/ |  | |_\__ \
+ \____\___/ \__,_|\___|_|      \_/ \___|_|   \__|___/
+BANNER
+echo -e "${NC}"
 echo -e "${GREEN}Starting Codex Voice...${NC}"
 echo ""
-
-# Choose overlay (default) or legacy TypeScript CLI
-MODE="${CODEX_VOICE_MODE:-overlay}"
+EXAMPLE_CMD="codex-voice"
+if ! command -v codex-voice &> /dev/null; then
+    EXAMPLE_CMD="./start.sh"
+fi
+echo "Quick controls: Ctrl+R record, Ctrl+V auto-voice, Ctrl+T send mode, Ctrl++/Ctrl+- sensitivity (5 dB), Ctrl+Q exit"
+echo "Note: Ctrl++ is often Ctrl+=, Ctrl+- may require Ctrl+Shift+-"
+echo "Start in auto-voice: $EXAMPLE_CMD --auto-voice"
+echo "Start in insert mode: $EXAMPLE_CMD --voice-send-mode insert"
+echo "Adjust sensitivity: $EXAMPLE_CMD --voice-vad-threshold-db -50"
+echo "Auto-voice idle default: 1200ms (adjust with --auto-voice-idle-ms 700)"
+echo ""
 
 # Resolve overlay binary (prefer local build, fall back to PATH)
 OVERLAY_BIN=""
@@ -31,28 +48,16 @@ elif command -v codex-overlay &> /dev/null; then
     OVERLAY_BIN="$(command -v codex-overlay)"
 fi
 
-# Check if Rust binary exists
-if [ "$MODE" = "overlay" ]; then
-    if [ -z "$OVERLAY_BIN" ]; then
-        echo -e "${YELLOW}Building Rust overlay (first time setup)...${NC}"
-        cd rust_tui && cargo build --release --bin codex_overlay
-        if [ $? -ne 0 ]; then
-            echo -e "${RED}Build failed. Please check the error above.${NC}"
-            exit 1
-        fi
-        cd ..
-        OVERLAY_BIN="$SCRIPT_DIR/rust_tui/target/release/codex_overlay"
+# Check if Rust overlay exists
+if [ -z "$OVERLAY_BIN" ]; then
+    echo -e "${YELLOW}Building Rust overlay (first time setup)...${NC}"
+    cd rust_tui && cargo build --release --bin codex_overlay
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}Build failed. Please check the error above.${NC}"
+        exit 1
     fi
-else
-    if [ ! -f "rust_tui/target/release/rust_tui" ]; then
-        echo -e "${YELLOW}Building Rust backend (first time setup)...${NC}"
-        cd rust_tui && cargo build --release
-        if [ $? -ne 0 ]; then
-            echo -e "${RED}Build failed. Please check the error above.${NC}"
-            exit 1
-        fi
-        cd ..
-    fi
+    cd ..
+    OVERLAY_BIN="$SCRIPT_DIR/rust_tui/target/release/codex_overlay"
 fi
 
 # Check if whisper model exists
@@ -124,26 +129,13 @@ if [ -z "$MODEL_PATH" ]; then
 fi
 MODEL_PATH_ABS="$MODEL_PATH"
 
-if [ "$MODE" = "overlay" ]; then
-    echo -e "${GREEN}Launching overlay mode...${NC}"
-    if [ -z "$OVERLAY_BIN" ]; then
-        echo -e "${RED}Overlay binary not found. Please run ./install.sh or build rust_tui.${NC}"
-        exit 1
-    fi
-    EXTRA_ARGS=()
-    if [ $HAS_WHISPER_ARG -eq 0 ]; then
-        EXTRA_ARGS+=(--whisper-model-path "$MODEL_PATH_ABS")
-    fi
-    "$OVERLAY_BIN" "${EXTRA_ARGS[@]}" "$@"
-else
-    # Check if TypeScript is built
-    if [ ! -f "ts_cli/dist/index.js" ]; then
-        echo -e "${YELLOW}Building TypeScript CLI...${NC}"
-        cd ts_cli && npm install && npm run build
-        cd ..
-    fi
-
-    # Run the CLI
-    cd ts_cli
-    npm start
+echo -e "${GREEN}Launching overlay mode...${NC}"
+if [ -z "$OVERLAY_BIN" ]; then
+    echo -e "${RED}Overlay binary not found. Please run ./install.sh or build rust_tui.${NC}"
+    exit 1
 fi
+EXTRA_ARGS=()
+if [ $HAS_WHISPER_ARG -eq 0 ]; then
+    EXTRA_ARGS+=(--whisper-model-path "$MODEL_PATH_ABS")
+fi
+"$OVERLAY_BIN" "${EXTRA_ARGS[@]}" "$@"

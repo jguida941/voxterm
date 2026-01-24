@@ -61,6 +61,9 @@ enum InputEvent {
     Bytes(Vec<u8>),
     VoiceTrigger,
     ToggleAutoVoice,
+    ToggleSendMode,
+    IncreaseSensitivity,
+    DecreaseSensitivity,
     Exit,
 }
 
@@ -172,6 +175,42 @@ fn main() -> Result<()> {
                             &mut status_clear_deadline,
                             msg,
                             Some(Duration::from_secs(2)),
+                        );
+                    }
+                    Ok(InputEvent::ToggleSendMode) => {
+                        config.voice_send_mode = match config.voice_send_mode {
+                            VoiceSendMode::Auto => VoiceSendMode::Insert,
+                            VoiceSendMode::Insert => VoiceSendMode::Auto,
+                        };
+                        let msg = match config.voice_send_mode {
+                            VoiceSendMode::Auto => "Send mode: auto (sends Enter)",
+                            VoiceSendMode::Insert => "Send mode: insert (press Enter to send)",
+                        };
+                        set_status(
+                            &writer_tx,
+                            &mut status_clear_deadline,
+                            msg,
+                            Some(Duration::from_secs(3)),
+                        );
+                    }
+                    Ok(InputEvent::IncreaseSensitivity) => {
+                        let threshold_db = voice_manager.adjust_sensitivity(5.0);
+                        let msg = format!("Mic sensitivity: {threshold_db:.0} dB (less sensitive)");
+                        set_status(
+                            &writer_tx,
+                            &mut status_clear_deadline,
+                            &msg,
+                            Some(Duration::from_secs(3)),
+                        );
+                    }
+                    Ok(InputEvent::DecreaseSensitivity) => {
+                        let threshold_db = voice_manager.adjust_sensitivity(-5.0);
+                        let msg = format!("Mic sensitivity: {threshold_db:.0} dB (more sensitive)");
+                        set_status(
+                            &writer_tx,
+                            &mut status_clear_deadline,
+                            &msg,
+                            Some(Duration::from_secs(3)),
                         );
                     }
                     Ok(InputEvent::Exit) => {
@@ -346,6 +385,39 @@ fn spawn_input_thread(tx: Sender<InputEvent>) -> thread::JoinHandle<()> {
                             pending = Vec::new();
                         }
                         if tx.send(InputEvent::ToggleAutoVoice).is_err() {
+                            return;
+                        }
+                    }
+                    0x14 => {
+                        if !pending.is_empty() {
+                            if tx.send(InputEvent::Bytes(pending)).is_err() {
+                                return;
+                            }
+                            pending = Vec::new();
+                        }
+                        if tx.send(InputEvent::ToggleSendMode).is_err() {
+                            return;
+                        }
+                    }
+                    0x1d => {
+                        if !pending.is_empty() {
+                            if tx.send(InputEvent::Bytes(pending)).is_err() {
+                                return;
+                            }
+                            pending = Vec::new();
+                        }
+                        if tx.send(InputEvent::IncreaseSensitivity).is_err() {
+                            return;
+                        }
+                    }
+                    0x1f => {
+                        if !pending.is_empty() {
+                            if tx.send(InputEvent::Bytes(pending)).is_err() {
+                                return;
+                            }
+                            pending = Vec::new();
+                        }
+                        if tx.send(InputEvent::DecreaseSensitivity).is_err() {
                             return;
                         }
                     }
@@ -584,6 +656,19 @@ impl VoiceManager {
             transcriber: None,
             job: None,
         }
+    }
+
+    fn adjust_sensitivity(&mut self, delta_db: f32) -> f32 {
+        const MIN_DB: f32 = -80.0;
+        const MAX_DB: f32 = -10.0;
+        let mut next = self.config.voice_vad_threshold_db + delta_db;
+        if next < MIN_DB {
+            next = MIN_DB;
+        } else if next > MAX_DB {
+            next = MAX_DB;
+        }
+        self.config.voice_vad_threshold_db = next;
+        next
     }
 
     fn is_idle(&self) -> bool {

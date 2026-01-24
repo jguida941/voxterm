@@ -6,8 +6,17 @@ All notable changes to this project will be documented here, following the SDLC 
 
 ### Simplified Install Flow (2026-01-23) - COMPLETE
 - **New installer**: added `install.sh` plus `scripts/setup.sh install` to download the Whisper model, build the Rust overlay, and install a `codex-voice` wrapper.
-- **Overlay-first defaults**: `scripts/setup.sh` now defaults to `install` so it no longer builds the TypeScript CLI unless requested.
+- **Overlay-first defaults**: `scripts/setup.sh` now defaults to `install` so it builds the Rust overlay by default.
 - **Docs updated**: README + QUICK_START now point to `./install.sh` and `codex-voice` for the simplest path.
+
+### Rust-Only Docs + Launchers (2026-01-23) - COMPLETE
+- **Docs sweep**: removed legacy CLI references from user-facing docs and the audit.
+- **Launchers aligned**: `start.sh` and `scripts/setup.sh` now run overlay-only; Windows launcher points to WSL/macos/linux.
+- **Backlog added**: `BACKLOG.md` tracks Python fallback removal work.
+
+### Overlay UX (2026-01-23) - COMPLETE
+- **New hotkeys**: Ctrl+T toggles send mode (auto vs insert), Ctrl++/Ctrl+- adjust mic sensitivity in 5 dB steps.
+- **Startup hints**: `start.sh` prints the key controls and common flag examples for non-programmers.
 
 ### Homebrew Runtime Fixes (2026-01-23) - COMPLETE
 - **Prebuilt overlay reuse**: `start.sh` now uses `codex-overlay` from PATH when available, skipping builds in Homebrew installs.
@@ -30,14 +39,14 @@ All notable changes to this project will be documented here, following the SDLC 
 - **Major project structure cleanup**:
   - Removed duplicate files from `rust_tui/` (CHANGELOG, docs/, screenshots, etc.)
   - Moved rust_tui test scripts to `rust_tui/scripts/`
-  - Consolidated scripts: deleted redundant launchers (`run_tui.sh`, `launch_tui.py`, `run_in_pty.py`, `ts_cli/run.sh`)
+  - Consolidated scripts: deleted redundant launchers (`run_tui.sh`, `launch_tui.py`, `run_in_pty.py`)
   - Moved benchmark scripts to `scripts/tests/`
   - Deleted legacy folders (`stubs/`, `tst/`)
   - Kept `codex_voice.py` as legacy Python fallback
 - **Updated all README diagrams** to match actual project structure.
 - **Updated .gitignore** to exclude internal dev docs (`PROJECT_OVERVIEW.md`, `agents.md`, etc.)
 - **Fixed Cargo.toml** reference to deleted test file.
-- **82 Rust tests passing**, TypeScript builds successfully.
+- **82 Rust tests passing**.
 
 ### PTY Readiness + Auth Flow (2026-01-11) - COMPLETE
 - **PTY readiness handshake**: wait for initial output and fail fast when only control output appears, preventing 20-30s stalls on persistent sessions.
@@ -45,13 +54,13 @@ All notable changes to this project will be documented here, following the SDLC 
 - **Output delivery fix**: Codex Finished output is delivered even if the worker signal channel disconnects.
 - **CI/testing updates**: added `mutation-testing.yml` and extended integration test coverage for the auth command.
 
-### Provider-Agnostic Backend + TypeScript CLI (2026-01-10) - COMPLETE
+### Provider-Agnostic Backend + JSON IPC (2026-01-10) - COMPLETE
 - **Implemented provider-agnostic backend**: `rust_tui/src/ipc.rs` rewritten with non-blocking event loop, supporting both Codex and Claude CLIs with full slash-command parity.
-- **TypeScript CLI functional**: `ts_cli/` contains thin wrapper with ANSI art banner, Ctrl+R voice capture, provider switching, and full IPC integration.
+- **IPC client flow functional**: JSON IPC supports voice capture, provider switching, and full event streaming.
 - **Rust IPC mode**: `--json-ipc` flag enables JSON-lines protocol with capability handshake on startup.
 - **All critical bugs fixed**:
   - IPC no longer blocks during job processing (stdin reader thread)
-  - Codex/Claude output streams to TypeScript
+  - Codex/Claude output streams to IPC clients
   - Ctrl+R wired for voice capture (raw mode)
   - Unknown `/` commands forwarded to provider
 - **New features**:

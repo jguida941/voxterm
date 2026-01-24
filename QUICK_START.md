@@ -2,6 +2,8 @@
 
 This is the shortest path to run Codex with voice in your terminal.
 
+Supported on macOS and Linux (use WSL2 if you are on Windows).
+
 ## 1) One-time setup
 
 - Install Codex CLI:
@@ -15,15 +17,16 @@ npm install -g @anthropic-ai/codex
 ## 2) Install Codex Voice (one time)
 
 ```bash
-cd /path/to/codex-voice
+git clone https://github.com/jguida941/codex-voice.git
+cd codex-voice
 ./install.sh
 ```
 
 If `codex-voice` is not found, the installer used the first writable directory in this order:
 `/opt/homebrew/bin`, `/usr/local/bin`, `~/.local/bin`, or `/path/to/codex-voice/bin`. Add that
 directory to PATH or set `CODEX_VOICE_INSTALL_DIR` before running `./install.sh`. If a
-`codex-voice` command already exists (npm/brew), the installer skips that location; uninstall it
-or set `CODEX_VOICE_INSTALL_DIR` to override.
+`codex-voice` command already exists, the installer skips that location; remove the conflicting
+binary or set `CODEX_VOICE_INSTALL_DIR` to override.
 
 ## 3) Run from any project
 
@@ -34,10 +37,13 @@ codex-voice
 
 First run will download a Whisper model if missing, then start the Rust overlay in your current folder.
 
-## 3) Voice controls
+## 4) Voice controls
 
 - `Ctrl+R` - start voice capture
 - `Ctrl+V` - toggle auto-voice
+- `Ctrl+T` - toggle send mode (auto vs insert)
+- `Ctrl++` - increase mic threshold by 5 dB (less sensitive, often Ctrl+=)
+- `Ctrl+-` - decrease mic threshold by 5 dB (more sensitive, may be Ctrl+Shift+-)
 - `Ctrl+Q` - exit overlay
 - `Ctrl+C` - forwarded to Codex
 
@@ -46,6 +52,7 @@ First run will download a Whisper model if missing, then start the Rust overlay 
 ```bash
 codex-voice --auto-voice
 codex-voice --voice-send-mode insert
+codex-voice --voice-vad-threshold-db -50
 codex-voice --prompt-regex '^codex> $'
 ```
 
@@ -62,17 +69,17 @@ brew tap jguida941/homebrew-codex-voice
 brew install codex-voice
 ```
 
-Download a Whisper model once:
-
-```bash
-$(brew --prefix)/opt/codex-voice/libexec/scripts/setup.sh models --base
-```
-
-Run from any project:
+Run from any project (first run downloads the model if missing):
 
 ```bash
 cd ~/my-project
 codex-voice
+```
+
+Optional pre-download:
+
+```bash
+$(brew --prefix)/opt/codex-voice/libexec/scripts/setup.sh models --base
 ```
 
 ## Troubleshooting
@@ -82,6 +89,6 @@ codex-voice
 - Force native Whisper only:
   `./start.sh --no-python-fallback`
 - If Homebrew cannot link `codex-voice` because it already exists:
-  `brew link --overwrite codex-voice` or uninstall the npm CLI (`npm uninstall -g codex-voice-cli`).
+  `brew link --overwrite codex-voice` or remove the conflicting binary.
 - Logs: `${TMPDIR}/codex_voice_tui.log`
 - Prompt detection log: `${TMPDIR}/codex_overlay_prompt.log`
