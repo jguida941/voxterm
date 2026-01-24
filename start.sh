@@ -19,11 +19,18 @@ NC='\033[0m'
 echo ""
 echo -e "${GREEN}"
 cat <<'BANNER'
-  ____          _           __     __      _
- / ___|___   __| | ___ _ __ \ \   / /__ _ _| |_ ___
-| |   / _ \ / _` |/ _ \ '__| \ \ / / _ \ '__| __/ __|
-| |__| (_) | (_| |  __/ |     \ V /  __/ |  | |_\__ \
- \____\___/ \__,_|\___|_|      \_/ \___|_|   \__|___/
+   ██████╗ ██████╗ ██████╗ ███████╗██╗  ██╗
+  ██╔════╝██╔═══██╗██╔══██╗██╔════╝╚██╗██╔╝
+  ██║     ██║   ██║██║  ██║█████╗   ╚███╔╝
+  ██║     ██║   ██║██║  ██║██╔══╝   ██╔██╗
+  ╚██████╗╚██████╔╝██████╔╝███████╗██╔╝ ██╗
+   ╚═════╝ ╚═════╝ ╚═════╝ ╚══════╝╚═╝  ╚═╝
+          ██╗   ██╗ ██████╗ ██╗ ██████╗███████╗
+          ██║   ██║██╔═══██╗██║██╔════╝██╔════╝
+          ██║   ██║██║   ██║██║██║     █████╗
+          ╚██╗ ██╔╝██║   ██║██║██║     ██╔══╝
+           ╚████╔╝ ╚██████╔╝██║╚██████╗███████╗
+            ╚═══╝   ╚═════╝ ╚═╝ ╚═════╝╚══════╝
 BANNER
 echo -e "${NC}"
 echo -e "${GREEN}Starting Codex Voice...${NC}"
@@ -32,12 +39,54 @@ EXAMPLE_CMD="codex-voice"
 if ! command -v codex-voice &> /dev/null; then
     EXAMPLE_CMD="./start.sh"
 fi
-echo "Quick controls: Ctrl+R record, Ctrl+V auto-voice, Ctrl+T send mode, Ctrl++/Ctrl+- sensitivity (5 dB), Ctrl+Q exit"
-echo "Note: Ctrl++ is often Ctrl+=, Ctrl+- may require Ctrl+Shift+-"
-echo "Start in auto-voice: $EXAMPLE_CMD --auto-voice"
-echo "Start in insert mode: $EXAMPLE_CMD --voice-send-mode insert"
-echo "Adjust sensitivity: $EXAMPLE_CMD --voice-vad-threshold-db -50"
-echo "Auto-voice idle default: 1200ms (adjust with --auto-voice-idle-ms 700)"
+
+print_controls_table() {
+    local col1=14
+    local col2=34
+    local border1
+    local border2
+
+    border1=$(printf '%*s' $((col1 + 2)) '' | tr ' ' '-')
+    border2=$(printf '%*s' $((col2 + 2)) '' | tr ' ' '-')
+
+    echo -e "${GREEN}+${border1}+${border2}+${NC}"
+    printf "${GREEN}| %-*s | %-*s |${NC}\n" "$col1" "Control" "$col2" "Action"
+    echo -e "${GREEN}+${border1}+${border2}+${NC}"
+    printf "${GREEN}| %-*s | %-*s |${NC}\n" "$col1" "Ctrl+R" "$col2" "Record (push-to-talk)"
+    printf "${GREEN}| %-*s | %-*s |${NC}\n" "$col1" "Ctrl+V" "$col2" "Toggle auto-voice"
+    printf "${GREEN}| %-*s | %-*s |${NC}\n" "$col1" "Ctrl+T" "$col2" "Toggle send mode"
+    printf "${GREEN}| %-*s | %-*s |${NC}\n" "$col1" "Ctrl+=/++" "$col2" "Mic sensitivity +5 dB"
+    printf "${GREEN}| %-*s | %-*s |${NC}\n" "$col1" "Ctrl+-" "$col2" "Mic sensitivity -5 dB"
+    printf "${GREEN}| %-*s | %-*s |${NC}\n" "$col1" "Ctrl+Q" "$col2" "Quit overlay"
+    echo -e "${GREEN}+${border1}+${border2}+${NC}"
+}
+
+print_commands_table() {
+    local col1=46
+    local col2=24
+    local border1
+    local border2
+
+    border1=$(printf '%*s' $((col1 + 2)) '' | tr ' ' '-')
+    border2=$(printf '%*s' $((col2 + 2)) '' | tr ' ' '-')
+
+    echo -e "${GREEN}+${border1}+${border2}+${NC}"
+    printf "${GREEN}| %-*s | %-*s |${NC}\n" "$col1" "Command" "$col2" "Purpose"
+    echo -e "${GREEN}+${border1}+${border2}+${NC}"
+    printf "${GREEN}| %-*s | %-*s |${NC}\n" "$col1" "$EXAMPLE_CMD --auto-voice" "$col2" "Start in auto-voice"
+    printf "${GREEN}| %-*s | %-*s |${NC}\n" "$col1" "$EXAMPLE_CMD --voice-send-mode insert" "$col2" "Start in insert mode"
+    printf "${GREEN}| %-*s | %-*s |${NC}\n" "$col1" "$EXAMPLE_CMD --voice-vad-threshold-db -50" "$col2" "Set mic threshold"
+    printf "${GREEN}| %-*s | %-*s |${NC}\n" "$col1" "$EXAMPLE_CMD --auto-voice-idle-ms 700" "$col2" "Auto-voice idle"
+    echo -e "${GREEN}+${border1}+${border2}+${NC}"
+}
+
+echo -e "${GREEN}Quick Controls${NC}"
+print_controls_table
+echo -e "${GREEN}Note: Ctrl++ is often Ctrl+=; Ctrl+- may require Ctrl+Shift+-${NC}"
+echo ""
+echo -e "${GREEN}Common Commands${NC}"
+print_commands_table
+echo -e "${GREEN}Default auto-voice idle: 1200ms (adjust with --auto-voice-idle-ms)${NC}"
 echo ""
 
 # Resolve overlay binary (prefer local build, fall back to PATH)
