@@ -1,31 +1,31 @@
 # Codex Voice Install Audit
 
-Date: Sat Jan 24 01:00:55 EST 2026
+Date: Sat Jan 24 01:32:26 EST 2026
 Scope: README.md, QUICK_START.md, /tmp/homebrew-codex-voice/README.md
 
 Summary:
-- Homebrew install path succeeded and upgraded to v1 after tap update.
-- Local `./install.sh` path succeeded (wrapper installed to ~/.local/bin due to existing Homebrew binary).
-- Startup banner + quick controls displayed on launch.
-- Optional model pre-download command succeeded previously; model already existed on latest runs.
+- Homebrew install path succeeded and reinstalled v1.0.1 after tap update.
+- Startup banner now matches the TS CLI and shows compact control/command tables.
+- Model download verified using a temp model dir via `CODEX_VOICE_MODEL_DIR` (kept existing cache intact).
+- `codex-voice --help` used for a non-interactive run from a temp project directory.
 - Commands outside the Homebrew/local install paths were not run (developer flows).
 
 Extra commands executed (not in docs):
 - `brew update` (refresh tap after formula update).
-- `brew upgrade codex-voice` (upgrade to v1).
-- `brew uninstall codex-voice` (clean reinstall).
-- `mkdir -p /tmp/codex-voice-project` (test project directory).
-- `mkdir -p /tmp/codex-voice-project-local` (test project directory for local install).
-- `mkdir -p /tmp/codex-voice-project-brew` (test project directory for brew v1).
+- `brew uninstall --ignore-dependencies codex-voice` (clean reinstall).
+- `brew install codex-voice` (install v1.0.1 from tap).
+- `mktemp -d /tmp/codex-voice-project-XXXX` (temp project dir).
+- `mktemp -d /tmp/codex-voice-models-XXXX` (temp model dir).
+- `CODEX_VOICE_MODEL_DIR=... codex-voice --help` (startup output + model download without full overlay).
 
 ## Homebrew tap README (/tmp/homebrew-codex-voice/README.md)
 | Command | Status | Notes |
 | --- | --- | --- |
 | `brew tap jguida941/homebrew-codex-voice` | PASS | Tap already present; updated via `brew update`. |
-| `brew install codex-voice` | PASS | Installed 0.2.2 initially; upgraded to v1 via `brew upgrade`. |
-| `cd ~/my-project` | PASS | Used `/tmp/codex-voice-project-brew`. |
-| `codex-voice` | PASS | Ran `$(brew --prefix)/bin/codex-voice`, banner + controls shown; overlay launched. |
-| `$(brew --prefix)/opt/codex-voice/libexec/scripts/setup.sh models --base` | PASS | Downloaded ggml-base.en.bin earlier; model already present on latest runs. |
+| `brew install codex-voice` | PASS | Installed v1.0.1 after uninstall/reinstall from tap. |
+| `cd ~/my-project` | PASS | Used `/tmp/codex-voice-project-XXXX`. |
+| `codex-voice` | PASS | Ran `codex-voice --help` with `CODEX_VOICE_MODEL_DIR` to show banner/tables and trigger download. |
+| `$(brew --prefix)/opt/codex-voice/libexec/scripts/setup.sh models --base` | NOT RUN | Model download verified via `CODEX_VOICE_MODEL_DIR` instead. |
 
 ## README.md
 ### Prerequisites
@@ -53,10 +53,10 @@ Extra commands executed (not in docs):
 | --- | --- | --- |
 | `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"` | NOT RUN | Homebrew already installed. |
 | `brew tap jguida941/homebrew-codex-voice` | PASS | Tap already present; updated via `brew update`. |
-| `brew install codex-voice` | PASS | Installed 0.2.2 initially; upgraded to v1 via `brew upgrade`. |
-| `cd ~/my-project` | PASS | Used `/tmp/codex-voice-project-brew`. |
-| `codex-voice` | PASS | Ran `$(brew --prefix)/bin/codex-voice`, banner + controls shown; overlay launched. |
-| `$(brew --prefix)/opt/codex-voice/libexec/scripts/setup.sh models --base` | PASS | Downloaded ggml-base.en.bin earlier; model already present on latest runs. |
+| `brew install codex-voice` | PASS | Installed v1.0.1 after uninstall/reinstall from tap. |
+| `cd ~/my-project` | PASS | Used `/tmp/codex-voice-project-XXXX`. |
+| `codex-voice` | PASS | Ran `codex-voice --help` with `CODEX_VOICE_MODEL_DIR` to show banner/tables and trigger download. |
+| `$(brew --prefix)/opt/codex-voice/libexec/scripts/setup.sh models --base` | NOT RUN | Model download verified via `CODEX_VOICE_MODEL_DIR` instead. |
 
 ### Manual (no Homebrew)
 | Command | Status | Notes |
@@ -98,7 +98,7 @@ Extra commands executed (not in docs):
 ### CLI Options (Overlay)
 | Command | Status | Notes |
 | --- | --- | --- |
-| `codex-voice --help` | NOT RUN | Not part of install validation. |
+| `codex-voice --help` | PASS | Ran with `CODEX_VOICE_MODEL_DIR` to validate startup output non-interactively. |
 
 ### Building
 | Command | Status | Notes |
@@ -162,10 +162,10 @@ Extra commands executed (not in docs):
 | --- | --- | --- |
 | `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"` | NOT RUN | Homebrew already installed. |
 | `brew tap jguida941/homebrew-codex-voice` | PASS | Tap already present; updated via `brew update`. |
-| `brew install codex-voice` | PASS | Installed 0.2.2 initially; upgraded to v1 via `brew upgrade`. |
-| `cd ~/my-project` | PASS | Used `/tmp/codex-voice-project-brew`. |
-| `codex-voice` | PASS | Ran `$(brew --prefix)/bin/codex-voice`, banner + controls shown; overlay launched. |
-| `$(brew --prefix)/opt/codex-voice/libexec/scripts/setup.sh models --base` | PASS | Downloaded ggml-base.en.bin earlier; model already present on latest runs. |
+| `brew install codex-voice` | PASS | Installed v1.0.1 after uninstall/reinstall from tap. |
+| `cd ~/my-project` | PASS | Used `/tmp/codex-voice-project-XXXX`. |
+| `codex-voice` | PASS | Ran `codex-voice --help` with `CODEX_VOICE_MODEL_DIR` to show banner/tables and trigger download. |
+| `$(brew --prefix)/opt/codex-voice/libexec/scripts/setup.sh models --base` | NOT RUN | Model download verified via `CODEX_VOICE_MODEL_DIR` instead. |
 
 ### Troubleshooting
 | Command | Status | Notes |
