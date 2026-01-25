@@ -4,6 +4,19 @@ Rust overlay wrapping Codex CLI. Speak to Codex with Whisper STT.
 
 ![Codex Voice Startup](img/startup.png)
 
+## Contents
+
+- [Features](#features)
+- [Quick Start](#quick-start) | [QUICK_START.md](QUICK_START.md)
+- [Install Options](#install-options)
+- [Usage](#usage)
+- [How It Works](#how-it-works)
+- [Architecture](#architecture) | [Full Diagrams](docs/ARCHITECTURE.md)
+- [Configuration](#configuration)
+- [Development](#development)
+- [Troubleshooting](#troubleshooting)
+- [Changelog](docs/CHANGELOG.md)
+
 ## Features
 
 - Voice input via microphone (Whisper STT)
@@ -13,7 +26,7 @@ Rust overlay wrapping Codex CLI. Speak to Codex with Whisper STT.
 
 ## Quick Start
 
-If you want the shortest path, see `QUICK_START.md`.
+If you want the shortest path, see [QUICK_START.md](QUICK_START.md).
 
 ### Prerequisites
 
@@ -197,7 +210,7 @@ injects voice transcripts as keystrokes. The terminal itself is the UI, with a m
 | PTY Session | `rust_tui/src/pty_session.rs` | Raw PTY passthrough and prompt-safe output |
 | Python fallback | `scripts/codex_voice.py` | Optional fallback STT pipeline |
 
-See `docs/ARCHITECTURE.md` for full diagrams and data flow.
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for full diagrams and data flow.
 
 ## Configuration
 
