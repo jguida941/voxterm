@@ -25,7 +25,7 @@ The Rust overlay simply wraps Codex in a PTY, preserving its complete native UI 
 ## Features
 
 - Voice input via microphone (Whisper STT)
-- **Fast local transcription** - ~250ms processing after speech ends, no cloud API calls
+- **Fast local transcription** ~250ms processing after speech ends, no cloud API calls
 - Rust overlay mode that preserves the full Codex TUI (PTY passthrough)
 - Auto-voice mode for continuous conversation
 - Optional Python fallback when native capture is unavailable
