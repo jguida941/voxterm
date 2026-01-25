@@ -105,7 +105,9 @@ mod platform {
                     Err(err) => log_debug(&format!("Failed to read whisper segment {i}: {err}")),
                 }
             }
-            Ok(transcript)
+            // Filter out Whisper's [BLANK_AUDIO] token
+            let filtered = transcript.replace("[BLANK_AUDIO]", "");
+            Ok(filtered)
         }
     }
 
