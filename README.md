@@ -222,15 +222,28 @@ Run `codex-voice --help` for all options. Key flags:
 
 Overlay mode runs Codex in a real PTY and forwards raw ANSI output directly to your terminal:
 
-```
-Keyboard / voice
-       |
-       v
-  codex_overlay (Rust)
-   |        |
-   |        +--> voice pipeline (cpal + Whisper) -> transcript -> PTY input
-   |
-   +--> PTY -> Codex CLI -> ANSI output -> your terminal
+```mermaid
+flowchart LR
+    subgraph Input
+        KB[Keyboard]
+        MIC[Microphone]
+    end
+
+    subgraph "codex_overlay (Rust)"
+        VP[Voice Pipeline<br>cpal + Whisper]
+        PTY[PTY Session]
+    end
+
+    subgraph Output
+        CODEX[Codex CLI]
+        TERM[Your Terminal]
+    end
+
+    KB --> PTY
+    MIC --> VP
+    VP -->|transcript| PTY
+    PTY <-->|stdin/stdout| CODEX
+    CODEX -->|ANSI output| TERM
 ```
 
 The overlay does not parse slash commands; it keeps Codex's native UI intact and only handles
