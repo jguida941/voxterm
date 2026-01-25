@@ -71,6 +71,8 @@ Use `./start.sh` if you want automatic model download and setup.
 2. Pick your project folder.
 3. A Terminal window opens and runs the overlay inside that folder.
 
+![Folder Picker](img/folder-picker.png)
+
 ### Homebrew (optional, global command)
 
 1. Install Homebrew (if needed):
@@ -152,6 +154,8 @@ codex-voice
 Overlay mode runs the Codex CLI in a PTY and forwards raw ANSI output. There are no wrapper
 slash commands; you interact directly with Codex's native UI.
 
+![Overlay Running](img/overlay-running.png)
+
 #### Shortcuts
 
 | Key | Action |
@@ -163,6 +167,14 @@ slash commands; you interact directly with Codex's native UI.
 | `Ctrl+-` | Decrease mic threshold by 5 dB (more sensitive, may be Ctrl+Shift+-) |
 | `Ctrl+Q` | Exit overlay |
 | `Ctrl+C` | Forward to Codex |
+
+**Voice Recording (Ctrl+R):**
+
+![Recording](img/recording.png)
+
+**Auto-voice Mode (Ctrl+V):**
+
+![Auto-voice](img/auto-voice.png)
 
 #### Common flags
 
