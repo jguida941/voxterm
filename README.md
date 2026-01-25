@@ -10,6 +10,8 @@ Rust overlay wrapping Codex CLI. Speak to Codex with Whisper STT.
 - [Quick Start](#quick-start) | [QUICK_START.md](QUICK_START.md)
 - [Install Options](#install-options)
 - [Usage](#usage)
+  - [Keyboard Shortcuts](#keyboard-shortcuts)
+  - [CLI Flags](#cli-flags)
 - [How It Works](#how-it-works)
 - [Architecture](#architecture) | [Full Diagrams](docs/ARCHITECTURE.md)
 - [Configuration](#configuration)
@@ -150,14 +152,13 @@ codex-voice
 
 ## Usage
 
-### Overlay Mode (default)
-
-Overlay mode runs the Codex CLI in a PTY and forwards raw ANSI output. There are no wrapper
-slash commands; you interact directly with Codex's native UI.
+Overlay mode runs the Codex CLI in a PTY and forwards raw ANSI output. You interact directly with Codex's native UI - no wrapper commands.
 
 ![Overlay Running](img/overlay-running.png)
 
-#### Keyboard Shortcuts
+---
+
+### Keyboard Shortcuts
 
 | Key | Action |
 |-----|--------|
@@ -169,46 +170,49 @@ slash commands; you interact directly with Codex's native UI.
 | `Ctrl+Q` | Exit overlay |
 | `Ctrl+C` | Forward to Codex |
 
-**Voice Recording (Ctrl+R):**
+| | |
+|---|---|
+| ![Recording](img/recording.png) | ![Auto-voice](img/auto-voice.png) |
+| **Voice Recording** (`Ctrl+R`) | **Auto-voice Mode** (`Ctrl+V`) |
 
-![Recording](img/recording.png)
+---
 
-**Auto-voice Mode (Ctrl+V):**
+### CLI Flags
 
-![Auto-voice](img/auto-voice.png)
+Run `codex-voice --help` for all options. Key flags:
 
-#### CLI Flags
+#### Voice & Recording
 
-**Voice & Recording:**
+| Flag | Purpose | Default |
+|------|---------|---------|
+| `--auto-voice` | Start in auto-voice mode | off |
+| `--auto-voice-idle-ms <MS>` | Idle timeout before auto-voice triggers | 1200 |
+| `--voice-send-mode <auto\|insert>` | `auto` sends newline, `insert` for editing | auto |
+| `--voice-vad-threshold-db <DB>` | Mic sensitivity (lower = more sensitive) | -40 |
+| `--voice-vad-engine <earshot\|simple>` | VAD implementation | earshot |
+| `--input-device <NAME>` | Preferred audio input device | system default |
+| `--list-input-devices` | Print available audio devices and exit | - |
 
-| Flag | Purpose |
-|------|---------|
-| `--auto-voice` | Start in auto-voice mode |
-| `--auto-voice-idle-ms <MS>` | Idle timeout before auto-voice triggers (default: 1200) |
-| `--voice-send-mode <auto\|insert>` | `auto` sends newline, `insert` leaves for editing |
-| `--voice-vad-threshold-db <DB>` | Mic sensitivity in dB (default: -40, lower = more sensitive) |
-| `--voice-vad-engine <earshot\|simple>` | VAD implementation (default: earshot) |
-| `--input-device <NAME>` | Preferred audio input device |
-| `--list-input-devices` | Print available audio devices and exit |
+#### Whisper & STT
 
-**Whisper & STT:**
+| Flag | Purpose | Default |
+|------|---------|---------|
+| `--whisper-model-path <PATH>` | Path to Whisper GGML model | required |
+| `--whisper-model <NAME>` | Whisper model name | small |
+| `--lang <LANG>` | Language for Whisper | en |
+| `--no-python-fallback` | Fail instead of Python fallback | off |
 
-| Flag | Purpose |
-|------|---------|
-| `--whisper-model-path <PATH>` | Path to Whisper GGML model (required) |
-| `--whisper-model <NAME>` | Whisper model name (default: small) |
-| `--lang <LANG>` | Language for Whisper (default: en) |
-| `--no-python-fallback` | Fail instead of using Python STT fallback |
+#### Advanced
 
-**Advanced:**
+| Flag | Purpose | Default |
+|------|---------|---------|
+| `--prompt-regex <REGEX>` | Override prompt detection | auto-detect |
+| `--codex-cmd <PATH>` | Path to Codex CLI binary | codex |
+| `--codex-arg <ARG>` | Extra args to Codex (repeatable) | - |
+| `--log-timings` | Enable verbose timing logs | off |
+| `--json-ipc` | JSON IPC mode for external integration | off |
 
-| Flag | Purpose |
-|------|---------|
-| `--prompt-regex <REGEX>` | Override prompt detection regex |
-| `--codex-cmd <PATH>` | Path to Codex CLI binary (default: codex) |
-| `--codex-arg <ARG>` | Extra args to pass to Codex (repeatable) |
-| `--log-timings` | Enable verbose timing logs |
-| `--json-ipc` | Run in JSON IPC mode for external integration |
+---
 
 ## How It Works
 
@@ -250,29 +254,13 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for full diagrams and data flow
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `CODEX_VOICE_MODEL_DIR` | Override model storage directory | auto (repo `models/` or `~/.local/share/codex-voice/models`) |
+| `CODEX_VOICE_MODEL_DIR` | Override model storage directory | auto (`models/` or `~/.local/share/codex-voice/models`) |
 | `CODEX_VOICE_CWD` | Run Codex in a chosen project directory | current directory |
-| `CODEX_VOICE_INSTALL_DIR` | Override global install location for `./install.sh` | unset |
+| `CODEX_VOICE_INSTALL_DIR` | Override install location for `./install.sh` | unset |
 | `CODEX_OVERLAY_PROMPT_REGEX` | Override prompt detection regex | unset |
 | `CODEX_OVERLAY_PROMPT_LOG` | Prompt detection log path | `${TMPDIR}/codex_overlay_prompt.log` |
 
-### CLI Options (Overlay)
-
-```bash
-codex-voice --help
-
-Options:
-  --prompt-regex <REGEX>      Regex to detect Codex prompt
-  --prompt-log <PATH>         Prompt detection log path
-  --auto-voice                Start in auto-voice mode
-  --auto-voice-idle-ms <MS>   Idle timeout before auto-voice triggers
-  --voice-send-mode <MODE>    auto (send newline) or insert (edit before Enter)
-  --input-device <NAME>       Preferred audio input device
-  --list-input-devices        Print available audio devices and exit
-  --whisper-model-path <PATH> Path to Whisper GGML model
-  --no-python-fallback        Fail instead of using Python fallback
-  --voice-vad-threshold-db <DB> Mic sensitivity (lower = more sensitive)
-```
+See [CLI Flags](#cli-flags) for all command-line options.
 
 ## Development
 
