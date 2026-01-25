@@ -2,9 +2,16 @@
 
 All notable changes to this project will be documented here, following the SDLC policy defined in `agents.md`.
 
-## [Unreleased]
+## [1.0.4] - 2026-01-25
 
-### UI Styling Refresh (2026-01-25) - COMPLETE
+### Fast Local Transcription Feature
+- **Benchmarked STT latency**: ~250ms processing after speech ends (tested with real microphone input).
+- **Added feature to README**: "Fast local transcription - ~250ms processing after speech ends, no cloud API calls".
+- **Verified code path**: latency_measurement binary uses identical code path as codex_overlay (same voice::start_voice_job → stt::Transcriber).
+
+## [1.0.3] - 2026-01-25
+
+### UI Styling Refresh
 - **Modern TUI styling**: rounded borders, vibrant red theme, bold titles in Rust overlay.
 - **Startup tables refresh**: Unicode box-drawing characters, matching red theme.
 - **Updated banner**: accurate description - "Rust overlay wrapping Codex CLI / Speak to Codex with Whisper STT".
