@@ -9,6 +9,7 @@ use crate::stt;
 use anyhow::{anyhow, Result};
 #[cfg(test)]
 use std::sync::OnceLock;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
 use std::time::Instant;
@@ -24,6 +25,15 @@ pub enum VoiceCaptureTrigger {
 pub struct VoiceJob {
     pub receiver: mpsc::Receiver<VoiceJobMessage>,
     pub handle: Option<thread::JoinHandle<()>>,
+    /// Flag to signal early stop (e.g., when Enter is pressed in insert mode)
+    pub stop_flag: Arc<AtomicBool>,
+}
+
+impl VoiceJob {
+    /// Signal the voice capture to stop early and process what was recorded.
+    pub fn request_stop(&self) {
+        self.stop_flag.store(true, Ordering::Relaxed);
+    }
 }
 
 /// Messages sent from the worker back to the UI.
@@ -62,16 +72,19 @@ pub fn start_voice_job(
     config: crate::config::AppConfig,
 ) -> VoiceJob {
     let (tx, rx) = mpsc::channel();
+    let stop_flag = Arc::new(AtomicBool::new(false));
+    let stop_flag_clone = stop_flag.clone();
 
     let handle = thread::spawn(move || {
         // Do the heavy work off the UI thread and send back one message.
-        let message = perform_voice_capture(recorder, transcriber, &config);
+        let message = perform_voice_capture(recorder, transcriber, &config, stop_flag_clone);
         let _ = tx.send(message);
     });
 
     VoiceJob {
         receiver: rx,
         handle: Some(handle),
+        stop_flag,
     }
 }
 
@@ -80,12 +93,13 @@ fn perform_voice_capture(
     recorder: Option<Arc<Mutex<audio::Recorder>>>,
     transcriber: Option<Arc<Mutex<stt::Transcriber>>>,
     config: &crate::config::AppConfig,
+    stop_flag: Arc<AtomicBool>,
 ) -> VoiceJobMessage {
     let (Some(recorder), Some(transcriber)) = (recorder, transcriber) else {
         return fallback_or_error(config, "native pipeline unavailable");
     };
 
-    match capture_voice_native(recorder, transcriber, config) {
+    match capture_voice_native(recorder, transcriber, config, stop_flag) {
         Ok(Some(transcript)) => VoiceJobMessage::Transcript {
             text: transcript,
             source: VoiceCaptureSource::Native,
@@ -172,6 +186,7 @@ fn capture_voice_native(
     recorder: Arc<Mutex<audio::Recorder>>,
     transcriber: Arc<Mutex<stt::Transcriber>>,
     config: &crate::config::AppConfig,
+    stop_flag: Arc<AtomicBool>,
 ) -> Result<Option<String>> {
     log_debug("capture_voice_native: Starting");
     let lang = config.lang.clone();
@@ -183,7 +198,7 @@ fn capture_voice_native(
             .lock()
             .map_err(|_| anyhow!("audio recorder lock poisoned"))?;
         let mut vad_engine = create_vad_engine(&pipeline_cfg);
-        recorder_guard.record_with_vad(&vad_cfg, vad_engine.as_mut())
+        recorder_guard.record_with_vad(&vad_cfg, vad_engine.as_mut(), Some(stop_flag))
     }?;
     log_voice_metrics(&capture.metrics);
     let record_elapsed = record_start.elapsed().as_secs_f64();

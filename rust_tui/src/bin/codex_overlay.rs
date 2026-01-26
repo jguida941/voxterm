@@ -23,7 +23,7 @@ extern "C" fn handle_sigwinch(_: libc::c_int) {
     SIGWINCH_RECEIVED.store(true, Ordering::SeqCst);
 }
 
-#[derive(Debug, Clone, Copy, ValueEnum)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 enum VoiceSendMode {
     Auto,
     Insert,
@@ -64,6 +64,7 @@ enum InputEvent {
     ToggleSendMode,
     IncreaseSensitivity,
     DecreaseSensitivity,
+    EnterKey,
     Exit,
 }
 
@@ -217,6 +218,24 @@ fn main() -> Result<()> {
                             &msg,
                             Some(Duration::from_secs(3)),
                         );
+                    }
+                    Ok(InputEvent::EnterKey) => {
+                        // In insert mode, Enter stops capture early and sends what was recorded
+                        if config.voice_send_mode == VoiceSendMode::Insert && !voice_manager.is_idle() {
+                            voice_manager.request_early_stop();
+                            set_status(
+                                &writer_tx,
+                                &mut status_clear_deadline,
+                                "Processing...",
+                                Some(Duration::from_secs(5)),
+                            );
+                        } else {
+                            // Forward Enter to PTY
+                            if let Err(err) = session.send_bytes(&[0x0d]) {
+                                log_debug(&format!("failed to write Enter to PTY: {err:#}"));
+                                running = false;
+                            }
+                        }
                     }
                     Ok(InputEvent::Exit) => {
                         running = false;
@@ -423,6 +442,18 @@ fn spawn_input_thread(tx: Sender<InputEvent>) -> thread::JoinHandle<()> {
                             pending = Vec::new();
                         }
                         if tx.send(InputEvent::DecreaseSensitivity).is_err() {
+                            return;
+                        }
+                    }
+                    0x0d => {
+                        // Enter key - send as separate event so main loop can intercept it
+                        if !pending.is_empty() {
+                            if tx.send(InputEvent::Bytes(pending)).is_err() {
+                                return;
+                            }
+                            pending = Vec::new();
+                        }
+                        if tx.send(InputEvent::EnterKey).is_err() {
                             return;
                         }
                     }
@@ -685,6 +716,18 @@ impl VoiceManager {
         if self.job.is_some() {
             self.job = None;
             log_debug("voice capture cancelled");
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Request early stop of voice capture (stop recording and process what was captured).
+    /// Returns true if a capture was running and will be stopped.
+    fn request_early_stop(&mut self) -> bool {
+        if let Some(ref job) = self.job {
+            job.request_stop();
+            log_debug("voice capture early stop requested");
             true
         } else {
             false

@@ -519,8 +519,9 @@ impl Recorder {
         &self,
         cfg: &VadConfig,
         vad: &mut dyn VadEngine,
+        stop_flag: Option<Arc<AtomicBool>>,
     ) -> Result<CaptureResult> {
-        record_with_vad_impl(self, cfg, vad)
+        record_with_vad_impl(self, cfg, vad, stop_flag)
     }
 
     #[cfg(test)]
@@ -528,6 +529,7 @@ impl Recorder {
         &self,
         _cfg: &VadConfig,
         _vad: &mut dyn VadEngine,
+        _stop_flag: Option<Arc<AtomicBool>>,
     ) -> Result<CaptureResult> {
         Ok(CaptureResult {
             audio: Vec::new(),
@@ -547,6 +549,7 @@ fn record_with_vad_impl(
     recorder: &Recorder,
     cfg: &VadConfig,
     vad: &mut dyn VadEngine,
+    stop_flag: Option<Arc<AtomicBool>>,
 ) -> Result<CaptureResult> {
     let default_config = recorder.device.default_input_config()?;
     let format = default_config.sample_format();
@@ -619,6 +622,13 @@ fn record_with_vad_impl(
     let wait_time = Duration::from_millis(frame_ms);
 
     while state.total_ms() < cfg.max_recording_duration_ms {
+        // Check for manual stop signal
+        if let Some(ref flag) = stop_flag {
+            if flag.load(Ordering::Relaxed) {
+                stop_reason = StopReason::ManualStop;
+                break;
+            }
+        }
         match receiver.recv_timeout(wait_time) {
             Ok(frame) => {
                 let target_frame = convert_frame_to_target(
