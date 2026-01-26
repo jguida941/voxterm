@@ -459,6 +459,7 @@ impl App {
         // Check the worker channel without blocking the UI thread.
         let mut finished = false;
         let mut message_to_handle: Option<VoiceJobMessage> = None;
+        let mut auto_restart = false;
         if let Some(job) = self.voice_job.as_mut() {
             match job.receiver.try_recv() {
                 Ok(message) => {
@@ -479,10 +480,16 @@ impl App {
             }
         }
         if let Some(message) = message_to_handle {
-            self.handle_voice_job_message(message);
+            auto_restart = self.handle_voice_job_message(message);
         }
         if finished {
             self.voice_job = None;
+            if auto_restart && self.voice_enabled {
+                if let Err(err) = self.start_voice_capture(VoiceCaptureTrigger::Auto) {
+                    self.status = format!("Voice capture failed to restart: {err:#}");
+                    self.request_redraw();
+                }
+            }
         }
         Ok(())
     }
@@ -626,7 +633,8 @@ impl App {
     }
 
     /// Update UI state based on whatever the voice worker reported (transcript, silence, or error).
-    fn handle_voice_job_message(&mut self, message: VoiceJobMessage) {
+    fn handle_voice_job_message(&mut self, message: VoiceJobMessage) -> bool {
+        let mut auto_restart = false;
         match message {
             VoiceJobMessage::Transcript { text, source } => {
                 log_debug("Voice capture completed successfully");
@@ -638,8 +646,13 @@ impl App {
             }
             VoiceJobMessage::Empty { source } => {
                 log_debug("Voice capture detected no speech");
-                self.input.clear();
-                self.status = format!("No speech detected ({}). Try again.", source.label());
+                if self.voice_enabled {
+                    self.status = "Auto-voice enabled.".into();
+                    auto_restart = true;
+                } else {
+                    self.input.clear();
+                    self.status = format!("No speech detected ({}). Try again.", source.label());
+                }
             }
             VoiceJobMessage::Error(err) => {
                 log_debug(&format!("Voice capture worker error: {err}"));
@@ -647,6 +660,7 @@ impl App {
             }
         }
         self.request_redraw();
+        auto_restart
     }
 
     pub(crate) fn scroll_up(&mut self) {

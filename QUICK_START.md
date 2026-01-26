@@ -48,6 +48,8 @@ First run will download a Whisper model if missing, then start the Rust overlay 
 - `Ctrl+C` - forwarded to Codex
 - `Enter` - in insert mode, stop capture early and transcribe what was captured
 
+Auto-voice keeps listening on silence; press `Ctrl+V` to stop auto-voice mode.
+
 ## Common flags
 
 ```bash

@@ -280,13 +280,19 @@ fn main() -> Result<()> {
                 prompt_tracker.on_idle(now, idle_timeout);
 
                 if let Some(message) = voice_manager.poll_message() {
+                    let rearm_auto = matches!(message, VoiceJobMessage::Empty { .. } | VoiceJobMessage::Error(_));
                     handle_voice_message(
                         message,
                         &config,
                         &mut session,
                         &writer_tx,
                         &mut status_clear_deadline,
+                        auto_voice_enabled,
                     );
+                    if auto_voice_enabled && rearm_auto {
+                        // Treat empty/error captures as activity so auto-voice can re-arm after idle.
+                        prompt_tracker.note_activity(now);
+                    }
                 }
 
                 if auto_voice_enabled && voice_manager.is_idle() {
@@ -622,6 +628,7 @@ fn handle_voice_message(
     session: &mut PtyOverlaySession,
     writer_tx: &Sender<WriterMessage>,
     status_clear_deadline: &mut Option<Instant>,
+    auto_voice_enabled: bool,
 ) {
     match message {
         VoiceJobMessage::Transcript { text, source } => {
@@ -640,8 +647,23 @@ fn handle_voice_message(
         }
         VoiceJobMessage::Empty { source } => {
             let label = source.label();
-            let status = format!("No speech detected ({label})");
-            set_status(writer_tx, status_clear_deadline, &status, Some(Duration::from_secs(2)));
+            if auto_voice_enabled {
+                log_debug(&format!("auto voice capture detected no speech ({label})"));
+                set_status(
+                    writer_tx,
+                    status_clear_deadline,
+                    "Auto-voice enabled",
+                    None,
+                );
+            } else {
+                let status = format!("No speech detected ({label})");
+                set_status(
+                    writer_tx,
+                    status_clear_deadline,
+                    &status,
+                    Some(Duration::from_secs(2)),
+                );
+            }
         }
         VoiceJobMessage::Error(message) => {
             set_status(
@@ -1031,6 +1053,11 @@ impl PromptTracker {
 
     fn last_output_at(&self) -> Instant {
         self.last_output_at
+    }
+
+    fn note_activity(&mut self, now: Instant) {
+        self.last_output_at = now;
+        self.has_seen_output = true;
     }
 
     fn idle_ready(&self, now: Instant, idle_timeout: Duration) -> bool {

@@ -178,6 +178,8 @@ Insert send mode note: press Enter while recording to stop early and transcribe 
 When the transcript appears, press Enter again to send it to Codex. If the python fallback is
 active, Enter cancels the capture instead.
 
+Auto-voice stays enabled even when no speech is detected; press Ctrl+V to stop it.
+
 | | |
 |---|---|
 | ![Recording](img/recording.png) | ![Auto-voice](img/auto-voice.png) |

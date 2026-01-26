@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented here, following the SDLC policy defined in `agents.md`.
 
+## [1.0.6] - 2026-01-25
+
+### Auto-Voice Behavior
+- **Silence no longer stops auto-voice**: empty captures immediately re-arm instead of waiting for new PTY output.
+- **Less UI noise on silence**: auto mode keeps a simple "Auto-voice enabled" status instead of spamming "No speech detected".
+
 ## [1.0.5] - 2026-01-25
 
 ### Voice Capture UX Fixes
