@@ -217,6 +217,7 @@ impl BackendJob {
 
 #[cfg(test)]
 #[derive(Clone, Copy)]
+#[allow(dead_code)]
 pub(crate) enum TestSignal {
     Ready,
     Disconnected,
@@ -224,10 +225,7 @@ pub(crate) enum TestSignal {
 }
 
 #[cfg(test)]
-pub(crate) fn build_test_backend_job(
-    events: Vec<BackendEvent>,
-    signal: TestSignal,
-) -> BackendJob {
+pub(crate) fn build_test_backend_job(events: Vec<BackendEvent>, signal: TestSignal) -> BackendJob {
     let queue = Arc::new(BoundedEventQueue::new(32));
     for event in events {
         let _ = queue.push(event);
@@ -341,7 +339,7 @@ struct CliBackendState {
 
 #[cfg(test)]
 thread_local! {
-    static RESET_SESSION_COUNT: Cell<usize> = Cell::new(0);
+    static RESET_SESSION_COUNT: Cell<usize> = const { Cell::new(0) };
 }
 
 #[cfg(test)]
@@ -1172,13 +1170,13 @@ fn clamp_line_start(line_start: usize, buf: &[u8]) -> usize {
 }
 
 fn skip_osc_sequence(bytes: &[u8], mut cursor: usize) -> usize {
-    for idx in cursor..bytes.len() {
-        match bytes[idx] {
-            0x07 => return idx + 1,
-            0x1B if idx + 1 < bytes.len() && bytes[idx + 1] == b'\\' => return idx + 2,
+    while cursor < bytes.len() {
+        match bytes[cursor] {
+            0x07 => return cursor + 1,
+            0x1B if cursor + 1 < bytes.len() && bytes[cursor + 1] == b'\\' => return cursor + 2,
             _ => {}
         }
-        cursor = idx + 1;
+        cursor += 1;
     }
     cursor
 }
@@ -1187,10 +1185,9 @@ fn find_csi_sequence(bytes: &[u8], start: usize) -> Option<(usize, u8)> {
     if bytes.get(start)? != &0x1B || bytes.get(start + 1)? != &b'[' {
         return None;
     }
-    for idx in (start + 2)..bytes.len() {
-        let b = bytes[idx];
-        if (0x40..=0x7E).contains(&b) {
-            return Some((idx, b));
+    for (idx, b) in bytes.iter().enumerate().skip(start + 2) {
+        if (0x40..=0x7E).contains(b) {
+            return Some((idx, *b));
         }
     }
     None
@@ -1496,8 +1493,16 @@ mod tests {
         assert!(!should_accept_printable(false, quiet, quiet));
 
         let control_timeout = Duration::from_millis(7);
-        assert!(should_fail_control_only(false, control_timeout, control_timeout));
-        assert!(!should_fail_control_only(true, control_timeout, control_timeout));
+        assert!(should_fail_control_only(
+            false,
+            control_timeout,
+            control_timeout
+        ));
+        assert!(!should_fail_control_only(
+            true,
+            control_timeout,
+            control_timeout
+        ));
 
         let overall = Duration::from_millis(3);
         assert!(should_break_overall(overall, overall));
@@ -1653,8 +1658,7 @@ mod tests {
     #[cfg(unix)]
     fn new_test_pty_session() -> PtyCodexSession {
         let args: Vec<String> = Vec::new();
-        PtyCodexSession::new("/bin/cat", ".", &args, "xterm-256color")
-            .expect("pty session")
+        PtyCodexSession::new("/bin/cat", ".", &args, "xterm-256color").expect("pty session")
     }
 
     #[cfg(unix)]
@@ -1800,10 +1804,7 @@ mod tests {
         }
 
         fn read_output_timeout(&self, _timeout: Duration) -> Vec<Vec<u8>> {
-            self.outputs
-                .borrow_mut()
-                .pop_front()
-                .unwrap_or_default()
+            self.outputs.borrow_mut().pop_front().unwrap_or_default()
         }
     }
 

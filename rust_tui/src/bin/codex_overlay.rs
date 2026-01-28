@@ -1151,10 +1151,7 @@ mod tests {
         }
     }
 
-    fn recv_output_contains(
-        rx: &crossbeam_channel::Receiver<Vec<u8>>,
-        needle: &str,
-    ) -> bool {
+    fn recv_output_contains(rx: &crossbeam_channel::Receiver<Vec<u8>>, needle: &str) -> bool {
         let deadline = Instant::now() + Duration::from_millis(500);
         let mut buffer = String::new();
         while Instant::now() < deadline {

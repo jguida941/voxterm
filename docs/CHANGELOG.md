@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented here, following the SDLC policy defined in `agents.md`.
 
+## [1.0.13] - 2026-01-28
+
+### Build Fixes
+- **Clippy clean**: resolve lint warnings across audio, codex, IPC, and PTY helpers for a clean CI run.
+
 ## [1.0.12] - 2026-01-28
 
 ### Testing & Reliability

@@ -402,7 +402,6 @@ impl VadEngine for SimpleThresholdVad {
     }
 }
 
-
 /// Run the silence-aware capture state machine against synthetic PCM samples.
 /// Used by the benchmarking harness so we can measure Phase 2A latency without
 /// requiring physical microphones or CPAL devices.
@@ -578,7 +577,7 @@ fn resample_with_rubato(input: &[f32], device_rate: u32) -> Result<Vec<f32>> {
         return Ok(input.to_vec());
     }
 
-    if device_rate < MIN_DEVICE_RATE || device_rate > MAX_DEVICE_RATE {
+    if !(MIN_DEVICE_RATE..=MAX_DEVICE_RATE).contains(&device_rate) {
         return Err(anyhow!(
             "unsupported device sample rate {device_rate}Hz for resampling"
         ));
@@ -650,7 +649,7 @@ fn basic_resample(input: &[f32], device_rate: u32) -> Vec<f32> {
     if input.is_empty() {
         return input.to_vec();
     }
-    if device_rate < MIN_DEVICE_RATE || device_rate > MAX_DEVICE_RATE {
+    if !(MIN_DEVICE_RATE..=MAX_DEVICE_RATE).contains(&device_rate) {
         return input.to_vec();
     }
 
@@ -828,6 +827,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::assertions_on_constants)]
     fn resample_bounds_match_constants() {
         assert_eq!(MIN_DEVICE_RATE, 2_000);
         assert_eq!(MAX_DEVICE_RATE, 1_600_000);
@@ -909,18 +909,14 @@ mod tests {
         FORCE_RUBATO_ERROR.store(true, Ordering::Relaxed);
         let err = resample_with_rubato(&input, MIN_DEVICE_RATE - 1)
             .expect_err("expected error for low device rate");
-        assert!(err
-            .to_string()
-            .contains("unsupported device sample rate"));
+        assert!(err.to_string().contains("unsupported device sample rate"));
         assert!(FORCE_RUBATO_ERROR.load(Ordering::Relaxed));
         FORCE_RUBATO_ERROR.store(false, Ordering::Relaxed);
 
         FORCE_RUBATO_ERROR.store(true, Ordering::Relaxed);
         let err = resample_with_rubato(&input, MAX_DEVICE_RATE + 1)
             .expect_err("expected error for high device rate");
-        assert!(err
-            .to_string()
-            .contains("unsupported device sample rate"));
+        assert!(err.to_string().contains("unsupported device sample rate"));
         assert!(FORCE_RUBATO_ERROR.load(Ordering::Relaxed));
         FORCE_RUBATO_ERROR.store(false, Ordering::Relaxed);
     }
@@ -1302,9 +1298,11 @@ mod tests {
 
     #[test]
     fn capture_state_hits_max_duration() {
-        let mut cfg = VadConfig::default();
-        cfg.max_recording_duration_ms = 60;
-        cfg.min_recording_duration_ms = 0;
+        let cfg = VadConfig {
+            max_recording_duration_ms: 60,
+            min_recording_duration_ms: 0,
+            ..Default::default()
+        };
         let mut state = CaptureState::for_testing(&cfg, 20);
         assert!(state.on_frame(FrameLabel::Speech).is_none());
         assert!(state.on_frame(FrameLabel::Speech).is_none());
@@ -1314,8 +1312,10 @@ mod tests {
 
     #[test]
     fn capture_state_times_out_after_idle() {
-        let mut cfg = VadConfig::default();
-        cfg.max_recording_duration_ms = 60;
+        let cfg = VadConfig {
+            max_recording_duration_ms: 60,
+            ..Default::default()
+        };
         let mut state = CaptureState::for_testing(&cfg, 30);
         assert!(state.on_timeout().is_none());
         let reason = state.on_timeout();
@@ -1324,10 +1324,12 @@ mod tests {
 
     #[test]
     fn capture_state_does_not_stop_without_speech() {
-        let mut cfg = VadConfig::default();
-        cfg.max_recording_duration_ms = 500;
-        cfg.silence_duration_ms = 100;
-        cfg.min_recording_duration_ms = 0;
+        let cfg = VadConfig {
+            max_recording_duration_ms: 500,
+            silence_duration_ms: 100,
+            min_recording_duration_ms: 0,
+            ..Default::default()
+        };
         let mut state = CaptureState::for_testing(&cfg, 50);
         for _ in 0..3 {
             assert!(state.on_frame(FrameLabel::Silence).is_none());
@@ -1336,9 +1338,11 @@ mod tests {
 
     #[test]
     fn capture_state_metrics_track_speech_and_silence() {
-        let mut cfg = VadConfig::default();
-        cfg.max_recording_duration_ms = 10_000;
-        cfg.min_recording_duration_ms = 0;
+        let cfg = VadConfig {
+            max_recording_duration_ms: 10_000,
+            min_recording_duration_ms: 0,
+            ..Default::default()
+        };
         let mut state = CaptureState::for_testing(&cfg, 20);
         assert!(state.on_frame(FrameLabel::Speech).is_none());
         assert!(state.on_frame(FrameLabel::Speech).is_none());
@@ -1350,9 +1354,11 @@ mod tests {
 
     #[test]
     fn capture_state_requires_min_speech_before_silence_stop() {
-        let mut cfg = VadConfig::default();
-        cfg.min_recording_duration_ms = 200;
-        cfg.silence_duration_ms = 100;
+        let cfg = VadConfig {
+            min_recording_duration_ms: 200,
+            silence_duration_ms: 100,
+            ..Default::default()
+        };
         let mut state = CaptureState::for_testing(&cfg, 50);
         assert!(state.on_frame(FrameLabel::Speech).is_none());
         assert!(state.on_frame(FrameLabel::Speech).is_none());

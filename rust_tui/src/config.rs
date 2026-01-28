@@ -894,8 +894,7 @@ mod tests {
     fn rejects_voice_vad_threshold_out_of_bounds() {
         let mut cfg = AppConfig::parse_from(["test-app", "--voice-vad-threshold-db", "1.0"]);
         assert!(cfg.validate().is_err());
-        let mut cfg =
-            AppConfig::parse_from(["test-app", "--voice-vad-threshold-db=-120.1"]);
+        let mut cfg = AppConfig::parse_from(["test-app", "--voice-vad-threshold-db=-120.1"]);
         assert!(cfg.validate().is_err());
     }
 
@@ -903,8 +902,7 @@ mod tests {
     fn accepts_voice_vad_threshold_bounds() {
         let mut cfg = AppConfig::parse_from(["test-app", "--voice-vad-threshold-db", "0.0"]);
         assert!(cfg.validate().is_ok());
-        let mut cfg =
-            AppConfig::parse_from(["test-app", "--voice-vad-threshold-db=-120.0"]);
+        let mut cfg = AppConfig::parse_from(["test-app", "--voice-vad-threshold-db=-120.0"]);
         assert!(cfg.validate().is_ok());
     }
 
@@ -1049,8 +1047,7 @@ mod tests {
         fs::create_dir_all(&temp_dir).unwrap();
         let file_path = temp_dir.join("inside.txt");
         fs::write(&file_path, "x").unwrap();
-        let canonical =
-            canonicalize_within_repo(&file_path, "inside", &repo_root).unwrap();
+        let canonical = canonicalize_within_repo(&file_path, "inside", &repo_root).unwrap();
         assert!(canonical.starts_with(&repo_root));
         let _ = fs::remove_file(&file_path);
         let _ = fs::remove_dir(&temp_dir);
@@ -1133,10 +1130,7 @@ mod tests {
         ]);
         assert!(cfg.validate().is_ok());
         let canonical = model_path.canonicalize().unwrap();
-        assert_eq!(
-            cfg.whisper_model_path.as_deref(),
-            canonical.to_str()
-        );
+        assert_eq!(cfg.whisper_model_path.as_deref(), canonical.to_str());
         let _ = fs::remove_file(&model_path);
     }
 
@@ -1165,8 +1159,7 @@ mod tests {
             .as_millis();
         let dir_path = env::temp_dir().join(format!("codex_dir_{unique}"));
         fs::create_dir_all(&dir_path).unwrap();
-        let result =
-            sanitize_binary(dir_path.to_str().unwrap(), "--codex-cmd", &["codex"]);
+        let result = sanitize_binary(dir_path.to_str().unwrap(), "--codex-cmd", &["codex"]);
         assert!(result.is_err());
         let _ = fs::remove_dir(&dir_path);
     }

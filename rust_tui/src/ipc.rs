@@ -29,14 +29,14 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::env;
 use std::io::{self, BufRead, Write};
+#[cfg(any(test, feature = "mutants"))]
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{self, Receiver, Sender, TryRecvError};
+#[cfg(any(test, feature = "mutants"))]
+use std::sync::OnceLock;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
-#[cfg(any(test, feature = "mutants"))]
-use std::sync::atomic::{AtomicU64, Ordering};
-#[cfg(any(test, feature = "mutants"))]
-use std::sync::OnceLock;
 
 // ============================================================================
 // IPC Events (Rust → TypeScript)
@@ -368,21 +368,25 @@ fn capture_test_event(event: &IpcEvent) -> bool {
 }
 
 #[cfg(any(test, feature = "mutants"))]
+#[allow(dead_code)]
 fn init_event_sink() {
     let _ = EVENT_SINK.get_or_init(|| Mutex::new(Vec::new()));
 }
 
 #[cfg(any(test, feature = "mutants"))]
+#[allow(dead_code)]
 fn ipc_loop_count_reset() {
     IPC_LOOP_COUNT.store(0, Ordering::SeqCst);
 }
 
 #[cfg(any(test, feature = "mutants"))]
+#[allow(dead_code)]
 fn ipc_loop_count() -> u64 {
     IPC_LOOP_COUNT.load(Ordering::SeqCst)
 }
 
 #[cfg(any(test, feature = "mutants"))]
+#[allow(dead_code)]
 fn event_snapshot() -> usize {
     init_event_sink();
     EVENT_SINK
@@ -392,6 +396,7 @@ fn event_snapshot() -> usize {
 }
 
 #[cfg(any(test, feature = "mutants"))]
+#[allow(dead_code)]
 fn events_since(start: usize) -> Vec<IpcEvent> {
     EVENT_SINK
         .get()
@@ -407,6 +412,7 @@ fn events_since(start: usize) -> Vec<IpcEvent> {
 // Stdin Reader Thread
 // ============================================================================
 
+#[cfg_attr(any(test, feature = "mutants"), allow(dead_code))]
 fn spawn_stdin_reader(tx: Sender<IpcCommand>) -> thread::JoinHandle<()> {
     thread::spawn(move || {
         let stdin = io::stdin();
@@ -513,6 +519,7 @@ type AuthFlowHook = Box<dyn Fn(Provider, &str, &str) -> AuthResult + Send + Sync
 static AUTH_FLOW_HOOK: OnceLock<Mutex<Option<AuthFlowHook>>> = OnceLock::new();
 
 #[cfg(any(test, feature = "mutants"))]
+#[allow(dead_code)]
 fn set_auth_flow_hook(hook: Option<AuthFlowHook>) {
     let storage = AUTH_FLOW_HOOK.get_or_init(|| Mutex::new(None));
     *storage.lock().unwrap_or_else(|e| e.into_inner()) = hook;
@@ -656,13 +663,13 @@ pub fn run_ipc_mode(config: AppConfig) -> Result<()> {
     #[cfg(any(test, feature = "mutants"))]
     {
         drop(cmd_tx);
-        return run_ipc_loop(&mut state, &cmd_rx, Some(10));
+        run_ipc_loop(&mut state, &cmd_rx, Some(10))
     }
     #[cfg(not(any(test, feature = "mutants")))]
-    let _stdin_handle = spawn_stdin_reader(cmd_tx);
-
-    #[cfg(not(any(test, feature = "mutants")))]
-    return run_ipc_loop(&mut state, &cmd_rx, None);
+    {
+        let _stdin_handle = spawn_stdin_reader(cmd_tx);
+        run_ipc_loop(&mut state, &cmd_rx, None)
+    }
 }
 
 #[cfg(any(test, feature = "mutants"))]
@@ -1330,12 +1337,12 @@ fn process_auth_events(state: &mut IpcState) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use clap::Parser;
     use crate::codex::{
         build_test_backend_job, reset_session_count, reset_session_count_reset, BackendEvent,
         BackendEventKind, BackendStats, RequestMode, TestSignal,
     };
     use crate::{PipelineJsonResult, PipelineMetrics};
+    use clap::Parser;
     use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
     use std::sync::mpsc;
     use std::sync::Arc;
@@ -1615,7 +1622,8 @@ mod tests {
             _ => None,
         });
         assert!(caps.is_some());
-        let (mic_available, whisper_loaded, python_fallback_allowed, active_provider) = caps.unwrap();
+        let (mic_available, whisper_loaded, python_fallback_allowed, active_provider) =
+            caps.unwrap();
         assert!(!mic_available);
         assert!(!whisper_loaded);
         assert!(!python_fallback_allowed);
@@ -1691,7 +1699,9 @@ mod tests {
         let mut state = new_test_state(AppConfig::parse_from(["test-app"]));
         handle_wrapper_command(&mut state, WrapperCmd::Status);
         let events = events_since(snapshot);
-        assert!(events.iter().any(|event| matches!(event, IpcEvent::Capabilities { .. })));
+        assert!(events
+            .iter()
+            .any(|event| matches!(event, IpcEvent::Capabilities { .. })));
     }
 
     #[test]
@@ -1700,7 +1710,9 @@ mod tests {
         let mut state = new_test_state(AppConfig::parse_from(["test-app"]));
         handle_wrapper_command(&mut state, WrapperCmd::Capabilities);
         let events = events_since(snapshot);
-        assert!(events.iter().any(|event| matches!(event, IpcEvent::Capabilities { .. })));
+        assert!(events
+            .iter()
+            .any(|event| matches!(event, IpcEvent::Capabilities { .. })));
     }
 
     #[test]
@@ -1724,7 +1736,9 @@ mod tests {
         let config = AppConfig::parse_from(["test-app"]);
         run_ipc_mode(config).unwrap();
         let events = events_since(snapshot);
-        assert!(events.iter().any(|event| matches!(event, IpcEvent::Capabilities { .. })));
+        assert!(events
+            .iter()
+            .any(|event| matches!(event, IpcEvent::Capabilities { .. })));
     }
 
     #[test]
@@ -1740,7 +1754,9 @@ mod tests {
         drop(tx);
         run_ipc_loop(&mut state, &rx, Some(10)).unwrap();
         let events = events_since(snapshot);
-        assert!(events.iter().any(|event| matches!(event, IpcEvent::Capabilities { .. })));
+        assert!(events
+            .iter()
+            .any(|event| matches!(event, IpcEvent::Capabilities { .. })));
         assert!(events.iter().any(|event| {
             matches!(event, IpcEvent::ProviderChanged { provider } if provider == "claude")
         }));
@@ -1761,7 +1777,9 @@ mod tests {
     fn ipc_guard_trips_only_after_threshold() {
         assert!(!ipc_guard_tripped(Duration::from_secs(1)));
         assert!(!ipc_guard_tripped(Duration::from_secs(2)));
-        assert!(ipc_guard_tripped(Duration::from_secs(2) + Duration::from_millis(1)));
+        assert!(ipc_guard_tripped(
+            Duration::from_secs(2) + Duration::from_millis(1)
+        ));
     }
 
     #[test]
@@ -1831,7 +1849,9 @@ mod tests {
         }
         assert!(finished);
         let events = events_since(snapshot);
-        assert!(events.iter().any(|event| matches!(event, IpcEvent::Token { .. })));
+        assert!(events
+            .iter()
+            .any(|event| matches!(event, IpcEvent::Token { .. })));
         assert!(events.iter().any(|event| {
             matches!(event, IpcEvent::JobEnd { provider, .. } if provider == "claude")
         }));
@@ -1855,9 +1875,9 @@ mod tests {
         assert!(process_voice_events(&job, false));
 
         let events = events_since(snapshot);
-        assert!(events.iter().any(|event| {
-            matches!(event, IpcEvent::VoiceEnd { error } if error.is_none())
-        }));
+        assert!(events
+            .iter()
+            .any(|event| { matches!(event, IpcEvent::VoiceEnd { error } if error.is_none()) }));
         assert!(events.iter().any(|event| {
             matches!(event, IpcEvent::Transcript { text, .. } if text == "hello")
         }));
@@ -1893,8 +1913,7 @@ mod tests {
             handle: None,
             stop_flag: Arc::new(AtomicBool::new(false)),
         };
-        tx.send(VoiceJobMessage::Error("boom".to_string()))
-            .unwrap();
+        tx.send(VoiceJobMessage::Error("boom".to_string())).unwrap();
 
         assert!(process_voice_events(&job, false));
         let events = events_since(snapshot);
@@ -1935,8 +1954,12 @@ mod tests {
 
         assert!(process_auth_events(&mut state));
         let events = events_since(snapshot);
-        assert!(events.iter().any(|event| matches!(event, IpcEvent::AuthEnd { success: true, .. })));
-        assert!(events.iter().any(|event| matches!(event, IpcEvent::Capabilities { .. })));
+        assert!(events
+            .iter()
+            .any(|event| matches!(event, IpcEvent::AuthEnd { success: true, .. })));
+        assert!(events
+            .iter()
+            .any(|event| matches!(event, IpcEvent::Capabilities { .. })));
     }
 
     #[test]
@@ -2155,13 +2178,15 @@ mod tests {
         }
 
         let events = events_since(snapshot);
-        assert!(events.iter().any(|event| matches!(event, IpcEvent::VoiceStart)));
+        assert!(events
+            .iter()
+            .any(|event| matches!(event, IpcEvent::VoiceStart)));
         assert!(events.iter().any(|event| {
             matches!(event, IpcEvent::Transcript { text, .. } if text == "hello voice")
         }));
-        assert!(events.iter().any(|event| {
-            matches!(event, IpcEvent::VoiceEnd { error } if error.is_none())
-        }));
+        assert!(events
+            .iter()
+            .any(|event| { matches!(event, IpcEvent::VoiceEnd { error } if error.is_none()) }));
     }
 
     #[test]
@@ -2211,8 +2236,12 @@ mod tests {
         }
 
         let events = events_since(snapshot);
-        assert!(events.iter().any(|event| matches!(event, IpcEvent::AuthStart { .. })));
-        assert!(events.iter().any(|event| matches!(event, IpcEvent::AuthEnd { success: true, .. })));
+        assert!(events
+            .iter()
+            .any(|event| matches!(event, IpcEvent::AuthStart { .. })));
+        assert!(events
+            .iter()
+            .any(|event| matches!(event, IpcEvent::AuthEnd { success: true, .. })));
     }
 
     #[cfg(unix)]
@@ -2221,7 +2250,8 @@ mod tests {
         use std::fs;
 
         let snapshot = event_snapshot();
-        let script = write_stub_script("#!/bin/sh\necho out-line\necho '' 1>&2\necho err-line 1>&2\n");
+        let script =
+            write_stub_script("#!/bin/sh\necho out-line\necho '' 1>&2\necho err-line 1>&2\n");
         let mut job = start_claude_job(script.to_str().unwrap(), "prompt").unwrap();
 
         let start = Instant::now();
@@ -2288,9 +2318,15 @@ mod tests {
 
         assert!(!process_codex_events(&mut job, false));
         let events = events_since(snapshot);
-        assert!(events.iter().any(|event| matches!(event, IpcEvent::Status { message } if message == "Processing...")));
-        assert!(events.iter().any(|event| matches!(event, IpcEvent::Status { message } if message == "hello")));
-        assert!(events.iter().any(|event| matches!(event, IpcEvent::Token { text } if text == "token")));
+        assert!(events.iter().any(
+            |event| matches!(event, IpcEvent::Status { message } if message == "Processing...")
+        ));
+        assert!(events
+            .iter()
+            .any(|event| matches!(event, IpcEvent::Status { message } if message == "hello")));
+        assert!(events
+            .iter()
+            .any(|event| matches!(event, IpcEvent::Token { text } if text == "token")));
     }
 
     #[test]
@@ -2320,9 +2356,9 @@ mod tests {
 
         assert!(process_codex_events(&mut job, false));
         let events = events_since(snapshot);
-        assert!(events.iter().any(|event| {
-            matches!(event, IpcEvent::Token { text } if text.contains("done"))
-        }));
+        assert!(events
+            .iter()
+            .any(|event| { matches!(event, IpcEvent::Token { text } if text.contains("done")) }));
         assert!(events.iter().any(|event| {
             matches!(event, IpcEvent::JobEnd { provider, success, .. } if provider == "codex" && *success)
         }));
