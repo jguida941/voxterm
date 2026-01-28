@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented here, following the SDLC policy defined in `agents.md`.
 
+## [1.0.11] - 2026-01-28
+
+### Testing & Quality
+- **Mutation coverage improvements**: expand PTY session tests and internal counters to harden mutation kills.
+- **Mutation CI threshold**: mutation-testing workflow now enforces an 80% minimum score.
+
 ## [1.0.10] - 2026-01-25
 
 ### Build Fixes

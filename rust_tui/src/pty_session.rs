@@ -11,6 +11,190 @@ use std::os::unix::io::RawFd;
 use std::ptr;
 use std::thread;
 use std::time::{Duration, Instant};
+#[cfg(any(test, feature = "mutants"))]
+use std::cell::Cell;
+#[cfg(any(test, feature = "mutants"))]
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+#[cfg(any(test, feature = "mutants"))]
+use std::sync::{Mutex, OnceLock};
+
+#[cfg(any(test, feature = "mutants"))]
+thread_local! {
+    static PTY_SEND_COUNT: Cell<usize> = Cell::new(0);
+    static PTY_READ_COUNT: Cell<usize> = Cell::new(0);
+}
+#[cfg(any(test, feature = "mutants"))]
+static READ_OUTPUT_GRACE_OVERRIDE_MS: AtomicU64 = AtomicU64::new(u64::MAX);
+#[cfg(any(test, feature = "mutants"))]
+static READ_OUTPUT_ELAPSED_OVERRIDE_MS: AtomicU64 = AtomicU64::new(u64::MAX);
+#[cfg(any(test, feature = "mutants"))]
+static WAIT_FOR_EXIT_ELAPSED_OVERRIDE_MS: AtomicU64 = AtomicU64::new(u64::MAX);
+#[cfg(any(test, feature = "mutants"))]
+static WAIT_FOR_EXIT_POLL_COUNT: AtomicUsize = AtomicUsize::new(0);
+#[cfg(any(test, feature = "mutants"))]
+static WAIT_FOR_EXIT_REAP_COUNT: AtomicUsize = AtomicUsize::new(0);
+#[cfg(any(test, feature = "mutants"))]
+static WAIT_FOR_EXIT_ERROR_COUNT: AtomicUsize = AtomicUsize::new(0);
+#[cfg(any(test, feature = "mutants"))]
+thread_local! {
+    static RESPOND_OSC_START: Cell<usize> = Cell::new(usize::MAX);
+    static RESPOND_OSC_HITS: Cell<usize> = Cell::new(0);
+    static APPLY_OSC_START: Cell<usize> = Cell::new(usize::MAX);
+    static APPLY_OSC_HITS: Cell<usize> = Cell::new(0);
+    static APPLY_LINESTART_RECALC_COUNT: Cell<usize> = Cell::new(0);
+}
+#[cfg(any(test, feature = "mutants"))]
+thread_local! {
+    static WRITE_ALL_LIMIT: Cell<usize> = Cell::new(usize::MAX);
+}
+#[cfg(any(test, feature = "mutants"))]
+static TERMINAL_SIZE_OVERRIDE: OnceLock<Mutex<Option<(bool, u16, u16)>>> = OnceLock::new();
+
+#[cfg(any(test, feature = "mutants"))]
+pub(crate) fn reset_pty_session_counters() {
+    PTY_SEND_COUNT.with(|count| count.set(0));
+    PTY_READ_COUNT.with(|count| count.set(0));
+}
+
+#[cfg(any(test, feature = "mutants"))]
+pub(crate) fn pty_session_send_count() -> usize {
+    PTY_SEND_COUNT.with(|count| count.get())
+}
+
+#[cfg(any(test, feature = "mutants"))]
+pub(crate) fn pty_session_read_count() -> usize {
+    PTY_READ_COUNT.with(|count| count.get())
+}
+
+#[cfg(any(test, feature = "mutants"))]
+pub(crate) fn set_read_output_grace_override(ms: Option<u64>) {
+    READ_OUTPUT_GRACE_OVERRIDE_MS.store(ms.unwrap_or(u64::MAX), Ordering::SeqCst);
+}
+
+#[cfg(any(test, feature = "mutants"))]
+pub(crate) fn set_read_output_elapsed_override(ms: Option<u64>) {
+    READ_OUTPUT_ELAPSED_OVERRIDE_MS.store(ms.unwrap_or(u64::MAX), Ordering::SeqCst);
+}
+
+#[cfg(any(test, feature = "mutants"))]
+pub(crate) fn set_write_all_limit(limit: Option<usize>) {
+    WRITE_ALL_LIMIT.with(|value| value.set(limit.unwrap_or(usize::MAX)));
+}
+
+#[cfg(any(test, feature = "mutants"))]
+pub(crate) fn set_terminal_size_override(value: Option<(bool, u16, u16)>) {
+    let lock = TERMINAL_SIZE_OVERRIDE.get_or_init(|| Mutex::new(None));
+    *lock.lock().unwrap() = value;
+}
+
+#[cfg(any(test, feature = "mutants"))]
+pub(crate) fn set_wait_for_exit_elapsed_override(ms: Option<u64>) {
+    WAIT_FOR_EXIT_ELAPSED_OVERRIDE_MS.store(ms.unwrap_or(u64::MAX), Ordering::SeqCst);
+}
+
+#[cfg(any(test, feature = "mutants"))]
+pub(crate) fn reset_wait_for_exit_counters() {
+    WAIT_FOR_EXIT_POLL_COUNT.store(0, Ordering::SeqCst);
+    WAIT_FOR_EXIT_REAP_COUNT.store(0, Ordering::SeqCst);
+    WAIT_FOR_EXIT_ERROR_COUNT.store(0, Ordering::SeqCst);
+}
+
+#[cfg(any(test, feature = "mutants"))]
+pub(crate) fn wait_for_exit_poll_count() -> usize {
+    WAIT_FOR_EXIT_POLL_COUNT.load(Ordering::SeqCst)
+}
+
+#[cfg(any(test, feature = "mutants"))]
+pub(crate) fn wait_for_exit_reap_count() -> usize {
+    WAIT_FOR_EXIT_REAP_COUNT.load(Ordering::SeqCst)
+}
+
+#[cfg(any(test, feature = "mutants"))]
+pub(crate) fn wait_for_exit_error_count() -> usize {
+    WAIT_FOR_EXIT_ERROR_COUNT.load(Ordering::SeqCst)
+}
+
+#[cfg(any(test, feature = "mutants"))]
+pub(crate) fn reset_respond_osc_counters() {
+    RESPOND_OSC_START.with(|val| val.set(usize::MAX));
+    RESPOND_OSC_HITS.with(|val| val.set(0));
+}
+
+#[cfg(any(test, feature = "mutants"))]
+pub(crate) fn respond_osc_start() -> usize {
+    RESPOND_OSC_START.with(|val| val.get())
+}
+
+#[cfg(any(test, feature = "mutants"))]
+pub(crate) fn respond_osc_hits() -> usize {
+    RESPOND_OSC_HITS.with(|val| val.get())
+}
+
+#[cfg(any(test, feature = "mutants"))]
+pub(crate) fn reset_apply_osc_counters() {
+    APPLY_OSC_START.with(|val| val.set(usize::MAX));
+    APPLY_OSC_HITS.with(|val| val.set(0));
+}
+
+#[cfg(any(test, feature = "mutants"))]
+pub(crate) fn apply_osc_start() -> usize {
+    APPLY_OSC_START.with(|val| val.get())
+}
+
+#[cfg(any(test, feature = "mutants"))]
+pub(crate) fn apply_osc_hits() -> usize {
+    APPLY_OSC_HITS.with(|val| val.get())
+}
+
+#[cfg(any(test, feature = "mutants"))]
+pub(crate) fn reset_apply_linestart_recalc_count() {
+    APPLY_LINESTART_RECALC_COUNT.with(|val| val.set(0));
+}
+
+#[cfg(any(test, feature = "mutants"))]
+pub(crate) fn apply_linestart_recalc_count() -> usize {
+    APPLY_LINESTART_RECALC_COUNT.with(|val| val.get())
+}
+
+#[cfg(any(test, feature = "mutants"))]
+fn record_respond_osc_start(start: usize) {
+    RESPOND_OSC_START.with(|val| val.set(start));
+    RESPOND_OSC_HITS.with(|val| val.set(val.get().saturating_add(1)));
+}
+
+#[cfg(any(test, feature = "mutants"))]
+fn record_apply_osc_start(start: usize) {
+    APPLY_OSC_START.with(|val| val.set(start));
+    APPLY_OSC_HITS.with(|val| val.set(val.get().saturating_add(1)));
+}
+
+#[cfg(any(test, feature = "mutants"))]
+fn record_apply_linestart_recalc() {
+    APPLY_LINESTART_RECALC_COUNT.with(|val| val.set(val.get().saturating_add(1)));
+}
+
+#[cfg(any(test, feature = "mutants"))]
+fn guard_elapsed_exceeded(elapsed: Duration, iterations: usize, limit: usize) -> bool {
+    elapsed > Duration::from_secs(2) || iterations > limit
+}
+
+#[cfg(any(test, feature = "mutants"))]
+fn guard_loop(start: Instant, iterations: usize, limit: usize, label: &str) {
+    if guard_elapsed_exceeded(start.elapsed(), iterations, limit) {
+        panic!("{label} loop guard exceeded");
+    }
+}
+
+fn read_output_elapsed(start: Instant) -> Duration {
+    #[cfg(any(test, feature = "mutants"))]
+    {
+        let override_ms = READ_OUTPUT_ELAPSED_OVERRIDE_MS.load(Ordering::SeqCst);
+        if override_ms != u64::MAX {
+            return Duration::from_millis(override_ms);
+        }
+    }
+    start.elapsed()
+}
 
 /// Uses PTY to run Codex in a proper terminal environment
 pub struct PtyCodexSession {
@@ -65,6 +249,8 @@ impl PtyCodexSession {
 
     /// Write text to the PTY, automatically ensuring prompts end with a newline.
     pub fn send(&mut self, text: &str) -> Result<()> {
+        #[cfg(any(test, feature = "mutants"))]
+        PTY_SEND_COUNT.with(|count| count.set(count.get().saturating_add(1)));
         write_all(self.master_fd, text.as_bytes())?;
         if !text.ends_with('\n') {
             write_all(self.master_fd, b"\n")?;
@@ -83,11 +269,13 @@ impl PtyCodexSession {
 
     /// Block for a short window until output arrives or the timeout expires.
     pub fn read_output_timeout(&self, timeout: Duration) -> Vec<Vec<u8>> {
+        #[cfg(any(test, feature = "mutants"))]
+        PTY_READ_COUNT.with(|count| count.set(count.get().saturating_add(1)));
         let mut output = Vec::new();
         let start = Instant::now();
         let mut last_chunk: Option<Instant> = None;
 
-        while start.elapsed() < timeout {
+        while read_output_elapsed(start) < timeout {
             match self.output_rx.recv_timeout(Duration::from_millis(100)) {
                 Ok(line) => {
                     last_chunk = Some(Instant::now());
@@ -98,7 +286,19 @@ impl PtyCodexSession {
                         break;
                     }
                     if let Some(last) = last_chunk {
-                        if last.elapsed() < Duration::from_millis(300) {
+                        #[cfg(any(test, feature = "mutants"))]
+                        let elapsed = {
+                            let override_ms =
+                                READ_OUTPUT_GRACE_OVERRIDE_MS.load(Ordering::SeqCst);
+                            if override_ms != u64::MAX {
+                                Duration::from_millis(override_ms)
+                            } else {
+                                last.elapsed()
+                            }
+                        };
+                        #[cfg(not(any(test, feature = "mutants")))]
+                        let elapsed = last.elapsed();
+                        if elapsed < Duration::from_millis(300) {
                             continue;
                         }
                     }
@@ -165,12 +365,21 @@ impl Drop for PtyCodexSession {
                             io::Error::last_os_error()
                         ));
                     }
-                    let mut status = 0;
-                    if libc::waitpid(self.child_pid, &mut status, 0) < 0 {
-                        log_debug(&format!(
-                            "waitpid after SIGKILL failed: {}",
-                            io::Error::last_os_error()
-                        ));
+                    #[cfg(any(test, feature = "mutants"))]
+                    {
+                        let mut status = 0;
+                        let _ = libc::waitpid(self.child_pid, &mut status, libc::WNOHANG);
+                    }
+                    #[cfg(not(any(test, feature = "mutants")))]
+                    {
+                        let mut status = 0;
+                        let ret = libc::waitpid(self.child_pid, &mut status, 0);
+                        if waitpid_failed(ret) {
+                            log_debug(&format!(
+                                "waitpid after SIGKILL failed: {}",
+                                io::Error::last_os_error()
+                            ));
+                        }
                     }
                 }
             }
@@ -292,12 +501,21 @@ impl Drop for PtyOverlaySession {
                             io::Error::last_os_error()
                         ));
                     }
-                    let mut status = 0;
-                    if libc::waitpid(self.child_pid, &mut status, 0) < 0 {
-                        log_debug(&format!(
-                            "waitpid after SIGKILL failed: {}",
-                            io::Error::last_os_error()
-                        ));
+                    #[cfg(any(test, feature = "mutants"))]
+                    {
+                        let mut status = 0;
+                        let _ = libc::waitpid(self.child_pid, &mut status, libc::WNOHANG);
+                    }
+                    #[cfg(not(any(test, feature = "mutants")))]
+                    {
+                        let mut status = 0;
+                        let ret = libc::waitpid(self.child_pid, &mut status, 0);
+                        if waitpid_failed(ret) {
+                            log_debug(&format!(
+                                "waitpid after SIGKILL failed: {}",
+                                io::Error::last_os_error()
+                            ));
+                        }
                     }
                 }
             }
@@ -402,11 +620,26 @@ unsafe fn set_nonblocking(fd: RawFd) -> Result<()> {
     Ok(())
 }
 
+fn should_retry_read_error(err: &io::Error) -> bool {
+    err.kind() == ErrorKind::Interrupted || err.kind() == ErrorKind::WouldBlock
+}
+
 /// Continuously read from the PTY and forward chunks to the main thread.
 fn spawn_reader_thread(master_fd: RawFd, tx: Sender<Vec<u8>>) -> thread::JoinHandle<()> {
     thread::spawn(move || {
         let mut buffer = [0u8; 4096];
+        #[cfg(any(test, feature = "mutants"))]
+        let guard_start = Instant::now();
+        #[cfg(any(test, feature = "mutants"))]
+        let mut guard_iters: usize = 0;
         loop {
+            #[cfg(any(test, feature = "mutants"))]
+            {
+                let prev = guard_iters;
+                guard_iters += 1;
+                assert!(guard_iters > prev);
+                guard_loop(guard_start, guard_iters, 10_000, "spawn_reader_thread");
+            }
             let n = unsafe {
                 libc::read(
                     master_fd,
@@ -430,7 +663,7 @@ fn spawn_reader_thread(master_fd: RawFd, tx: Sender<Vec<u8>>) -> thread::JoinHan
                 break;
             }
             let err = io::Error::last_os_error();
-            if err.kind() == ErrorKind::Interrupted || err.kind() == ErrorKind::WouldBlock {
+            if should_retry_read_error(&err) {
                 thread::sleep(Duration::from_millis(10));
                 continue;
             }
@@ -447,7 +680,18 @@ fn spawn_passthrough_reader_thread(
 ) -> thread::JoinHandle<()> {
     thread::spawn(move || {
         let mut buffer = [0u8; 4096];
+        #[cfg(any(test, feature = "mutants"))]
+        let guard_start = Instant::now();
+        #[cfg(any(test, feature = "mutants"))]
+        let mut guard_iters: usize = 0;
         loop {
+            #[cfg(any(test, feature = "mutants"))]
+            {
+                let prev = guard_iters;
+                guard_iters += 1;
+                assert!(guard_iters > prev);
+                guard_loop(guard_start, guard_iters, 10_000, "spawn_passthrough_reader_thread");
+            }
             let n = unsafe {
                 libc::read(
                     master_fd,
@@ -470,7 +714,7 @@ fn spawn_passthrough_reader_thread(
                 break;
             }
             let err = io::Error::last_os_error();
-            if err.kind() == ErrorKind::Interrupted || err.kind() == ErrorKind::WouldBlock {
+            if should_retry_read_error(&err) {
                 thread::sleep(Duration::from_millis(10));
                 continue;
             }
@@ -494,14 +738,34 @@ unsafe fn close_fd(fd: RawFd) {
 
 /// Write the entire buffer to the PTY master, retrying short writes.
 fn write_all(fd: RawFd, mut data: &[u8]) -> Result<()> {
+    #[cfg(any(test, feature = "mutants"))]
+    let guard_start = Instant::now();
+    #[cfg(any(test, feature = "mutants"))]
+    let mut guard_iters: usize = 0;
     while !data.is_empty() {
-        let written = unsafe { libc::write(fd, data.as_ptr() as *const libc::c_void, data.len()) };
+        #[cfg(any(test, feature = "mutants"))]
+        {
+            let prev = guard_iters;
+            guard_iters += 1;
+            assert!(guard_iters > prev);
+            guard_loop(guard_start, guard_iters, 10_000, "write_all");
+        }
+        #[cfg(any(test, feature = "mutants"))]
+        let write_len = WRITE_ALL_LIMIT.with(|limit| data.len().min(limit.get()));
+        #[cfg(not(any(test, feature = "mutants")))]
+        let write_len = data.len();
+        let written = unsafe {
+            libc::write(fd, data.as_ptr() as *const libc::c_void, write_len)
+        };
         if written < 0 {
             let err = io::Error::last_os_error();
             if err.kind() == ErrorKind::Interrupted {
                 continue;
             }
             return Err(anyhow!("write to PTY failed: {err}"));
+        }
+        if written == 0 {
+            return Err(anyhow!("write to PTY returned 0"));
         }
         let written = written as usize;
         data = if written <= data.len() {
@@ -513,16 +777,46 @@ fn write_all(fd: RawFd, mut data: &[u8]) -> Result<()> {
     Ok(())
 }
 
+fn wait_for_exit_elapsed(start: Instant) -> Duration {
+    #[cfg(any(test, feature = "mutants"))]
+    {
+        let override_ms = WAIT_FOR_EXIT_ELAPSED_OVERRIDE_MS.load(Ordering::SeqCst);
+        if override_ms != u64::MAX {
+            return Duration::from_millis(override_ms);
+        }
+    }
+    start.elapsed()
+}
+
+fn waitpid_failed(ret: i32) -> bool {
+    ret < 0
+}
+
 /// Wait for the child process to terminate, but bail out after a short timeout.
 fn wait_for_exit(child_pid: i32, timeout: Duration) -> bool {
     let start = Instant::now();
     let mut status = 0;
-    while start.elapsed() < timeout {
+    #[cfg(any(test, feature = "mutants"))]
+    let mut guard_iters: usize = 0;
+    while wait_for_exit_elapsed(start) < timeout {
+        #[cfg(any(test, feature = "mutants"))]
+        {
+            let prev = guard_iters;
+            guard_iters += 1;
+            assert!(guard_iters > prev);
+            guard_loop(start, guard_iters, 10_000, "wait_for_exit");
+        }
+        #[cfg(any(test, feature = "mutants"))]
+        WAIT_FOR_EXIT_POLL_COUNT.fetch_add(1, Ordering::SeqCst);
         let result = unsafe { libc::waitpid(child_pid, &mut status, libc::WNOHANG) };
         if result > 0 {
+            #[cfg(any(test, feature = "mutants"))]
+            WAIT_FOR_EXIT_REAP_COUNT.fetch_add(1, Ordering::SeqCst);
             return true;
         }
         if result < 0 {
+            #[cfg(any(test, feature = "mutants"))]
+            WAIT_FOR_EXIT_ERROR_COUNT.fetch_add(1, Ordering::SeqCst);
             log_debug(&format!(
                 "waitpid({}) failed: {}",
                 child_pid,
@@ -540,7 +834,18 @@ fn wait_for_exit(child_pid: i32, timeout: Duration) -> bool {
 fn respond_to_terminal_queries(buffer: &mut Vec<u8>, master_fd: RawFd) {
     let (rows, cols) = current_terminal_size(master_fd);
     let mut idx = 0;
+    #[cfg(any(test, feature = "mutants"))]
+    let guard_start = Instant::now();
+    #[cfg(any(test, feature = "mutants"))]
+    let mut guard_iters: usize = 0;
     while idx < buffer.len() {
+        #[cfg(any(test, feature = "mutants"))]
+        {
+            let prev = guard_iters;
+            guard_iters += 1;
+            assert!(guard_iters > prev);
+            guard_loop(guard_start, guard_iters, buffer.len().saturating_mul(4).max(64), "respond_to_terminal_queries");
+        }
         if buffer[idx] != 0x1B {
             idx += 1;
             continue;
@@ -578,6 +883,8 @@ fn respond_to_terminal_queries(buffer: &mut Vec<u8>, master_fd: RawFd) {
                 }
             }
             b']' => {
+                #[cfg(any(test, feature = "mutants"))]
+                record_respond_osc_start(idx + 2);
                 if let Some(end) = find_osc_terminator(buffer, idx + 2) {
                     buffer.drain(idx..end);
                     continue;
@@ -599,7 +906,23 @@ fn respond_to_terminal_queries(buffer: &mut Vec<u8>, master_fd: RawFd) {
 fn respond_to_terminal_queries_passthrough(buffer: &mut Vec<u8>, master_fd: RawFd) {
     let (rows, cols) = current_terminal_size(master_fd);
     let mut idx = 0;
+    #[cfg(any(test, feature = "mutants"))]
+    let guard_start = Instant::now();
+    #[cfg(any(test, feature = "mutants"))]
+    let mut guard_iters: usize = 0;
     while idx < buffer.len() {
+        #[cfg(any(test, feature = "mutants"))]
+        {
+            let prev = guard_iters;
+            guard_iters += 1;
+            assert!(guard_iters > prev);
+            guard_loop(
+                guard_start,
+                guard_iters,
+                buffer.len().saturating_mul(4).max(64),
+                "respond_to_terminal_queries_passthrough",
+            );
+        }
         if buffer[idx] != 0x1B {
             idx += 1;
             continue;
@@ -682,6 +1005,19 @@ fn csi_reply(params: &[u8], final_b: u8, rows: u16, cols: u16) -> Option<Vec<u8>
 }
 
 fn current_terminal_size(master_fd: RawFd) -> (u16, u16) {
+    #[cfg(any(test, feature = "mutants"))]
+    if let Some((ok, row, col)) = TERMINAL_SIZE_OVERRIDE
+        .get_or_init(|| Mutex::new(None))
+        .lock()
+        .unwrap()
+        .clone()
+    {
+        return if ok && row > 0 && col > 0 {
+            (row, col)
+        } else {
+            (24, 80)
+        };
+    }
     let mut ws: libc::winsize = unsafe { mem::zeroed() };
     unsafe {
         if libc::ioctl(master_fd, libc::TIOCGWINSZ, &mut ws) == 0 && ws.ws_row > 0 && ws.ws_col > 0
@@ -695,7 +1031,23 @@ fn current_terminal_size(master_fd: RawFd) -> (u16, u16) {
 
 fn find_csi_sequence(bytes: &[u8], start: usize) -> Option<(usize, u8)> {
     let mut idx = start;
+    #[cfg(any(test, feature = "mutants"))]
+    let guard_start = Instant::now();
+    #[cfg(any(test, feature = "mutants"))]
+    let mut guard_iters: usize = 0;
     while idx < bytes.len() {
+        #[cfg(any(test, feature = "mutants"))]
+        {
+            let prev = guard_iters;
+            guard_iters += 1;
+            assert!(guard_iters > prev);
+            guard_loop(
+                guard_start,
+                guard_iters,
+                bytes.len().saturating_add(16),
+                "find_csi_sequence",
+            );
+        }
         let byte = bytes[idx];
         if (0x40..=0x7E).contains(&byte) {
             return Some((idx, byte));
@@ -706,7 +1058,23 @@ fn find_csi_sequence(bytes: &[u8], start: usize) -> Option<(usize, u8)> {
 }
 
 fn find_osc_terminator(bytes: &[u8], mut cursor: usize) -> Option<usize> {
+    #[cfg(any(test, feature = "mutants"))]
+    let guard_start = Instant::now();
+    #[cfg(any(test, feature = "mutants"))]
+    let mut guard_iters: usize = 0;
     while cursor < bytes.len() {
+        #[cfg(any(test, feature = "mutants"))]
+        {
+            let prev = guard_iters;
+            guard_iters += 1;
+            assert!(guard_iters > prev);
+            guard_loop(
+                guard_start,
+                guard_iters,
+                bytes.len().saturating_add(16),
+                "find_osc_terminator",
+            );
+        }
         match bytes[cursor] {
             0x07 => return Some(cursor + 1),
             0x1B if cursor + 1 < bytes.len() && bytes[cursor + 1] == b'\\' => {
@@ -722,8 +1090,24 @@ fn apply_control_edits(buffer: &mut Vec<u8>) {
     let mut output = Vec::with_capacity(buffer.len());
     let mut line_start = 0usize;
     let mut idx = 0;
+    #[cfg(any(test, feature = "mutants"))]
+    let guard_start = Instant::now();
+    #[cfg(any(test, feature = "mutants"))]
+    let mut guard_iters: usize = 0;
 
     while idx < buffer.len() {
+        #[cfg(any(test, feature = "mutants"))]
+        {
+            let prev = guard_iters;
+            guard_iters += 1;
+            assert!(guard_iters > prev);
+            guard_loop(
+                guard_start,
+                guard_iters,
+                buffer.len().saturating_mul(4).max(64),
+                "apply_control_edits",
+            );
+        }
         match buffer[idx] {
             b'\r' => {
                 output.truncate(line_start);
@@ -738,11 +1122,15 @@ fn apply_control_edits(buffer: &mut Vec<u8>) {
                 pop_last_codepoint(&mut output);
                 idx += 1;
                 if line_start > output.len() {
+                    #[cfg(any(test, feature = "mutants"))]
+                    record_apply_linestart_recalc();
                     line_start = current_line_start(&output);
                 }
             }
             0x1B => {
                 if idx + 1 < buffer.len() && buffer[idx + 1] == b']' {
+                    #[cfg(any(test, feature = "mutants"))]
+                    record_apply_osc_start(idx + 2);
                     if let Some(end) = find_osc_terminator(buffer, idx + 2) {
                         idx = end;
                         continue;
@@ -789,7 +1177,10 @@ fn current_line_start(buf: &[u8]) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
+    use std::mem::ManuallyDrop;
     use std::os::unix::io::RawFd;
+    use std::sync::{Mutex, OnceLock};
 
     fn pipe_pair() -> (RawFd, RawFd) {
         let mut fds = [0; 2];
@@ -808,6 +1199,98 @@ mod tests {
             libc::close(read_fd);
             libc::close(write_fd);
         }
+    }
+
+    fn read_all(fd: RawFd) -> Vec<u8> {
+        let mut out = Vec::new();
+        let mut buf = [0u8; 64];
+        loop {
+            let n = unsafe { libc::read(fd, buf.as_mut_ptr() as *mut _, buf.len()) };
+            if n <= 0 {
+                break;
+            }
+            out.extend_from_slice(&buf[..n as usize]);
+        }
+        out
+    }
+
+    fn set_nonblocking_fd(fd: RawFd) {
+        unsafe { set_nonblocking(fd).unwrap() };
+    }
+
+    fn open_pty_pair() -> (RawFd, RawFd) {
+        let mut master = -1;
+        let mut slave = -1;
+        let mut ws: libc::winsize = unsafe { mem::zeroed() };
+        let result = unsafe {
+            libc::openpty(
+                &mut master,
+                &mut slave,
+                ptr::null_mut(),
+                ptr::null_mut(),
+                &mut ws,
+            )
+        };
+        assert_eq!(
+            result,
+            0,
+            "openpty() failed with errno {}",
+            io::Error::last_os_error()
+        );
+        (master, slave)
+    }
+
+    fn log_lock() -> &'static Mutex<()> {
+        static LOG_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOG_LOCK.get_or_init(|| Mutex::new(()))
+    }
+
+    fn read_output_timeout_lock() -> &'static Mutex<()> {
+        static READ_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        READ_LOCK.get_or_init(|| Mutex::new(()))
+    }
+
+    fn terminal_size_override_lock() -> &'static Mutex<()> {
+        static SIZE_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        SIZE_LOCK.get_or_init(|| Mutex::new(()))
+    }
+
+    fn wait_for_exit_lock() -> &'static Mutex<()> {
+        static EXIT_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        EXIT_LOCK.get_or_init(|| Mutex::new(()))
+    }
+
+
+    fn capture_new_log<F: FnOnce()>(f: F) -> String {
+        let _guard = log_lock().lock().unwrap();
+        let log_path = crate::log_file_path();
+        let before = fs::read(&log_path).unwrap_or_default();
+        f();
+        let after = fs::read(&log_path).unwrap_or_default();
+        let new_bytes = after.get(before.len()..).unwrap_or(&[]);
+        String::from_utf8_lossy(new_bytes).to_string()
+    }
+
+    #[test]
+    fn guard_loop_enforces_iteration_limit() {
+        let start = Instant::now();
+        let ok = std::panic::catch_unwind(|| guard_loop(start, 10, 10, "guard"));
+        assert!(ok.is_ok());
+        let err = std::panic::catch_unwind(|| guard_loop(start, 11, 10, "guard"));
+        assert!(err.is_err());
+    }
+
+    #[test]
+    fn guard_loop_enforces_elapsed_limit() {
+        let start = Instant::now() - Duration::from_secs(3);
+        let err = std::panic::catch_unwind(|| guard_loop(start, 0, 10, "guard"));
+        assert!(err.is_err());
+    }
+
+    #[test]
+    fn guard_elapsed_exceeded_allows_exact_limit() {
+        assert!(!guard_elapsed_exceeded(Duration::from_secs(2), 0, 10));
+        assert!(guard_elapsed_exceeded(Duration::from_secs(3), 0, 10));
     }
 
     #[test]
@@ -831,10 +1314,30 @@ mod tests {
     }
 
     fn read_reply(fd: RawFd) -> Vec<u8> {
+        set_nonblocking_fd(fd);
+        let start = Instant::now();
         let mut buf = [0u8; 64];
-        let n = unsafe { libc::read(fd, buf.as_mut_ptr() as *mut _, buf.len()) };
-        assert!(n >= 0);
-        buf[..n as usize].to_vec()
+        loop {
+            let n = unsafe { libc::read(fd, buf.as_mut_ptr() as *mut _, buf.len()) };
+            if n > 0 {
+                return buf[..n as usize].to_vec();
+            }
+            if n == 0 {
+                return Vec::new();
+            }
+            let err = io::Error::last_os_error();
+            if err.kind() == ErrorKind::Interrupted {
+                continue;
+            }
+            if err.kind() == ErrorKind::WouldBlock {
+                if start.elapsed() > Duration::from_millis(200) {
+                    return Vec::new();
+                }
+                thread::sleep(Duration::from_millis(5));
+                continue;
+            }
+            return Vec::new();
+        }
     }
 
     #[test]
@@ -894,6 +1397,1278 @@ mod tests {
         let mut data = b"foo\rbar\x08z\nnext\x08!".to_vec();
         apply_control_edits(&mut data);
         assert_eq!(data, b"baz\nnex!");
+    }
+
+    #[test]
+    fn write_all_writes_bytes() {
+        let (read_fd, write_fd) = pipe_pair();
+        write_all(write_fd, b"hello").unwrap();
+        unsafe { libc::close(write_fd) };
+        let output = read_all(read_fd);
+        assert_eq!(output, b"hello");
+        unsafe { libc::close(read_fd) };
+    }
+
+    #[test]
+    fn write_all_handles_short_writes() {
+        struct LimitReset;
+        impl Drop for LimitReset {
+            fn drop(&mut self) {
+                set_write_all_limit(None);
+            }
+        }
+
+        set_write_all_limit(Some(1));
+        let _reset = LimitReset;
+
+        let (read_fd, write_fd) = pipe_pair();
+        write_all(write_fd, b"hello").unwrap();
+        unsafe { libc::close(write_fd) };
+        let output = read_all(read_fd);
+        assert_eq!(output, b"hello");
+        unsafe { libc::close(read_fd) };
+    }
+
+    #[test]
+    fn write_all_reports_zero_write() {
+        struct LimitReset;
+        impl Drop for LimitReset {
+            fn drop(&mut self) {
+                set_write_all_limit(None);
+            }
+        }
+
+        set_write_all_limit(Some(0));
+        let _reset = LimitReset;
+
+        let (read_fd, write_fd) = pipe_pair();
+        let err = write_all(write_fd, b"hi").unwrap_err();
+        unsafe {
+            libc::close(write_fd);
+            libc::close(read_fd);
+        }
+        assert!(err.to_string().contains("returned 0"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn wait_for_exit_returns_true_for_exited_child() {
+        let _guard = wait_for_exit_lock().lock().unwrap();
+        reset_wait_for_exit_counters();
+        set_wait_for_exit_elapsed_override(None);
+        let mut child = std::process::Command::new("true")
+            .spawn()
+            .expect("spawned child");
+        let pid = child.id() as i32;
+        assert!(wait_for_exit(pid, Duration::from_secs(1)));
+        let _ = child.wait();
+        assert_eq!(wait_for_exit_error_count(), 0);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn wait_for_exit_returns_false_when_timeout() {
+        let _guard = wait_for_exit_lock().lock().unwrap();
+        reset_wait_for_exit_counters();
+        set_wait_for_exit_elapsed_override(None);
+        let mut child = std::process::Command::new("sleep")
+            .arg("1")
+            .spawn()
+            .expect("spawned child");
+        let pid = child.id() as i32;
+        assert!(!wait_for_exit(pid, Duration::from_millis(10)));
+        let _ = child.kill();
+        let _ = child.wait();
+        assert_eq!(wait_for_exit_reap_count(), 0);
+        assert_eq!(wait_for_exit_error_count(), 0);
+        assert!(wait_for_exit_poll_count() > 0);
+    }
+
+    #[test]
+    fn find_csi_sequence_finds_final_byte() {
+        let bytes = b"1;2R";
+        assert_eq!(find_csi_sequence(bytes, 0), Some((3, b'R')));
+        assert_eq!(find_csi_sequence(bytes, 4), None);
+    }
+
+    #[test]
+    fn find_osc_terminator_handles_bel_and_st() {
+        let bel = b"0;title\x07rest";
+        assert_eq!(find_osc_terminator(bel, 0), Some(b"0;title\x07".len()));
+        let st = b"0;title\x1b\\rest";
+        assert_eq!(find_osc_terminator(st, 0), Some(b"0;title\x1b\\".len()));
+    }
+
+    #[test]
+    fn should_strip_without_reply_matches_expected_sequences() {
+        assert!(should_strip_without_reply(b"?2004", b'h'));
+        assert!(should_strip_without_reply(b">1", b'u'));
+        assert!(should_strip_without_reply(b"", b'm'));
+        assert!(!should_strip_without_reply(b"6", b'n'));
+    }
+
+    #[test]
+    fn csi_reply_returns_expected_responses() {
+        assert_eq!(csi_reply(b"5", b'n', 24, 80), Some(b"\x1b[0n".to_vec()));
+        assert_eq!(
+            csi_reply(b"6", b'n', 2, 3),
+            Some(b"\x1b[2;3R".to_vec())
+        );
+        assert_eq!(csi_reply(b"", b'c', 24, 80), Some(b"\x1b[?1;2c".to_vec()));
+        assert_eq!(csi_reply(b"1", b'n', 24, 80), None);
+    }
+
+    #[test]
+    fn current_terminal_size_falls_back_on_invalid_fd() {
+        let _guard = terminal_size_override_lock().lock().unwrap();
+        set_terminal_size_override(None);
+        assert_eq!(current_terminal_size(-1), (24, 80));
+    }
+
+    #[test]
+    fn pty_codex_session_send_appends_newline() {
+        let (read_fd, write_fd) = pipe_pair();
+        let (_tx, rx) = bounded(1);
+        let handle = thread::spawn(|| {});
+        let mut session = ManuallyDrop::new(PtyCodexSession {
+            master_fd: write_fd,
+            child_pid: -1,
+            output_rx: rx,
+            _output_thread: handle,
+        });
+        session.send("hello").unwrap();
+        unsafe { libc::close(write_fd) };
+        let output = read_all(read_fd);
+        assert_eq!(output, b"hello\n");
+        unsafe { libc::close(read_fd) };
+    }
+
+    #[test]
+    fn pty_overlay_session_send_text_with_newline_appends() {
+        let (read_fd, write_fd) = pipe_pair();
+        let (_tx, rx) = bounded(1);
+        let handle = thread::spawn(|| {});
+        let mut session = ManuallyDrop::new(PtyOverlaySession {
+            master_fd: write_fd,
+            child_pid: -1,
+            output_rx: rx,
+            _output_thread: handle,
+        });
+        session.send_text_with_newline("overlay").unwrap();
+        unsafe { libc::close(write_fd) };
+        let output = read_all(read_fd);
+        assert_eq!(output, b"overlay\n");
+        unsafe { libc::close(read_fd) };
+    }
+
+    #[test]
+    fn spawn_reader_thread_forwards_output() {
+        let (read_fd, write_fd) = pipe_pair();
+        let (tx, rx) = bounded(2);
+        let handle = spawn_reader_thread(read_fd, tx);
+        unsafe {
+            libc::write(
+                write_fd,
+                b"hello".as_ptr() as *const libc::c_void,
+                5,
+            );
+            libc::close(write_fd);
+        }
+        let data = rx.recv_timeout(Duration::from_secs(1)).unwrap();
+        assert_eq!(data, b"hello");
+        handle.join().unwrap();
+        unsafe { libc::close(read_fd) };
+    }
+
+    #[test]
+    fn spawn_passthrough_reader_thread_forwards_output() {
+        let (read_fd, write_fd) = pipe_pair();
+        let (tx, rx) = bounded(2);
+        let handle = spawn_passthrough_reader_thread(read_fd, tx);
+        unsafe {
+            libc::write(
+                write_fd,
+                b"hello".as_ptr() as *const libc::c_void,
+                5,
+            );
+            libc::close(write_fd);
+        }
+        let data = rx.recv_timeout(Duration::from_secs(1)).unwrap();
+        assert_eq!(data, b"hello");
+        handle.join().unwrap();
+        unsafe { libc::close(read_fd) };
+    }
+
+    #[test]
+    fn should_retry_read_error_reports_expected_kinds() {
+        assert!(should_retry_read_error(&io::Error::from(ErrorKind::Interrupted)));
+        assert!(should_retry_read_error(&io::Error::from(ErrorKind::WouldBlock)));
+        assert!(!should_retry_read_error(&io::Error::from(ErrorKind::Other)));
+    }
+
+    #[test]
+    fn pty_session_counters_track_send_and_read() {
+        reset_pty_session_counters();
+        assert_eq!(pty_session_send_count(), 0);
+        assert_eq!(pty_session_read_count(), 0);
+
+        let (read_fd, write_fd) = pipe_pair();
+        let (_tx, rx) = bounded(1);
+        let handle = thread::spawn(|| {});
+        let mut session = ManuallyDrop::new(PtyCodexSession {
+            master_fd: write_fd,
+            child_pid: -1,
+            output_rx: rx,
+            _output_thread: handle,
+        });
+        session.send("ping").unwrap();
+        unsafe { libc::close(write_fd) };
+        let _ = read_all(read_fd);
+        unsafe { libc::close(read_fd) };
+        assert_eq!(pty_session_send_count(), 1);
+
+        let _guard = read_output_timeout_lock().lock().unwrap();
+        let (_tx2, rx2) = bounded(1);
+        let handle2 = thread::spawn(|| {});
+        let session2 = ManuallyDrop::new(PtyCodexSession {
+            master_fd: -1,
+            child_pid: -1,
+            output_rx: rx2,
+            _output_thread: handle2,
+        });
+        let _ = session2.read_output_timeout(Duration::from_millis(0));
+        assert_eq!(pty_session_read_count(), 1);
+
+        reset_pty_session_counters();
+        assert_eq!(pty_session_send_count(), 0);
+        assert_eq!(pty_session_read_count(), 0);
+    }
+
+    #[test]
+    fn current_terminal_size_uses_override_values() {
+        struct OverrideReset;
+        impl Drop for OverrideReset {
+            fn drop(&mut self) {
+                set_terminal_size_override(None);
+            }
+        }
+
+        let _guard = terminal_size_override_lock().lock().unwrap();
+        set_terminal_size_override(Some((true, 10, 20)));
+        let _reset = OverrideReset;
+        assert_eq!(current_terminal_size(-1), (10, 20));
+    }
+
+    #[test]
+    fn current_terminal_size_falls_back_when_override_disabled() {
+        struct OverrideReset;
+        impl Drop for OverrideReset {
+            fn drop(&mut self) {
+                set_terminal_size_override(None);
+            }
+        }
+
+        let _guard = terminal_size_override_lock().lock().unwrap();
+        set_terminal_size_override(Some((false, 10, 20)));
+        let _reset = OverrideReset;
+        assert_eq!(current_terminal_size(-1), (24, 80));
+    }
+
+    #[test]
+    fn current_terminal_size_falls_back_when_ioctl_dimensions_zero() {
+        let _guard = terminal_size_override_lock().lock().unwrap();
+        set_terminal_size_override(None);
+        let (master, slave) = open_pty_pair();
+        let mut ws: libc::winsize = unsafe { mem::zeroed() };
+        ws.ws_row = 0;
+        ws.ws_col = 0;
+        unsafe {
+            assert_eq!(libc::ioctl(master, libc::TIOCSWINSZ, &ws), 0);
+        }
+        assert_eq!(current_terminal_size(master), (24, 80));
+        unsafe {
+            libc::close(master);
+            libc::close(slave);
+        }
+    }
+
+    #[test]
+    fn current_terminal_size_falls_back_when_ioctl_row_zero() {
+        let _guard = terminal_size_override_lock().lock().unwrap();
+        set_terminal_size_override(None);
+        let (master, slave) = open_pty_pair();
+        let mut ws: libc::winsize = unsafe { mem::zeroed() };
+        ws.ws_row = 0;
+        ws.ws_col = 80;
+        unsafe {
+            assert_eq!(libc::ioctl(master, libc::TIOCSWINSZ, &ws), 0);
+        }
+        assert_eq!(current_terminal_size(master), (24, 80));
+        unsafe {
+            libc::close(master);
+            libc::close(slave);
+        }
+    }
+
+    #[test]
+    fn current_terminal_size_falls_back_when_ioctl_col_zero() {
+        let _guard = terminal_size_override_lock().lock().unwrap();
+        set_terminal_size_override(None);
+        let (master, slave) = open_pty_pair();
+        let mut ws: libc::winsize = unsafe { mem::zeroed() };
+        ws.ws_row = 40;
+        ws.ws_col = 0;
+        unsafe {
+            assert_eq!(libc::ioctl(master, libc::TIOCSWINSZ, &ws), 0);
+        }
+        assert_eq!(current_terminal_size(master), (24, 80));
+        unsafe {
+            libc::close(master);
+            libc::close(slave);
+        }
+    }
+
+    #[test]
+    fn respond_to_terminal_queries_handles_trailing_escape() {
+        let (read_fd, write_fd) = pipe_pair();
+        let mut buffer = b"end\x1b".to_vec();
+        respond_to_terminal_queries(&mut buffer, write_fd);
+        assert_eq!(buffer, b"end\x1b".to_vec());
+        unsafe { libc::close(write_fd) };
+        let _ = read_all(read_fd);
+        unsafe { libc::close(read_fd) };
+    }
+
+    #[test]
+    fn respond_to_terminal_queries_handles_unknown_escape() {
+        let (read_fd, write_fd) = pipe_pair();
+        let mut buffer = b"pre\x1bXpost".to_vec();
+        respond_to_terminal_queries(&mut buffer, write_fd);
+        assert_eq!(buffer, b"pre\x1bXpost".to_vec());
+        unsafe { libc::close(write_fd) };
+        let _ = read_all(read_fd);
+        unsafe { libc::close(read_fd) };
+    }
+
+    #[test]
+    fn respond_to_terminal_queries_osc_preserves_trailing_bytes() {
+        reset_respond_osc_counters();
+        let (read_fd, write_fd) = pipe_pair();
+        let mut buffer = b"hello!\x1b]\x07X".to_vec();
+        respond_to_terminal_queries(&mut buffer, write_fd);
+        assert_eq!(buffer, b"hello!X".to_vec());
+        assert_eq!(respond_osc_hits(), 1);
+        assert_eq!(respond_osc_start(), 8);
+        unsafe { libc::close(write_fd) };
+        let _ = read_all(read_fd);
+        unsafe { libc::close(read_fd) };
+    }
+
+    #[test]
+    fn respond_to_terminal_queries_osc_with_prior_bel() {
+        reset_respond_osc_counters();
+        let (read_fd, write_fd) = pipe_pair();
+        let mut buffer = b"A\x07B\x1b]0\x07Z".to_vec();
+        respond_to_terminal_queries(&mut buffer, write_fd);
+        assert_eq!(buffer, b"A\x07BZ".to_vec());
+        assert_eq!(respond_osc_hits(), 1);
+        assert_eq!(respond_osc_start(), 5);
+        unsafe { libc::close(write_fd) };
+        let _ = read_all(read_fd);
+        unsafe { libc::close(read_fd) };
+    }
+
+    #[test]
+    fn respond_osc_counters_reset_clears_hits() {
+        reset_respond_osc_counters();
+        let (read_fd, write_fd) = pipe_pair();
+        let mut buffer = b"\x1b]0\x07".to_vec();
+        respond_to_terminal_queries(&mut buffer, write_fd);
+        assert_eq!(respond_osc_hits(), 1);
+        reset_respond_osc_counters();
+        assert_eq!(respond_osc_hits(), 0);
+        assert_eq!(respond_osc_start(), usize::MAX);
+        unsafe { libc::close(write_fd) };
+        let _ = read_all(read_fd);
+        unsafe { libc::close(read_fd) };
+    }
+
+    #[test]
+    fn respond_osc_hits_zero_without_osc() {
+        reset_respond_osc_counters();
+        let (read_fd, write_fd) = pipe_pair();
+        let mut buffer = b"plain text".to_vec();
+        respond_to_terminal_queries(&mut buffer, write_fd);
+        assert_eq!(respond_osc_hits(), 0);
+        unsafe { libc::close(write_fd) };
+        let _ = read_all(read_fd);
+        unsafe { libc::close(read_fd) };
+    }
+
+    #[test]
+    fn respond_to_terminal_queries_passthrough_handles_trailing_escape() {
+        let (read_fd, write_fd) = pipe_pair();
+        let mut buffer = b"tail\x1b".to_vec();
+        respond_to_terminal_queries_passthrough(&mut buffer, write_fd);
+        assert_eq!(buffer, b"tail\x1b".to_vec());
+        unsafe { libc::close(write_fd) };
+        let _ = read_all(read_fd);
+        unsafe { libc::close(read_fd) };
+    }
+
+    #[test]
+    fn respond_to_terminal_queries_passthrough_handles_unknown_escape() {
+        let (read_fd, write_fd) = pipe_pair();
+        let mut buffer = b"pre\x1bXpost".to_vec();
+        respond_to_terminal_queries_passthrough(&mut buffer, write_fd);
+        assert_eq!(buffer, b"pre\x1bXpost".to_vec());
+        unsafe { libc::close(write_fd) };
+        let _ = read_all(read_fd);
+        unsafe { libc::close(read_fd) };
+    }
+
+    #[test]
+    fn apply_control_edits_backspace_then_carriage_return_resets_line_start() {
+        let mut data = b"abc\n\x08\rZ".to_vec();
+        apply_control_edits(&mut data);
+        assert_eq!(data, b"Z");
+    }
+
+    #[test]
+    fn apply_control_edits_preserves_non_osc_escape() {
+        reset_apply_osc_counters();
+        let mut data = b"\x1b[31mred".to_vec();
+        apply_control_edits(&mut data);
+        assert_eq!(data, b"\x1b[31mred".to_vec());
+        assert_eq!(apply_osc_hits(), 0);
+    }
+
+    #[test]
+    fn apply_control_edits_handles_trailing_escape() {
+        let mut data = b"hi\x1b".to_vec();
+        apply_control_edits(&mut data);
+        assert_eq!(data, b"hi\x1b".to_vec());
+    }
+
+    #[test]
+    fn apply_control_edits_records_osc_start() {
+        reset_apply_osc_counters();
+        let mut data = b"pre\x1b]0\x07post".to_vec();
+        apply_control_edits(&mut data);
+        assert_eq!(data, b"prepost".to_vec());
+        assert_eq!(apply_osc_hits(), 1);
+        assert_eq!(apply_osc_start(), 5);
+    }
+
+    #[test]
+    fn apply_osc_counters_reset_clears_hits() {
+        reset_apply_osc_counters();
+        let mut data = b"\x1b]0\x07".to_vec();
+        apply_control_edits(&mut data);
+        assert_eq!(apply_osc_hits(), 1);
+        reset_apply_osc_counters();
+        assert_eq!(apply_osc_hits(), 0);
+        assert_eq!(apply_osc_start(), usize::MAX);
+    }
+
+    #[test]
+    fn apply_control_edits_handles_osc_near_end_preserves_trailing() {
+        reset_apply_osc_counters();
+        let mut data = b"hello!\x1b]\x07X".to_vec();
+        apply_control_edits(&mut data);
+        assert_eq!(data, b"hello!X".to_vec());
+        assert_eq!(apply_osc_hits(), 1);
+        assert_eq!(apply_osc_start(), 8);
+    }
+
+    #[test]
+    fn apply_control_edits_handles_osc_with_prior_bel() {
+        reset_apply_osc_counters();
+        let mut data = b"A\x07B\x1b]0\x07Z".to_vec();
+        apply_control_edits(&mut data);
+        assert_eq!(data, b"A\x07BZ".to_vec());
+        assert_eq!(apply_osc_hits(), 1);
+        assert_eq!(apply_osc_start(), 5);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn wait_for_exit_does_not_poll_when_elapsed_equals_timeout() {
+        struct OverrideReset;
+        impl Drop for OverrideReset {
+            fn drop(&mut self) {
+                set_wait_for_exit_elapsed_override(None);
+            }
+        }
+
+        let _guard = wait_for_exit_lock().lock().unwrap();
+        reset_wait_for_exit_counters();
+        set_wait_for_exit_elapsed_override(Some(0));
+        let _reset = OverrideReset;
+        assert!(!wait_for_exit(99999, Duration::from_millis(0)));
+        assert_eq!(wait_for_exit_poll_count(), 0);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn wait_for_exit_elapsed_override_skips_polling() {
+        struct OverrideReset;
+        impl Drop for OverrideReset {
+            fn drop(&mut self) {
+                set_wait_for_exit_elapsed_override(None);
+            }
+        }
+
+        let _guard = wait_for_exit_lock().lock().unwrap();
+        reset_wait_for_exit_counters();
+        set_wait_for_exit_elapsed_override(Some(10_000));
+        let _reset = OverrideReset;
+        assert!(!wait_for_exit(99999, Duration::from_millis(100)));
+        assert_eq!(wait_for_exit_poll_count(), 0);
+        assert_eq!(wait_for_exit_error_count(), 0);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn wait_for_exit_records_reap_count() {
+        let _guard = wait_for_exit_lock().lock().unwrap();
+        reset_wait_for_exit_counters();
+        set_wait_for_exit_elapsed_override(None);
+        let mut child = std::process::Command::new("true")
+            .spawn()
+            .expect("spawned child");
+        let pid = child.id() as i32;
+        assert!(wait_for_exit(pid, Duration::from_secs(1)));
+        let _ = child.wait();
+        assert!(wait_for_exit_reap_count() >= 1);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn wait_for_exit_reports_error_for_invalid_pid() {
+        let _guard = wait_for_exit_lock().lock().unwrap();
+        reset_wait_for_exit_counters();
+        set_wait_for_exit_elapsed_override(None);
+        assert!(wait_for_exit(99999, Duration::from_millis(10)));
+        assert_eq!(wait_for_exit_error_count(), 1);
+    }
+
+    #[test]
+    fn waitpid_failed_flags_negative() {
+        assert!(waitpid_failed(-1));
+        assert!(!waitpid_failed(0));
+        assert!(!waitpid_failed(1));
+    }
+
+    #[test]
+    fn respond_to_terminal_queries_strips_osc_and_modes() {
+        let (read_fd, write_fd) = pipe_pair();
+        let mut buffer = b"hello\x1b]0;title\x07world\x1b[?2004h!".to_vec();
+
+        respond_to_terminal_queries(&mut buffer, write_fd);
+
+        assert_eq!(buffer, b"helloworld!".to_vec());
+        unsafe { libc::close(write_fd) };
+        let reply = read_all(read_fd);
+        assert!(reply.is_empty());
+        unsafe { libc::close(read_fd) };
+    }
+
+    #[test]
+    fn respond_to_terminal_queries_passthrough_handles_multiple_queries() {
+        let (read_fd, write_fd) = pipe_pair();
+        let mut buffer = b"\x1b[31mred\x1b[6nmid\x1b[5n\x1b[0m".to_vec();
+
+        respond_to_terminal_queries_passthrough(&mut buffer, write_fd);
+
+        assert_eq!(buffer, b"\x1b[31mredmid\x1b[0m".to_vec());
+        unsafe { libc::close(write_fd) };
+        let reply = read_all(read_fd);
+        assert!(reply_contains(&reply, b"\x1b[24;80R"));
+        assert!(reply_contains(&reply, b"\x1b[0n"));
+        unsafe { libc::close(read_fd) };
+    }
+
+    #[test]
+    fn apply_control_edits_strips_osc_sequences() {
+        let mut data = b"hi\x1b]0;title\x07there".to_vec();
+        apply_control_edits(&mut data);
+        assert_eq!(data, b"hithere");
+    }
+
+    #[test]
+    fn apply_control_edits_backspace_before_line_start_rewinds() {
+        reset_apply_linestart_recalc_count();
+        let mut data = b"abc\n\x08Z".to_vec();
+        apply_control_edits(&mut data);
+        assert_eq!(data, b"abcZ");
+        assert_eq!(apply_linestart_recalc_count(), 1);
+    }
+
+    #[test]
+    fn apply_control_edits_backspace_at_line_end_does_not_recalc() {
+        reset_apply_linestart_recalc_count();
+        let mut data = b"ab\nc\x08".to_vec();
+        apply_control_edits(&mut data);
+        assert_eq!(data, b"ab\n".to_vec());
+        assert_eq!(apply_linestart_recalc_count(), 0);
+    }
+
+    #[test]
+    fn reset_apply_linestart_recalc_count_clears() {
+        reset_apply_linestart_recalc_count();
+        let mut data = b"abc\n\x08Z".to_vec();
+        apply_control_edits(&mut data);
+        assert_eq!(apply_linestart_recalc_count(), 1);
+        reset_apply_linestart_recalc_count();
+        assert_eq!(apply_linestart_recalc_count(), 0);
+    }
+
+    #[test]
+    fn pop_last_codepoint_handles_multibyte() {
+        let mut data = b"a\xC3\xA9".to_vec();
+        pop_last_codepoint(&mut data);
+        assert_eq!(data, b"a");
+    }
+
+    #[test]
+    fn pop_last_codepoint_removes_trailing_newline() {
+        let mut data = b"line\n".to_vec();
+        pop_last_codepoint(&mut data);
+        assert_eq!(data, b"line");
+    }
+
+    #[test]
+    fn current_line_start_handles_lines() {
+        assert_eq!(current_line_start(b"abc"), 0);
+        assert_eq!(current_line_start(b"abc\n"), 4);
+        assert_eq!(current_line_start(b"abc\nxyz"), 4);
+    }
+
+    #[test]
+    fn find_csi_sequence_returns_none_for_incomplete_sequence() {
+        assert_eq!(find_csi_sequence(b"12;", 0), None);
+    }
+
+    #[test]
+    fn find_osc_terminator_ignores_incomplete_escape() {
+        assert_eq!(find_osc_terminator(b"no-term\x1b", 0), None);
+        let with_bel = b"hi\x1bXmore\x07";
+        assert_eq!(find_osc_terminator(with_bel, 0), Some(with_bel.len()));
+    }
+
+    #[test]
+    fn should_strip_without_reply_additional_cases() {
+        assert!(should_strip_without_reply(b"?25", b'h'));
+        assert!(should_strip_without_reply(b"?1", b'u'));
+        assert!(!should_strip_without_reply(b"2004", b'h'));
+        assert!(!should_strip_without_reply(b">1", b'n'));
+    }
+
+    #[test]
+    fn csi_reply_normalizes_leading_markers() {
+        assert_eq!(
+            csi_reply(b"?6", b'n', 4, 5),
+            Some(b"\x1b[4;5R".to_vec())
+        );
+        assert_eq!(
+            csi_reply(b"> 6", b'n', 3, 2),
+            Some(b"\x1b[3;2R".to_vec())
+        );
+    }
+
+    #[test]
+    fn current_terminal_size_reads_winsize() {
+        let _guard = terminal_size_override_lock().lock().unwrap();
+        set_terminal_size_override(None);
+        let (master, slave) = open_pty_pair();
+        let mut ws: libc::winsize = unsafe { mem::zeroed() };
+        ws.ws_row = 40;
+        ws.ws_col = 120;
+        unsafe {
+            assert_eq!(libc::ioctl(master, libc::TIOCSWINSZ, &ws), 0);
+        }
+        assert_eq!(current_terminal_size(master), (40, 120));
+        unsafe {
+            libc::close(master);
+            libc::close(slave);
+        }
+    }
+
+    #[test]
+    fn current_terminal_size_falls_back_when_dimension_zero() {
+        struct OverrideReset;
+        impl Drop for OverrideReset {
+            fn drop(&mut self) {
+                set_terminal_size_override(None);
+            }
+        }
+
+        let _guard = terminal_size_override_lock().lock().unwrap();
+        set_terminal_size_override(Some((true, 0, 80)));
+        let _reset = OverrideReset;
+        assert_eq!(current_terminal_size(0), (24, 80));
+    }
+
+    #[test]
+    fn current_terminal_size_falls_back_when_override_col_zero() {
+        struct OverrideReset;
+        impl Drop for OverrideReset {
+            fn drop(&mut self) {
+                set_terminal_size_override(None);
+            }
+        }
+
+        let _guard = terminal_size_override_lock().lock().unwrap();
+        set_terminal_size_override(Some((true, 10, 0)));
+        let _reset = OverrideReset;
+        assert_eq!(current_terminal_size(0), (24, 80));
+    }
+
+    #[test]
+    fn write_all_errors_on_invalid_fd() {
+        assert!(write_all(-1, b"oops").is_err());
+    }
+
+    #[test]
+    fn pty_codex_session_read_output_drains_channel() {
+        let (tx, rx) = bounded(4);
+        tx.send(b"one".to_vec()).unwrap();
+        tx.send(b"two".to_vec()).unwrap();
+        let handle = thread::spawn(|| {});
+        let session = ManuallyDrop::new(PtyCodexSession {
+            master_fd: -1,
+            child_pid: -1,
+            output_rx: rx,
+            _output_thread: handle,
+        });
+        let output = session.read_output();
+        assert_eq!(output, vec![b"one".to_vec(), b"two".to_vec()]);
+        assert!(session.read_output().is_empty());
+    }
+
+    #[test]
+    fn pty_codex_session_read_output_timeout_elapsed_override_prevents_loop() {
+        struct OverrideReset;
+        impl Drop for OverrideReset {
+            fn drop(&mut self) {
+                set_read_output_elapsed_override(None);
+            }
+        }
+
+        let _guard = read_output_timeout_lock().lock().unwrap();
+        set_read_output_elapsed_override(Some(5_000));
+        let _reset = OverrideReset;
+
+        let (tx, rx) = bounded(1);
+        tx.send(b"ready".to_vec()).unwrap();
+        let handle = thread::spawn(|| {});
+        let session = ManuallyDrop::new(PtyCodexSession {
+            master_fd: -1,
+            child_pid: -1,
+            output_rx: rx,
+            _output_thread: handle,
+        });
+        let output = session.read_output_timeout(Duration::from_millis(10));
+        assert!(output.is_empty());
+    }
+
+    #[test]
+    fn pty_codex_session_read_output_timeout_respects_zero_timeout() {
+        let _guard = read_output_timeout_lock().lock().unwrap();
+        set_read_output_grace_override(None);
+        let (tx, rx) = bounded(1);
+        tx.send(b"ready".to_vec()).unwrap();
+        let handle = thread::spawn(|| {});
+        let session = ManuallyDrop::new(PtyCodexSession {
+            master_fd: -1,
+            child_pid: -1,
+            output_rx: rx,
+            _output_thread: handle,
+        });
+        let output = session.read_output_timeout(Duration::from_millis(0));
+        assert!(output.is_empty());
+    }
+
+    #[test]
+    fn pty_codex_session_read_output_timeout_elapsed_boundary() {
+        struct OverrideReset;
+        impl Drop for OverrideReset {
+            fn drop(&mut self) {
+                set_read_output_elapsed_override(None);
+            }
+        }
+
+        let _guard = read_output_timeout_lock().lock().unwrap();
+        set_read_output_elapsed_override(Some(0));
+        let _reset = OverrideReset;
+
+        let (tx, rx) = bounded(1);
+        tx.send(b"ready".to_vec()).unwrap();
+        let handle = thread::spawn(|| {});
+        let session = ManuallyDrop::new(PtyCodexSession {
+            master_fd: -1,
+            child_pid: -1,
+            output_rx: rx,
+            _output_thread: handle,
+        });
+        let output = session.read_output_timeout(Duration::from_millis(0));
+        assert!(output.is_empty());
+    }
+
+    #[test]
+    fn pty_codex_session_read_output_timeout_collects_recent_chunks() {
+        let _guard = read_output_timeout_lock().lock().unwrap();
+        set_read_output_grace_override(None);
+        let (tx, rx) = bounded(4);
+        let handle = thread::spawn(|| {});
+        let session = ManuallyDrop::new(PtyCodexSession {
+            master_fd: -1,
+            child_pid: -1,
+            output_rx: rx,
+            _output_thread: handle,
+        });
+        let sender = thread::spawn(move || {
+            tx.send(b"first".to_vec()).unwrap();
+            thread::sleep(Duration::from_millis(150));
+            tx.send(b"second".to_vec()).unwrap();
+        });
+        let output = session.read_output_timeout(Duration::from_millis(800));
+        sender.join().unwrap();
+        assert_eq!(output, vec![b"first".to_vec(), b"second".to_vec()]);
+    }
+
+    #[test]
+    fn pty_codex_session_read_output_timeout_breaks_on_grace_boundary() {
+        struct GraceReset;
+        impl Drop for GraceReset {
+            fn drop(&mut self) {
+                set_read_output_grace_override(None);
+            }
+        }
+
+        let _guard = read_output_timeout_lock().lock().unwrap();
+        set_read_output_grace_override(Some(300));
+        let _reset = GraceReset;
+
+        let (tx, rx) = bounded(4);
+        let handle = thread::spawn(|| {});
+        let session = ManuallyDrop::new(PtyCodexSession {
+            master_fd: -1,
+            child_pid: -1,
+            output_rx: rx,
+            _output_thread: handle,
+        });
+        let sender = thread::spawn(move || {
+            tx.send(b"first".to_vec()).unwrap();
+            thread::sleep(Duration::from_millis(200));
+            tx.send(b"second".to_vec()).unwrap();
+        });
+        let output = session.read_output_timeout(Duration::from_millis(700));
+        sender.join().unwrap();
+        assert_eq!(output, vec![b"first".to_vec()]);
+    }
+
+    #[test]
+    fn pty_codex_session_wait_for_output_collects_and_drains() {
+        let (tx, rx) = bounded(4);
+        let handle = thread::spawn(|| {});
+        let session = ManuallyDrop::new(PtyCodexSession {
+            master_fd: -1,
+            child_pid: -1,
+            output_rx: rx,
+            _output_thread: handle,
+        });
+        let sender = thread::spawn(move || {
+            tx.send(b"first".to_vec()).unwrap();
+            tx.send(b"second".to_vec()).unwrap();
+        });
+        let output = session.wait_for_output(Duration::from_millis(200));
+        sender.join().unwrap();
+        assert_eq!(output, vec![b"first".to_vec(), b"second".to_vec()]);
+    }
+
+    #[test]
+    fn pty_codex_session_is_responsive_tracks_liveness() {
+        let mut child = std::process::Command::new("sleep")
+            .arg("1")
+            .spawn()
+            .expect("spawned child");
+        let pid = child.id() as i32;
+        let (_tx, rx) = bounded(1);
+        let handle = thread::spawn(|| {});
+        let mut session = ManuallyDrop::new(PtyCodexSession {
+            master_fd: -1,
+            child_pid: pid,
+            output_rx: rx,
+            _output_thread: handle,
+        });
+        assert!(session.is_responsive(Duration::from_millis(10)));
+        let _ = child.kill();
+        let _ = child.wait();
+        assert!(!session.is_responsive(Duration::from_millis(10)));
+    }
+
+    #[test]
+    fn pty_codex_session_is_alive_reflects_child() {
+        let mut child = std::process::Command::new("sleep")
+            .arg("1")
+            .spawn()
+            .expect("spawned child");
+        let pid = child.id() as i32;
+        let (_tx, rx) = bounded(1);
+        let handle = thread::spawn(|| {});
+        let session = ManuallyDrop::new(PtyCodexSession {
+            master_fd: -1,
+            child_pid: pid,
+            output_rx: rx,
+            _output_thread: handle,
+        });
+        assert!(session.is_alive());
+        let _ = child.kill();
+        let _ = child.wait();
+        assert!(!session.is_alive());
+    }
+
+    #[test]
+    fn pty_overlay_session_send_bytes_writes() {
+        let (read_fd, write_fd) = pipe_pair();
+        let (_tx, rx) = bounded(1);
+        let handle = thread::spawn(|| {});
+        let mut session = ManuallyDrop::new(PtyOverlaySession {
+            master_fd: write_fd,
+            child_pid: -1,
+            output_rx: rx,
+            _output_thread: handle,
+        });
+        session.send_bytes(b"bytes").unwrap();
+        unsafe { libc::close(write_fd) };
+        let output = read_all(read_fd);
+        assert_eq!(output, b"bytes");
+        unsafe { libc::close(read_fd) };
+    }
+
+    #[test]
+    fn pty_overlay_session_set_winsize_updates_and_minimums() {
+        let (master, slave) = open_pty_pair();
+        let (_tx, rx) = bounded(1);
+        let handle = thread::spawn(|| {});
+        let session = ManuallyDrop::new(PtyOverlaySession {
+            master_fd: master,
+            child_pid: unsafe { libc::getpid() },
+            output_rx: rx,
+            _output_thread: handle,
+        });
+        session.set_winsize(0, 0).unwrap();
+        let mut ws: libc::winsize = unsafe { mem::zeroed() };
+        unsafe {
+            assert_eq!(libc::ioctl(master, libc::TIOCGWINSZ, &mut ws), 0);
+        }
+        assert_eq!(ws.ws_row, 1);
+        assert_eq!(ws.ws_col, 1);
+        unsafe {
+            libc::close(master);
+            libc::close(slave);
+        }
+    }
+
+    #[test]
+    fn pty_overlay_session_set_winsize_errors_on_invalid_fd() {
+        let (_tx, rx) = bounded(1);
+        let handle = thread::spawn(|| {});
+        let session = ManuallyDrop::new(PtyOverlaySession {
+            master_fd: -1,
+            child_pid: unsafe { libc::getpid() },
+            output_rx: rx,
+            _output_thread: handle,
+        });
+        assert!(session.set_winsize(10, 10).is_err());
+    }
+
+    #[test]
+    fn pty_overlay_session_is_alive_reflects_child() {
+        let mut child = std::process::Command::new("sleep")
+            .arg("1")
+            .spawn()
+            .expect("spawned child");
+        let pid = child.id() as i32;
+        let (_tx, rx) = bounded(1);
+        let handle = thread::spawn(|| {});
+        let session = ManuallyDrop::new(PtyOverlaySession {
+            master_fd: -1,
+            child_pid: pid,
+            output_rx: rx,
+            _output_thread: handle,
+        });
+        assert!(session.is_alive());
+        let _ = child.kill();
+        let _ = child.wait();
+        assert!(!session.is_alive());
+    }
+
+    #[test]
+    fn spawn_reader_thread_recovers_from_wouldblock() {
+        let (read_fd, write_fd) = pipe_pair();
+        set_nonblocking_fd(read_fd);
+        let (tx, rx) = bounded(2);
+        let handle = spawn_reader_thread(read_fd, tx);
+        thread::sleep(Duration::from_millis(20));
+        unsafe {
+            libc::write(
+                write_fd,
+                b"ping".as_ptr() as *const libc::c_void,
+                4,
+            );
+            libc::close(write_fd);
+        }
+        let data = rx.recv_timeout(Duration::from_secs(1)).unwrap();
+        assert_eq!(data, b"ping");
+        handle.join().unwrap();
+        unsafe { libc::close(read_fd) };
+    }
+
+    #[test]
+    fn spawn_reader_thread_does_not_log_on_eof() {
+        let (read_fd, write_fd) = pipe_pair();
+        let (tx, _rx) = bounded(1);
+        let handle = spawn_reader_thread(read_fd, tx);
+        let log = capture_new_log(|| unsafe {
+            libc::close(write_fd);
+            handle.join().unwrap();
+        });
+        assert!(!log.contains("PTY read error"));
+        unsafe { libc::close(read_fd) };
+    }
+
+    #[test]
+    fn spawn_passthrough_reader_thread_recovers_from_wouldblock() {
+        let (read_fd, write_fd) = pipe_pair();
+        set_nonblocking_fd(read_fd);
+        let (tx, rx) = bounded(2);
+        let handle = spawn_passthrough_reader_thread(read_fd, tx);
+        thread::sleep(Duration::from_millis(20));
+        unsafe {
+            libc::write(
+                write_fd,
+                b"pong".as_ptr() as *const libc::c_void,
+                4,
+            );
+            libc::close(write_fd);
+        }
+        let data = rx.recv_timeout(Duration::from_secs(1)).unwrap();
+        assert_eq!(data, b"pong");
+        handle.join().unwrap();
+        unsafe { libc::close(read_fd) };
+    }
+
+    #[test]
+    fn spawn_passthrough_reader_thread_does_not_log_on_eof() {
+        let (read_fd, write_fd) = pipe_pair();
+        let (tx, _rx) = bounded(1);
+        let handle = spawn_passthrough_reader_thread(read_fd, tx);
+        let log = capture_new_log(|| unsafe {
+            libc::close(write_fd);
+            handle.join().unwrap();
+        });
+        assert!(!log.contains("PTY read error"));
+        unsafe { libc::close(read_fd) };
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn wait_for_exit_with_zero_timeout_does_not_poll() {
+        let _guard = wait_for_exit_lock().lock().unwrap();
+        set_wait_for_exit_elapsed_override(None);
+        let mut child = std::process::Command::new("true")
+            .spawn()
+            .expect("spawned child");
+        let pid = child.id() as i32;
+        assert!(!wait_for_exit(pid, Duration::from_millis(0)));
+        let _ = child.wait();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn wait_for_exit_reaps_forked_child() {
+        let _guard = wait_for_exit_lock().lock().unwrap();
+        set_wait_for_exit_elapsed_override(None);
+        unsafe {
+            let pid = libc::fork();
+            assert!(pid >= 0);
+            if pid == 0 {
+                libc::_exit(0);
+            }
+            let result = wait_for_exit(pid, Duration::from_secs(1));
+            let mut status = 0;
+            let _ = libc::waitpid(pid, &mut status, 0);
+            assert!(result);
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn pty_codex_session_drop_terminates_child() {
+        let mut child = std::process::Command::new("sleep")
+            .arg("5")
+            .spawn()
+            .expect("spawned child");
+        let pid = child.id() as i32;
+        let (read_fd, write_fd) = pipe_pair();
+        let (_tx, rx) = bounded(1);
+        let handle = thread::spawn(|| {});
+        let log = capture_new_log(|| {
+            let session = PtyCodexSession {
+                master_fd: write_fd,
+                child_pid: pid,
+                output_rx: rx,
+                _output_thread: handle,
+            };
+            drop(session);
+        });
+        assert!(!log.contains("SIGTERM to Codex session failed"));
+        assert!(!log.contains("SIGKILL to Codex session failed"));
+        unsafe { libc::close(read_fd) };
+        let mut status = 0;
+        let start = Instant::now();
+        let mut alive = true;
+        while start.elapsed() < Duration::from_millis(200) {
+            let result = unsafe { libc::waitpid(pid, &mut status, libc::WNOHANG) };
+            if result == 0 {
+                thread::sleep(Duration::from_millis(10));
+                continue;
+            }
+            alive = false;
+            break;
+        }
+        if alive {
+            unsafe {
+                libc::kill(pid, libc::SIGKILL);
+                let _ = libc::waitpid(pid, &mut status, 0);
+            }
+            panic!("child still alive after PtyCodexSession drop");
+        }
+        let _ = child.wait();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn pty_codex_session_drop_sigkill_for_ignored_sigterm() {
+        let mut child = std::process::Command::new("sh")
+            .arg("-c")
+            .arg("trap '' TERM; sleep 5")
+            .spawn()
+            .expect("spawned child");
+        let pid = child.id() as i32;
+        let (read_fd, write_fd) = pipe_pair();
+        let (_tx, rx) = bounded(1);
+        let handle = thread::spawn(|| {});
+        let log = capture_new_log(|| {
+            let session = PtyCodexSession {
+                master_fd: write_fd,
+                child_pid: pid,
+                output_rx: rx,
+                _output_thread: handle,
+            };
+            drop(session);
+        });
+        assert!(!log.contains("SIGKILL to Codex session failed"));
+        unsafe { libc::close(read_fd) };
+        let mut status = 0;
+        let result = unsafe { libc::waitpid(pid, &mut status, libc::WNOHANG) };
+        if result == 0 {
+            unsafe {
+                libc::kill(pid, libc::SIGKILL);
+                let result = libc::waitpid(pid, &mut status, 0);
+                assert!(
+                    result > 0 || result == -1,
+                    "child still alive after SIGKILL in PtyCodexSession drop"
+                );
+            }
+        }
+        let _ = child.wait();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn pty_overlay_session_drop_terminates_child() {
+        let mut child = std::process::Command::new("sleep")
+            .arg("5")
+            .spawn()
+            .expect("spawned child");
+        let pid = child.id() as i32;
+        let (read_fd, write_fd) = pipe_pair();
+        let (_tx, rx) = bounded(1);
+        let handle = thread::spawn(|| {});
+        let log = capture_new_log(|| {
+            let session = PtyOverlaySession {
+                master_fd: write_fd,
+                child_pid: pid,
+                output_rx: rx,
+                _output_thread: handle,
+            };
+            drop(session);
+        });
+        assert!(!log.contains("SIGTERM to Codex session failed"));
+        assert!(!log.contains("SIGKILL to Codex session failed"));
+        unsafe { libc::close(read_fd) };
+        let mut status = 0;
+        let start = Instant::now();
+        let mut alive = true;
+        while start.elapsed() < Duration::from_millis(200) {
+            let result = unsafe { libc::waitpid(pid, &mut status, libc::WNOHANG) };
+            if result == 0 {
+                thread::sleep(Duration::from_millis(10));
+                continue;
+            }
+            alive = false;
+            break;
+        }
+        if alive {
+            unsafe {
+                libc::kill(pid, libc::SIGKILL);
+                let _ = libc::waitpid(pid, &mut status, 0);
+            }
+            panic!("child still alive after PtyOverlaySession drop");
+        }
+        let _ = child.wait();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn pty_overlay_session_drop_sigkill_for_ignored_sigterm() {
+        let mut child = std::process::Command::new("sh")
+            .arg("-c")
+            .arg("trap '' TERM; sleep 5")
+            .spawn()
+            .expect("spawned child");
+        let pid = child.id() as i32;
+        let (read_fd, write_fd) = pipe_pair();
+        let (_tx, rx) = bounded(1);
+        let handle = thread::spawn(|| {});
+        let log = capture_new_log(|| {
+            let session = PtyOverlaySession {
+                master_fd: write_fd,
+                child_pid: pid,
+                output_rx: rx,
+                _output_thread: handle,
+            };
+            drop(session);
+        });
+        assert!(!log.contains("SIGKILL to Codex session failed"));
+        unsafe { libc::close(read_fd) };
+        let mut status = 0;
+        let result = unsafe { libc::waitpid(pid, &mut status, libc::WNOHANG) };
+        if result == 0 {
+            unsafe {
+                libc::kill(pid, libc::SIGKILL);
+                let result = libc::waitpid(pid, &mut status, 0);
+                assert!(
+                    result > 0 || result == -1,
+                    "child still alive after SIGKILL in PtyOverlaySession drop"
+                );
+            }
+        }
+        let _ = child.wait();
     }
 
     fn reply_contains(haystack: &[u8], needle: &[u8]) -> bool {

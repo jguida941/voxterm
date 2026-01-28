@@ -38,4 +38,7 @@ jobs:
         run: cargo install cargo-mutants --locked
 
       - name: Run mutation tests
-        run: cargo mutants --timeout 300
+        run: cargo mutants --timeout 300 -o mutants.out
+
+      - name: Enforce mutation score threshold
+        run: python3 ../scripts/check_mutation_score.py --path mutants.out/outcomes.json --threshold 0.80
