@@ -20,6 +20,7 @@ use vte::{Parser as VteParser, Perform};
 
 static SIGWINCH_RECEIVED: AtomicBool = AtomicBool::new(false);
 const MAX_PENDING_TRANSCRIPTS: usize = 5;
+const DEFAULT_PROMPT_REGEX: &str = r"^>\s?";
 
 extern "C" fn handle_sigwinch(_: libc::c_int) {
     SIGWINCH_RECEIVED.store(true, Ordering::SeqCst);
@@ -155,11 +156,13 @@ fn main() -> Result<()> {
     let mut last_enter_at: Option<Instant> = None;
     let mut pending_transcripts: VecDeque<PendingTranscript> = VecDeque::new();
     let mut status_clear_deadline: Option<Instant> = None;
+    let mut current_status: Option<String> = None;
 
     if auto_voice_enabled {
         set_status(
             &writer_tx,
             &mut status_clear_deadline,
+            &mut current_status,
             "Auto-voice enabled",
             Some(Duration::from_secs(2)),
         );
@@ -182,10 +185,12 @@ fn main() -> Result<()> {
                             VoiceCaptureTrigger::Manual,
                             &writer_tx,
                             &mut status_clear_deadline,
+                            &mut current_status,
                         ) {
                             set_status(
                                 &writer_tx,
                                 &mut status_clear_deadline,
+                                &mut current_status,
                                 "Voice capture failed (see log)",
                                 Some(Duration::from_secs(2)),
                             );
@@ -207,6 +212,7 @@ fn main() -> Result<()> {
                         set_status(
                             &writer_tx,
                             &mut status_clear_deadline,
+                            &mut current_status,
                             msg,
                             Some(Duration::from_secs(2)),
                         );
@@ -223,6 +229,7 @@ fn main() -> Result<()> {
                         set_status(
                             &writer_tx,
                             &mut status_clear_deadline,
+                            &mut current_status,
                             msg,
                             Some(Duration::from_secs(3)),
                         );
@@ -233,6 +240,7 @@ fn main() -> Result<()> {
                         set_status(
                             &writer_tx,
                             &mut status_clear_deadline,
+                            &mut current_status,
                             &msg,
                             Some(Duration::from_secs(3)),
                         );
@@ -243,6 +251,7 @@ fn main() -> Result<()> {
                         set_status(
                             &writer_tx,
                             &mut status_clear_deadline,
+                            &mut current_status,
                             &msg,
                             Some(Duration::from_secs(3)),
                         );
@@ -255,6 +264,7 @@ fn main() -> Result<()> {
                                 set_status(
                                     &writer_tx,
                                     &mut status_clear_deadline,
+                                    &mut current_status,
                                     "Capture cancelled (python fallback cannot stop early)",
                                     Some(Duration::from_secs(3)),
                                 );
@@ -263,6 +273,7 @@ fn main() -> Result<()> {
                                 set_status(
                                     &writer_tx,
                                     &mut status_clear_deadline,
+                                    &mut current_status,
                                     "Processing...",
                                     None,
                                 );
@@ -325,16 +336,19 @@ fn main() -> Result<()> {
                     match message {
                         VoiceJobMessage::Transcript { text, source } => {
                             if prompt_ready(&prompt_tracker, last_enter_at) {
-                                deliver_transcript(
+                                let sent_newline = deliver_transcript(
                                     &text,
                                     source,
                                     config.voice_send_mode,
                                     &mut session,
                                     &writer_tx,
                                     &mut status_clear_deadline,
+                                    &mut current_status,
                                     pending_transcripts.len(),
                                 );
-                                last_enter_at = Some(now);
+                                if sent_newline {
+                                    last_enter_at = Some(now);
+                                }
                             } else {
                                 queue_transcript(
                                     &mut pending_transcripts,
@@ -345,6 +359,7 @@ fn main() -> Result<()> {
                                     },
                                     &writer_tx,
                                     &mut status_clear_deadline,
+                                    &mut current_status,
                                 );
                             }
                         }
@@ -355,6 +370,7 @@ fn main() -> Result<()> {
                                 &mut session,
                                 &writer_tx,
                                 &mut status_clear_deadline,
+                                &mut current_status,
                                 auto_voice_enabled,
                             );
                         }
@@ -372,6 +388,7 @@ fn main() -> Result<()> {
                     &mut session,
                     &writer_tx,
                     &mut status_clear_deadline,
+                    &mut current_status,
                 );
 
                 if auto_voice_enabled
@@ -388,6 +405,7 @@ fn main() -> Result<()> {
                         VoiceCaptureTrigger::Auto,
                         &writer_tx,
                         &mut status_clear_deadline,
+                        &mut current_status,
                     ) {
                         log_debug(&format!("auto voice capture failed: {err:#}"));
                     } else {
@@ -399,6 +417,7 @@ fn main() -> Result<()> {
                     if now >= deadline {
                         let _ = writer_tx.send(WriterMessage::ClearStatus);
                         status_clear_deadline = None;
+                        current_status = None;
                     }
                 }
             }
@@ -417,14 +436,22 @@ fn queue_transcript(
     transcript: PendingTranscript,
     writer_tx: &Sender<WriterMessage>,
     status_clear_deadline: &mut Option<Instant>,
+    current_status: &mut Option<String>,
 ) {
     if pending.len() >= MAX_PENDING_TRANSCRIPTS {
         pending.pop_front();
         log_debug("pending transcript queue full; dropping oldest transcript");
+        set_status(
+            writer_tx,
+            status_clear_deadline,
+            current_status,
+            "Transcript queue full (oldest dropped)",
+            Some(Duration::from_secs(2)),
+        );
     }
     pending.push_back(transcript);
     let status = format!("Transcript queued ({})", pending.len());
-    set_status(writer_tx, status_clear_deadline, &status, None);
+    set_status(writer_tx, status_clear_deadline, current_status, &status, None);
 }
 
 fn try_flush_pending(
@@ -434,6 +461,7 @@ fn try_flush_pending(
     session: &mut impl TranscriptSession,
     writer_tx: &Sender<WriterMessage>,
     status_clear_deadline: &mut Option<Instant>,
+    current_status: &mut Option<String>,
 ) {
     if pending.is_empty() {
         return;
@@ -443,16 +471,19 @@ fn try_flush_pending(
     }
     if let Some(next) = pending.pop_front() {
         let remaining = pending.len();
-        deliver_transcript(
+        let sent_newline = deliver_transcript(
             &next.text,
             next.source,
             next.mode,
             session,
             writer_tx,
             status_clear_deadline,
+            current_status,
             remaining,
         );
-        *last_enter_at = Some(Instant::now());
+        if sent_newline {
+            *last_enter_at = Some(Instant::now());
+        }
     }
 }
 fn list_input_devices() -> Result<()> {
@@ -499,11 +530,9 @@ fn resolve_prompt_regex(config: &OverlayConfig) -> Result<Option<Regex>> {
     let raw = config
         .prompt_regex
         .clone()
-        .or_else(|| env::var("CODEX_VOICE_PROMPT_REGEX").ok());
-    let Some(pattern) = raw else {
-        return Ok(None);
-    };
-    let regex = Regex::new(&pattern).with_context(|| format!("invalid prompt regex: {pattern}"))?;
+        .or_else(|| env::var("CODEX_VOICE_PROMPT_REGEX").ok())
+        .unwrap_or_else(|| DEFAULT_PROMPT_REGEX.to_string());
+    let regex = Regex::new(&raw).with_context(|| format!("invalid prompt regex: {raw}"))?;
     Ok(Some(regex))
 }
 
@@ -761,12 +790,17 @@ fn truncate_status(text: &str, max: usize) -> String {
 fn set_status(
     writer_tx: &Sender<WriterMessage>,
     clear_deadline: &mut Option<Instant>,
+    current_status: &mut Option<String>,
     text: &str,
     clear_after: Option<Duration>,
 ) {
+    if current_status.as_deref() == Some(text) {
+        return;
+    }
     let _ = writer_tx.send(WriterMessage::Status {
         text: text.to_string(),
     });
+    *current_status = Some(text.to_string());
     *clear_deadline = clear_after.map(|duration| Instant::now() + duration);
 }
 
@@ -775,6 +809,7 @@ fn start_voice_capture(
     trigger: VoiceCaptureTrigger,
     writer_tx: &Sender<WriterMessage>,
     status_clear_deadline: &mut Option<Instant>,
+    current_status: &mut Option<String>,
 ) -> Result<()> {
     match voice_manager.start_capture(trigger)? {
         Some(info) => {
@@ -783,7 +818,13 @@ fn start_voice_capture(
                 status.push(' ');
                 status.push_str(&note);
             }
-            set_status(writer_tx, status_clear_deadline, &status, None);
+            set_status(
+                writer_tx,
+                status_clear_deadline,
+                current_status,
+                &status,
+                None,
+            );
             Ok(())
         }
         None => {
@@ -791,6 +832,7 @@ fn start_voice_capture(
                 set_status(
                     writer_tx,
                     status_clear_deadline,
+                    current_status,
                     "Voice capture already running",
                     Some(Duration::from_secs(2)),
                 );
@@ -806,6 +848,7 @@ fn handle_voice_message(
     session: &mut impl TranscriptSession,
     writer_tx: &Sender<WriterMessage>,
     status_clear_deadline: &mut Option<Instant>,
+    current_status: &mut Option<String>,
     auto_voice_enabled: bool,
 ) {
     match message {
@@ -815,6 +858,7 @@ fn handle_voice_message(
             set_status(
                 writer_tx,
                 status_clear_deadline,
+                current_status,
                 &status,
                 Some(Duration::from_secs(2)),
             );
@@ -823,6 +867,7 @@ fn handle_voice_message(
                 set_status(
                     writer_tx,
                     status_clear_deadline,
+                    current_status,
                     "Failed to send transcript (see log)",
                     Some(Duration::from_secs(2)),
                 );
@@ -832,12 +877,19 @@ fn handle_voice_message(
             let label = source.label();
             if auto_voice_enabled {
                 log_debug(&format!("auto voice capture detected no speech ({label})"));
-                set_status(writer_tx, status_clear_deadline, "Auto-voice enabled", None);
+                set_status(
+                    writer_tx,
+                    status_clear_deadline,
+                    current_status,
+                    "Auto-voice enabled",
+                    None,
+                );
             } else {
                 let status = format!("No speech detected ({label})");
                 set_status(
                     writer_tx,
                     status_clear_deadline,
+                    current_status,
                     &status,
                     Some(Duration::from_secs(2)),
                 );
@@ -847,6 +899,7 @@ fn handle_voice_message(
             set_status(
                 writer_tx,
                 status_clear_deadline,
+                current_status,
                 "Voice capture error (see log)",
                 Some(Duration::from_secs(2)),
             );
@@ -859,16 +912,21 @@ fn send_transcript(
     session: &mut impl TranscriptSession,
     text: &str,
     mode: VoiceSendMode,
-) -> Result<()> {
+) -> Result<bool> {
     let trimmed = text.trim();
     if trimmed.is_empty() {
-        return Ok(());
+        return Ok(false);
     }
     match mode {
-        VoiceSendMode::Auto => session.send_text_with_newline(trimmed)?,
-        VoiceSendMode::Insert => session.send_text(trimmed)?,
+        VoiceSendMode::Auto => {
+            session.send_text_with_newline(trimmed)?;
+            Ok(true)
+        }
+        VoiceSendMode::Insert => {
+            session.send_text(trimmed)?;
+            Ok(false)
+        }
     }
-    Ok(())
 }
 
 fn deliver_transcript(
@@ -878,8 +936,9 @@ fn deliver_transcript(
     session: &mut impl TranscriptSession,
     writer_tx: &Sender<WriterMessage>,
     status_clear_deadline: &mut Option<Instant>,
+    current_status: &mut Option<String>,
     queued_remaining: usize,
-) {
+) -> bool {
     let label = source.label();
     let status = if queued_remaining > 0 {
         format!("Transcript ready ({label}) • queued {queued_remaining}")
@@ -889,17 +948,23 @@ fn deliver_transcript(
     set_status(
         writer_tx,
         status_clear_deadline,
+        current_status,
         &status,
         Some(Duration::from_secs(2)),
     );
-    if let Err(err) = send_transcript(session, text, mode) {
-        log_debug(&format!("failed to send transcript: {err:#}"));
-        set_status(
-            writer_tx,
-            status_clear_deadline,
-            "Failed to send transcript (see log)",
-            Some(Duration::from_secs(2)),
-        );
+    match send_transcript(session, text, mode) {
+        Ok(sent_newline) => sent_newline,
+        Err(err) => {
+            log_debug(&format!("failed to send transcript: {err:#}"));
+            set_status(
+                writer_tx,
+                status_clear_deadline,
+                current_status,
+                "Failed to send transcript (see log)",
+                Some(Duration::from_secs(2)),
+            );
+            false
+        }
     }
 }
 
@@ -1557,10 +1622,12 @@ mod tests {
     fn set_status_updates_deadline() {
         let (tx, rx) = crossbeam_channel::unbounded();
         let mut deadline = None;
+        let mut current_status = None;
         let now = Instant::now();
         set_status(
             &tx,
             &mut deadline,
+            &mut current_status,
             "status",
             Some(Duration::from_millis(50)),
         );
@@ -1573,7 +1640,7 @@ mod tests {
         }
         assert!(deadline.expect("deadline set") > now);
 
-        set_status(&tx, &mut deadline, "steady", None);
+        set_status(&tx, &mut deadline, &mut current_status, "steady", None);
         assert!(deadline.is_none());
     }
 
@@ -1852,11 +1919,13 @@ mod tests {
 
         let (writer_tx, writer_rx) = crossbeam_channel::unbounded();
         let mut deadline = None;
+        let mut current_status = None;
         start_voice_capture(
             &mut manager,
             VoiceCaptureTrigger::Manual,
             &writer_tx,
             &mut deadline,
+            &mut current_status,
         )
         .expect("start capture manual");
 
@@ -1875,6 +1944,7 @@ mod tests {
             VoiceCaptureTrigger::Auto,
             &writer_tx,
             &mut deadline,
+            &mut current_status,
         )
         .expect("start capture auto");
 
@@ -1884,13 +1954,16 @@ mod tests {
     #[test]
     fn send_transcript_respects_mode_and_trims() {
         let mut session = StubSession::default();
-        send_transcript(&mut session, " hello ", VoiceSendMode::Auto).unwrap();
+        let sent = send_transcript(&mut session, " hello ", VoiceSendMode::Auto).unwrap();
+        assert!(sent);
         assert_eq!(session.sent_with_newline, vec!["hello"]);
 
-        send_transcript(&mut session, " hi ", VoiceSendMode::Insert).unwrap();
+        let sent = send_transcript(&mut session, " hi ", VoiceSendMode::Insert).unwrap();
+        assert!(!sent);
         assert_eq!(session.sent, vec!["hi"]);
 
-        send_transcript(&mut session, "   ", VoiceSendMode::Insert).unwrap();
+        let sent = send_transcript(&mut session, "   ", VoiceSendMode::Insert).unwrap();
+        assert!(!sent);
         assert_eq!(session.sent.len(), 1);
     }
 
@@ -1907,6 +1980,7 @@ mod tests {
         let mut session = StubSession::default();
         let (writer_tx, writer_rx) = crossbeam_channel::unbounded();
         let mut deadline = None;
+        let mut current_status = None;
 
         handle_voice_message(
             VoiceJobMessage::Transcript {
@@ -1917,6 +1991,7 @@ mod tests {
             &mut session,
             &writer_tx,
             &mut deadline,
+            &mut current_status,
             false,
         );
 

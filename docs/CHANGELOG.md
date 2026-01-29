@@ -3,6 +3,14 @@
 All notable changes to this project will be documented here, following the SDLC policy defined in `agents.md`.
 Note: Some historical entries reference internal documents that are not published in this repository.
 
+## [1.0.17] - 2026-01-29
+
+### Fixes
+- **Auto-voice status spam**: avoid repeated status updates on empty captures.
+- **Transcript queue**: only advances prompt gating when a newline is sent (fixes stuck queues in insert mode).
+- **Prompt detection**: default regex `^>\\s?` to match Codex prompt reliably.
+- **Status dedupe**: avoid re-sending identical status lines.
+
 ## [1.0.16] - 2026-01-29
 
 ### Changes
