@@ -3,6 +3,12 @@
 All notable changes to this project will be documented here, following the SDLC policy defined in `agents.md`.
 Note: Some historical entries reference internal documents that are not published in this repository.
 
+## [1.0.22] - 2026-01-29
+
+### Docs
+- **macOS app visibility**: restore the folder-picker app path in README/Quick Start/Install docs.
+- **macOS app version**: align `Codex Voice.app` Info.plist to 1.0.22.
+
 ## [1.0.21] - 2026-01-29
 
 ### Build + Release

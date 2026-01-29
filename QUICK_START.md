@@ -24,6 +24,8 @@ cd codex-voice
 If `codex-voice` is not found, see PATH and install notes in
 [docs/INSTALL.md](docs/INSTALL.md).
 
+macOS app alternative (folder picker): double-click **Codex Voice.app** and choose your project.
+
 ## 3) Run from any project
 
 ```bash

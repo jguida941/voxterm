@@ -27,6 +27,13 @@ First run downloads a Whisper model if missing. For other install options (Homeb
 manual), see [docs/INSTALL.md](docs/INSTALL.md).
 Want the shortest path? See [QUICK_START.md](QUICK_START.md).
 
+## macOS App (folder picker)
+
+Double-click **Codex Voice.app** and choose your project folder. It launches the
+`codex-voice` overlay in a Terminal window.
+
+![Folder Picker](img/folder-picker.png)
+
 ## Logs (opt-in)
 
 Logs are disabled by default. To enable debug logs:
@@ -59,6 +66,7 @@ For full behavior notes (insert mode, transcript queueing, long dictation), see
 
 - `codex-voice` (default): lightweight overlay with a single status line.
 - `rust_tui`: full-screen Rust TUI (primarily for IPC/dev workflows).
+- **Codex Voice.app** (macOS): folder picker that launches `codex-voice` in the chosen directory.
 
 ## Project layout (contributor view)
 

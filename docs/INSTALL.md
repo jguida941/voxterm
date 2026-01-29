@@ -40,6 +40,8 @@ conflicting binary or set `CODEX_VOICE_INSTALL_DIR` to override.
 2. Pick your project folder.
 3. A Terminal window opens and runs the overlay inside that folder.
 
+![Folder Picker](../img/folder-picker.png)
+
 ## Option C: Homebrew (optional, global command)
 
 Install Homebrew (if needed):
