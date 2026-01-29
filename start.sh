@@ -205,7 +205,8 @@ print_commands_table() {
         "$EXAMPLE_CMD --voice-send-mode insert|Start in insert mode" \
         "$EXAMPLE_CMD --mic-meter|Measure ambient/speech levels" \
         "$EXAMPLE_CMD --voice-vad-threshold-db -50|Set mic threshold" \
-        "$EXAMPLE_CMD --auto-voice-idle-ms 700|Auto-voice idle"; do
+        "$EXAMPLE_CMD --auto-voice-idle-ms 700|Auto-voice idle" \
+        "$EXAMPLE_CMD --transcript-idle-ms 250|Transcript idle"; do
         IFS='|' read -r command purpose <<< "$row"
         command="$(truncate "$command" "$col1")"
         purpose="$(truncate "$purpose" "$col2")"
@@ -221,7 +222,7 @@ echo -e "${DIM}Sensitivity: Ctrl+] (less sensitive) • Ctrl+\\ (more sensitive)
 echo ""
 echo -e "${CORAL_BRIGHT}${BOLD}Common Commands${NC}"
 print_commands_table
-echo -e "${DIM}Auto-voice idle default: 1200ms • Set with --auto-voice-idle-ms${NC}"
+echo -e "${DIM}Auto-voice idle default: 1200ms • Transcript idle default: 250ms${NC}"
 echo ""
 
 # Startup output-only mode for tests

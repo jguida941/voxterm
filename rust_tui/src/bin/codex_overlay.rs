@@ -54,6 +54,10 @@ struct OverlayConfig {
     #[arg(long = "auto-voice-idle-ms", default_value_t = 1200)]
     auto_voice_idle_ms: u64,
 
+    /// Idle time before transcripts auto-send when output is quiet (ms)
+    #[arg(long = "transcript-idle-ms", default_value_t = 250)]
+    transcript_idle_ms: u64,
+
     /// Voice transcript handling (auto = send newline, insert = leave for editing)
     #[arg(long = "voice-send-mode", value_enum, default_value_t = VoiceSendMode::Auto)]
     voice_send_mode: VoiceSendMode,
@@ -149,7 +153,8 @@ fn main() -> Result<()> {
     let (input_tx, input_rx) = unbounded();
     let _input_handle = spawn_input_thread(input_tx);
 
-    let idle_timeout = Duration::from_millis(config.auto_voice_idle_ms.max(100));
+    let auto_idle_timeout = Duration::from_millis(config.auto_voice_idle_ms.max(100));
+    let transcript_idle_timeout = Duration::from_millis(config.transcript_idle_ms.max(50));
     let mut voice_manager = VoiceManager::new(config.app.clone());
     let mut auto_voice_enabled = config.auto_voice;
     let mut last_auto_trigger_at: Option<Instant> = None;
@@ -307,6 +312,9 @@ fn main() -> Result<()> {
                             &mut session,
                             &writer_tx,
                             &mut status_clear_deadline,
+                            &mut current_status,
+                            Instant::now(),
+                            transcript_idle_timeout,
                         );
                         if writer_tx.send(WriterMessage::PtyOutput(data)).is_err() {
                             running = false;
@@ -326,7 +334,7 @@ fn main() -> Result<()> {
                 }
 
                 let now = Instant::now();
-                prompt_tracker.on_idle(now, idle_timeout);
+                prompt_tracker.on_idle(now, auto_idle_timeout);
 
                 if let Some(message) = voice_manager.poll_message() {
                     let rearm_auto = matches!(
@@ -335,32 +343,67 @@ fn main() -> Result<()> {
                     );
                     match message {
                         VoiceJobMessage::Transcript { text, source } => {
-                            if prompt_ready(&prompt_tracker, last_enter_at) {
+                            let ready = transcript_ready(
+                                &prompt_tracker,
+                                last_enter_at,
+                                now,
+                                transcript_idle_timeout,
+                            );
+                            if ready && pending_transcripts.is_empty() {
                                 let sent_newline = deliver_transcript(
                                     &text,
-                                    source,
+                                    source.label(),
                                     config.voice_send_mode,
                                     &mut session,
                                     &writer_tx,
                                     &mut status_clear_deadline,
                                     &mut current_status,
-                                    pending_transcripts.len(),
+                                    0,
                                 );
                                 if sent_newline {
                                     last_enter_at = Some(now);
                                 }
                             } else {
-                                queue_transcript(
+                                let dropped = push_pending_transcript(
                                     &mut pending_transcripts,
                                     PendingTranscript {
                                         text,
                                         source,
                                         mode: config.voice_send_mode,
                                     },
-                                    &writer_tx,
-                                    &mut status_clear_deadline,
-                                    &mut current_status,
                                 );
+                                if dropped {
+                                    set_status(
+                                        &writer_tx,
+                                        &mut status_clear_deadline,
+                                        &mut current_status,
+                                        "Transcript queue full (oldest dropped)",
+                                        Some(Duration::from_secs(2)),
+                                    );
+                                }
+                                if ready {
+                                    try_flush_pending(
+                                        &mut pending_transcripts,
+                                        &prompt_tracker,
+                                        &mut last_enter_at,
+                                        &mut session,
+                                        &writer_tx,
+                                        &mut status_clear_deadline,
+                                        &mut current_status,
+                                        now,
+                                        transcript_idle_timeout,
+                                    );
+                                } else if !dropped {
+                                    let status =
+                                        format!("Transcript queued ({})", pending_transcripts.len());
+                                    set_status(
+                                        &writer_tx,
+                                        &mut status_clear_deadline,
+                                        &mut current_status,
+                                        &status,
+                                        None,
+                                    );
+                                }
                             }
                         }
                         other => {
@@ -389,6 +432,8 @@ fn main() -> Result<()> {
                     &writer_tx,
                     &mut status_clear_deadline,
                     &mut current_status,
+                    now,
+                    transcript_idle_timeout,
                 );
 
                 if auto_voice_enabled
@@ -396,7 +441,7 @@ fn main() -> Result<()> {
                     && should_auto_trigger(
                         &prompt_tracker,
                         now,
-                        idle_timeout,
+                        auto_idle_timeout,
                         last_auto_trigger_at,
                     )
                 {
@@ -431,27 +476,18 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn queue_transcript(
+fn push_pending_transcript(
     pending: &mut VecDeque<PendingTranscript>,
     transcript: PendingTranscript,
-    writer_tx: &Sender<WriterMessage>,
-    status_clear_deadline: &mut Option<Instant>,
-    current_status: &mut Option<String>,
-) {
+) -> bool {
     if pending.len() >= MAX_PENDING_TRANSCRIPTS {
         pending.pop_front();
         log_debug("pending transcript queue full; dropping oldest transcript");
-        set_status(
-            writer_tx,
-            status_clear_deadline,
-            current_status,
-            "Transcript queue full (oldest dropped)",
-            Some(Duration::from_secs(2)),
-        );
+        pending.push_back(transcript);
+        return true;
     }
     pending.push_back(transcript);
-    let status = format!("Transcript queued ({})", pending.len());
-    set_status(writer_tx, status_clear_deadline, current_status, &status, None);
+    false
 }
 
 fn try_flush_pending(
@@ -462,29 +498,63 @@ fn try_flush_pending(
     writer_tx: &Sender<WriterMessage>,
     status_clear_deadline: &mut Option<Instant>,
     current_status: &mut Option<String>,
+    now: Instant,
+    transcript_idle_timeout: Duration,
 ) {
-    if pending.is_empty() {
+    if pending.is_empty()
+        || !transcript_ready(prompt_tracker, *last_enter_at, now, transcript_idle_timeout)
+    {
         return;
     }
-    if !prompt_ready(prompt_tracker, *last_enter_at) {
+    let Some(batch) = merge_pending_transcripts(pending) else {
         return;
+    };
+    let remaining = pending.len();
+    let sent_newline = deliver_transcript(
+        &batch.text,
+        &batch.label,
+        batch.mode,
+        session,
+        writer_tx,
+        status_clear_deadline,
+        current_status,
+        remaining,
+    );
+    if sent_newline {
+        *last_enter_at = Some(Instant::now());
     }
-    if let Some(next) = pending.pop_front() {
-        let remaining = pending.len();
-        let sent_newline = deliver_transcript(
-            &next.text,
-            next.source,
-            next.mode,
-            session,
-            writer_tx,
-            status_clear_deadline,
-            current_status,
-            remaining,
-        );
-        if sent_newline {
-            *last_enter_at = Some(Instant::now());
+}
+
+fn merge_pending_transcripts(pending: &mut VecDeque<PendingTranscript>) -> Option<PendingBatch> {
+    let mode = pending.front()?.mode;
+    let mut parts: Vec<String> = Vec::new();
+    let mut sources: Vec<VoiceCaptureSource> = Vec::new();
+    while let Some(next) = pending.front() {
+        if next.mode != mode {
+            break;
+        }
+        let Some(next) = pending.pop_front() else {
+            break;
+        };
+        let trimmed = next.text.trim();
+        if !trimmed.is_empty() {
+            parts.push(trimmed.to_string());
+            sources.push(next.source);
         }
     }
+    if parts.is_empty() {
+        return None;
+    }
+    let label = if sources.iter().all(|source| *source == sources[0]) {
+        sources[0].label().to_string()
+    } else {
+        "Mixed pipelines".to_string()
+    };
+    Some(PendingBatch {
+        text: parts.join(" "),
+        label,
+        mode,
+    })
 }
 fn list_input_devices() -> Result<()> {
     match audio::Recorder::list_devices() {
@@ -931,7 +1001,7 @@ fn send_transcript(
 
 fn deliver_transcript(
     text: &str,
-    source: VoiceCaptureSource,
+    label: &str,
     mode: VoiceSendMode,
     session: &mut impl TranscriptSession,
     writer_tx: &Sender<WriterMessage>,
@@ -939,7 +1009,6 @@ fn deliver_transcript(
     current_status: &mut Option<String>,
     queued_remaining: usize,
 ) -> bool {
-    let label = source.label();
     let status = if queued_remaining > 0 {
         format!("Transcript ready ({label}) • queued {queued_remaining}")
     } else {
@@ -976,6 +1045,16 @@ fn prompt_ready(prompt_tracker: &PromptTracker, last_enter_at: Option<Instant>) 
     }
 }
 
+fn transcript_ready(
+    prompt_tracker: &PromptTracker,
+    last_enter_at: Option<Instant>,
+    now: Instant,
+    transcript_idle_timeout: Duration,
+) -> bool {
+    prompt_ready(prompt_tracker, last_enter_at)
+        || prompt_tracker.idle_ready(now, transcript_idle_timeout)
+}
+
 fn should_auto_trigger(
     prompt_tracker: &PromptTracker,
     now: Instant,
@@ -1010,6 +1089,12 @@ struct VoiceStartInfo {
 struct PendingTranscript {
     text: String,
     source: VoiceCaptureSource,
+    mode: VoiceSendMode,
+}
+
+struct PendingBatch {
+    text: String,
+    label: String,
     mode: VoiceSendMode,
 }
 
@@ -1477,6 +1562,7 @@ mod tests {
             prompt_log: Some(PathBuf::from("/tmp/codex_prompt_override.log")),
             auto_voice: false,
             auto_voice_idle_ms: 1200,
+            transcript_idle_ms: 250,
             voice_send_mode: VoiceSendMode::Auto,
         };
         let resolved = resolve_prompt_log(&config);
@@ -1493,6 +1579,7 @@ mod tests {
             prompt_log: None,
             auto_voice: false,
             auto_voice_idle_ms: 1200,
+            transcript_idle_ms: 250,
             voice_send_mode: VoiceSendMode::Auto,
         };
         let resolved = resolve_prompt_log(&config);
@@ -1509,6 +1596,7 @@ mod tests {
             prompt_log: None,
             auto_voice: false,
             auto_voice_idle_ms: 1200,
+            transcript_idle_ms: 250,
             voice_send_mode: VoiceSendMode::Auto,
         };
         let regex = resolve_prompt_regex(&config).expect("regex should compile");
@@ -1523,6 +1611,7 @@ mod tests {
             prompt_log: None,
             auto_voice: false,
             auto_voice_idle_ms: 1200,
+            transcript_idle_ms: 250,
             voice_send_mode: VoiceSendMode::Auto,
         };
         assert!(resolve_prompt_regex(&config).is_err());
@@ -1975,6 +2064,7 @@ mod tests {
             prompt_log: None,
             auto_voice: false,
             auto_voice_idle_ms: 1200,
+            transcript_idle_ms: 250,
             voice_send_mode: VoiceSendMode::Auto,
         };
         let mut session = StubSession::default();

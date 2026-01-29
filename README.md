@@ -94,6 +94,30 @@ brew tap jguida941/homebrew-codex-voice
 brew install codex-voice
 ```
 
+### Homebrew Update (if you already installed)
+
+```bash
+brew update
+brew upgrade codex-voice
+```
+
+If Homebrew still shows an older version (stale tap cache), force refresh:
+
+```bash
+brew untap jguida941/codex-voice 2>/dev/null || true
+brew untap jguida941/homebrew-codex-voice 2>/dev/null || true
+brew tap jguida941/homebrew-codex-voice
+brew update
+brew info codex-voice
+```
+
+If it still won’t update:
+
+```bash
+rm -f "$(brew --cache)"/codex-voice--*
+brew reinstall codex-voice
+```
+
 3. Run from any project (first run downloads the model if missing):
 
 ```bash
@@ -179,7 +203,7 @@ When the transcript appears, press Enter again to send it to Codex. If the pytho
 active, Enter cancels the capture instead.
 
 Auto-voice stays enabled even when no speech is detected; press Ctrl+V to stop it.
-If Codex is busy, voice transcripts are queued and sent when the next prompt appears (status shows the queued count).
+If Codex is busy, voice transcripts are queued and sent when the next prompt appears or output goes idle (status shows the queued count). Queued transcripts are merged into one message when flushed.
 
 | | |
 |---|---|
@@ -199,6 +223,7 @@ Run `codex-voice --help` for all options. Key flags:
 | `--auto-voice` | Start in auto-voice mode | off |
 | `--auto-voice-idle-ms <MS>` | Idle timeout before auto-voice triggers | 1200 |
 | `--voice-send-mode <auto\|insert>` | `auto` sends newline, `insert` for editing + Enter stop | auto |
+| `--transcript-idle-ms <MS>` | Idle time before transcripts auto-send when output is quiet | 250 |
 | `--voice-vad-threshold-db <DB>` | Mic sensitivity (lower = more sensitive) | -40 |
 | `--voice-vad-engine <earshot\|simple>` | VAD implementation | earshot |
 | `--input-device <NAME>` | Preferred audio input device | system default |

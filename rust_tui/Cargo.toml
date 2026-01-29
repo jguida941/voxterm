@@ -1,6 +1,6 @@
 [package]
 name = "rust_tui"
-version = "1.0.17"
+version = "1.0.18"
 edition = "2021"
 default-run = "codex-voice"
 autobins = false

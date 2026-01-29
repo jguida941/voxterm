@@ -49,7 +49,7 @@ First run will download a Whisper model if missing, then start the Rust overlay 
 - `Enter` - in insert mode, stop capture early and transcribe what was captured
 
 Auto-voice keeps listening on silence; press `Ctrl+V` to stop auto-voice mode.
-If Codex is busy, voice transcripts are queued and sent on the next prompt.
+If Codex is busy, voice transcripts are queued and sent on the next prompt or after a short idle period.
 
 ## Common flags
 
@@ -58,6 +58,7 @@ codex-voice --auto-voice
 codex-voice --voice-send-mode insert
 codex-voice --voice-vad-threshold-db -50
 codex-voice --mic-meter
+codex-voice --transcript-idle-ms 250
 codex-voice --prompt-regex '^codex> $'
 ```
 
