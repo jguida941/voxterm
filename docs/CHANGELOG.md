@@ -3,6 +3,16 @@
 All notable changes to this project will be documented here, following the SDLC policy defined in `agents.md`.
 Note: Some historical entries reference internal documents that are not published in this repository.
 
+## [1.0.27] - 2026-01-31
+
+### UX + Visuals
+- Launcher now lists `?` help and theme flags in the startup tables.
+- Launcher now documents available themes and `--no-color`.
+
+### Docs
+- Architecture doc now includes the overlay visual system components.
+- Added modularization audit plan doc for historical tracking.
+
 ## [1.0.26] - 2026-01-31
 
 ### UX + Visuals

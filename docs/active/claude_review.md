@@ -1,23 +1,17 @@
-# Release Review: 1.0.26 (2026-01-31)
+# Release Review: 1.0.27 (2026-01-31)
 
 ## Summary
-- Reviewed visual system integration (status line, help overlay, theme selection, mic meter output).
-- Addressed status line refresh edge cases and help overlay sizing.
-- Verified release build and full test suite locally.
+- Updated launcher tables to surface help overlay and theme options.
+- Documented overlay visual system in architecture docs.
+- Added modularization audit plan doc for reference.
 
 ## Reviewed areas
-- Overlay status rendering and truncation behavior.
-- Help overlay rendering and resize behavior.
-- Theme selection and color mode fallback.
-- Session stats output on exit.
+- `start.sh` startup tables and theme/help messaging.
+- Architecture doc alignment with overlay visuals.
+- Release version bump for Cargo.toml and Info.plist.
 
 ## Verification
-- `cd rust_tui && cargo fmt --all -- --check`
-- `cd rust_tui && cargo clippy --workspace --all-features -- -D warnings`
-- `cd rust_tui && cargo test`
 - `cd rust_tui && cargo build --release --bin codex-voice`
 
 ## Notes / risks
-- `?` opens the help overlay and cannot be sent through while the overlay is active (documented in user docs).
-- Real-time audio level display remains a future enhancement (tracked in visual plan).
-
+- Help overlay is triggered with `?` after the overlay starts (launcher screen is static).

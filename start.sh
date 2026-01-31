@@ -116,8 +116,9 @@ print_controls_table_wide() {
 
     for row in \
         "Ctrl+R|Record (push-to-talk)|Ctrl+V|Toggle auto-voice" \
-        "Ctrl+T|Toggle send mode|Ctrl+]|Mic sensitivity +5 dB" \
-        "Ctrl+\\|Mic sensitivity -5 dB|Ctrl+Q|Quit overlay"; do
+        "Ctrl+T|Toggle send mode|?|Show help overlay" \
+        "Ctrl+]|Mic sensitivity +5 dB|Ctrl+\\|Mic sensitivity -5 dB" \
+        "Ctrl+Q|Quit overlay|Ctrl+C|Cancel / forward to Codex"; do
         IFS='|' read -r key_left action_left key_right action_right <<< "$row"
         key_left="$(truncate "$key_left" "$col_key")"
         action_left="$(truncate "$action_left" "$col_action")"
@@ -153,8 +154,10 @@ print_controls_table_narrow() {
         "Ctrl+R|Record (push-to-talk)" \
         "Ctrl+V|Toggle auto-voice" \
         "Ctrl+T|Toggle send mode" \
+        "?|Show help overlay" \
         "Ctrl+]|Mic sensitivity +5 dB" \
         "Ctrl+\\|Mic sensitivity -5 dB" \
+        "Ctrl+C|Cancel / forward to Codex" \
         "Ctrl+Q|Quit overlay"; do
         IFS='|' read -r key action <<< "$row"
         key="$(truncate "$key" "$col1")"
@@ -201,6 +204,8 @@ print_commands_table() {
     printf "${CORAL}├─%s─┼─%s─┤${NC}\n" "$border1" "$border2"
 
     for row in \
+        "$EXAMPLE_CMD --theme catppuccin|Use a different theme" \
+        "$EXAMPLE_CMD --no-color|Disable status line colors" \
         "$EXAMPLE_CMD --auto-voice|Start in auto-voice" \
         "$EXAMPLE_CMD --voice-send-mode insert|Start in insert mode" \
         "$EXAMPLE_CMD --mic-meter|Measure ambient/speech levels" \
@@ -222,6 +227,7 @@ echo -e "${DIM}Sensitivity: Ctrl+] (less sensitive) • Ctrl+\\ or Ctrl+/ (more 
 echo ""
 echo -e "${CORAL_BRIGHT}${BOLD}Common Commands${NC}"
 print_commands_table
+echo -e "${DIM}Themes: coral, catppuccin, dracula, nord, ansi, none • Use --theme NAME or --no-color${NC}"
 echo -e "${DIM}Auto-voice idle default: 1200ms • Transcript idle default: 250ms${NC}"
 echo ""
 
