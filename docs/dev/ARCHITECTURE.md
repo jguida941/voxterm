@@ -32,7 +32,7 @@ adds voice capture + a minimal status overlay without touching Codex's native UI
 
 - Preserve the **full Codex TUI** (raw ANSI passthrough).
 - Add **voice capture** and **auto-voice** without corrupting terminal output.
-- Keep a **minimal overlay** (one status line) and avoid custom UI rendering.
+- Keep a **minimal overlay** (bottom status line + optional help overlay) and avoid a full-screen custom UI.
 
 ## Architecture Decision Records (ADRs)
 
@@ -92,7 +92,7 @@ graph TD
 Why this matters:
 - **Input thread** intercepts Ctrl+R/Ctrl+V/Ctrl+Q without blocking Codex.
 - **PTY reader** keeps ANSI intact while replying to terminal queries (DSR/DA).
-- **Writer thread** prevents output + status line interleaving.
+- **Writer thread** prevents output + status/help overlay interleaving.
 - **Voice thread** keeps audio/Whisper work off the main loop.
 
 ## Startup Sequence
@@ -305,12 +305,29 @@ sequenceDiagram
 ## Output Serialization
 
 All terminal output is serialized through one writer thread to avoid
-interleaving PTY output with the status line. The status line is drawn using
-ANSI save/restore (`ESC 7` / `ESC 8`) to avoid corrupting Codex's screen.
+interleaving PTY output with the status line or help overlay. The status line
+and overlay use ANSI save/restore (`ESC 7` / `ESC 8`) and redraw only after
+quiet output intervals to avoid corrupting Codex's screen.
+
+## Visual System (Overlay)
+
+- **Enhanced status line** is driven by `StatusLineState` (mode, pipeline, sensitivity, message, duration).
+- **Theme selection** uses `--theme` with automatic fallback based on terminal color capability and `NO_COLOR`.
+- **Help overlay** is toggled with `?` and rendered by the writer thread above the status line.
+- **Mic meter output** (`--mic-meter`) renders a bar display for ambient/speech levels.
+- **Session summary** prints on exit when activity is present.
+
+Design details and audit notes live in `docs/active/visual.md`.
 
 ## Key Files
 
 - `rust_tui/src/bin/codex_overlay/main.rs` - main loop, input handling, prompt detection (binary: `codex-voice`)
+- `rust_tui/src/bin/codex_overlay/writer.rs` - serialized output, status line, help overlay
+- `rust_tui/src/bin/codex_overlay/status_line.rs` - status line layout + formatting
+- `rust_tui/src/bin/codex_overlay/status_style.rs` - status message categorization + styling
+- `rust_tui/src/bin/codex_overlay/theme.rs` - color palettes and theme selection
+- `rust_tui/src/bin/codex_overlay/help.rs` - shortcut help overlay rendering
+- `rust_tui/src/bin/codex_overlay/audio_meter.rs` - mic meter visuals (`--mic-meter`)
 - `rust_tui/src/pty_session/` - raw PTY passthrough + query replies
 - `rust_tui/src/voice.rs` - voice capture job orchestration
 - `rust_tui/src/audio/` - CPAL recorder + VAD
@@ -323,6 +340,9 @@ ANSI save/restore (`ESC 7` / `ESC 8`) to avoid corrupting Codex's screen.
 - `--voice-send-mode auto|insert` - auto-send transcript or insert for editing
 - `--auto-voice` - enable auto mode on startup
 - `--auto-voice-idle-ms` - idle timeout before auto-voice triggers
+- `--theme` / `--no-color` - status line theme selection and color disable
+- `--mic-meter` - run mic calibration with visual meter output
+- `--mic-meter-ambient-ms` / `--mic-meter-speech-ms` - calibration sample durations
 - `--prompt-regex` - override prompt detection
 - `CODEX_VOICE_CWD` - run Codex in a chosen project directory
 
