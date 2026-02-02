@@ -39,6 +39,8 @@ When you speak, VoxTerm:
 2. Transcribes it to text using Whisper (runs locally, nothing sent to the cloud)
 3. Types that text into the active CLI (Codex by default) and optionally presses Enter for you
 
+![Recording Mode](https://raw.githubusercontent.com/jguida941/voxterm/master/img/recording.png)
+
 You control **when** recording starts and **what happens** after transcription.
 
 ---
@@ -68,6 +70,8 @@ All shortcuts in one place:
 ## Settings Menu
 
 Press `Ctrl+O` to open the settings overlay. Navigate with **↑/↓**, adjust values with **←/→**, and press **Enter** to toggle or activate the selected row. `Esc` closes the menu.
+
+![Settings Menu](https://raw.githubusercontent.com/jguida941/voxterm/master/img/settings.png)
 
 The menu surfaces the most common controls (auto-voice, send mode, mic sensitivity, theme) along with backend/pipeline info.
 
@@ -117,7 +121,7 @@ If the mic picks up too much background noise or misses your voice:
 - `Ctrl+\` - More sensitive (lower threshold, pick up quieter sounds)
 
 The status line shows the current threshold (e.g., "Mic sensitivity: -35 dB").
-Range: -80 dB (very sensitive) to -10 dB (less sensitive). Default: -40 dB.
+Range: -80 dB (very sensitive) to -10 dB (less sensitive). Default: -55 dB.
 
 **Tip**: Run `voxterm --mic-meter` to measure your environment and get a suggested threshold.
 
@@ -169,10 +173,16 @@ When recording/processing, the mode label includes a pipeline tag (e.g., `REC R`
 
 "Rust" means fast native transcription. "Python" means fallback mode (slower but more compatible).
 
-Theme tips:
-- `voxterm --theme catppuccin` to change the status line palette.
-- `voxterm --no-color` or `NO_COLOR=1` to disable colors.
-- `Ctrl+Y` opens the theme picker overlay while the app is running.
+### Themes
+
+Press `Ctrl+Y` to open the theme picker:
+
+![Theme Picker](https://raw.githubusercontent.com/jguida941/voxterm/master/img/theme-picker.png)
+
+Available themes: **coral** (default), **catppuccin**, **dracula**, **nord**, **ansi** (16-color), **none**.
+
+- `voxterm --theme catppuccin` to start with a specific theme.
+- `voxterm --no-color` or `NO_COLOR=1` to disable colors entirely.
 
 Preview tips:
 - When a transcript completes, a short preview snippet appears in quotes for a few seconds.

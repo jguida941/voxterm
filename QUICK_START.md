@@ -1,30 +1,33 @@
-# VoxTerm Quick Start (Overlay Mode)
+# VoxTerm Quick Start
 
-This is the shortest path to run Codex (default backend) with voice in your terminal.
-Supported on macOS and Linux (use WSL2 if you are on Windows).
+Get voice input for your AI CLI in under 2 minutes. Works on macOS and Linux (Windows needs WSL2).
 
-## 1) Prerequisites
-
-- Install Codex CLI:
+## 1) Install Codex CLI (default backend)
 
 ```bash
 npm install -g @openai/codex
 ```
 
-- Install Rust (if you do not have it): https://rustup.rs
+Or use another AI CLI with `--backend` (Claude, Gemini, Aider, etc.).
 
 ## 2) Install VoxTerm
 
+**Homebrew (recommended):**
+```bash
+brew tap jguida941/voxterm
+brew install voxterm
+```
+
+**From source:**
 ```bash
 git clone https://github.com/jguida941/voxterm.git
 cd voxterm
 ./install.sh
 ```
 
-If `voxterm` is not found, see PATH and install notes in
-[docs/INSTALL.md](docs/INSTALL.md).
+**macOS App:** Double-click **VoxTerm.app** and choose your project folder.
 
-macOS app alternative (folder picker): double-click **VoxTerm.app** and choose your project.
+If `voxterm` is not found after install, see [docs/INSTALL.md](docs/INSTALL.md) for PATH notes.
 
 ## 3) Run from any project
 

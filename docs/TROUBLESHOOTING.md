@@ -13,7 +13,7 @@
 Other sections: [Status Messages](#status-messages) · [Audio Setup](#audio-setup) ·
 [Mic Sensitivity](#mic-sensitivity) · [Codex Issues](#codex-issues) ·
 [Install Issues](#install-issues) · [Enabling Logs](#enabling-logs) ·
-[Getting Help](#getting-help)
+[FAQ](#faq) · [Getting Help](#getting-help)
 
 ---
 
@@ -144,7 +144,7 @@ voxterm --mic-meter
 
 It samples ambient noise and your speech, then suggests a threshold.
 
-**Range:** -80 dB (very sensitive) to -10 dB (less sensitive). Default: -40 dB.
+**Range:** -80 dB (very sensitive) to -10 dB (less sensitive). Default: -55 dB.
 
 ---
 
@@ -252,6 +252,75 @@ voxterm --no-logs
 - **Collect diagnostics:** Run `voxterm --doctor` and include the output in your issue.
 - **Report bugs:** [GitHub Issues](https://github.com/jguida941/voxterm/issues)
 - **Check known issues:** [Master Plan](active/MASTER_PLAN.md)
+
+---
+
+## FAQ
+
+### What languages does Whisper support?
+
+Whisper supports 99 languages. Common ones with good accuracy:
+
+| Language | Code | Language | Code |
+|----------|------|----------|------|
+| English | `en` | German | `de` |
+| Spanish | `es` | French | `fr` |
+| Italian | `it` | Portuguese | `pt` |
+| Japanese | `ja` | Korean | `ko` |
+| Chinese | `zh` | Russian | `ru` |
+
+Use `--lang auto` for automatic detection, or specify: `voxterm --lang es`
+
+Full list: [Whisper supported languages](https://github.com/openai/whisper#available-models-and-languages)
+
+### Which AI CLI backends are tested?
+
+| Backend | Command | Status |
+|---------|---------|--------|
+| Codex | `voxterm` (default) | Fully tested |
+| Claude Code | `voxterm --backend claude` | Tested |
+| Gemini CLI | `voxterm --backend gemini` | Tested |
+| Aider | `voxterm --backend aider` | Tested |
+| OpenCode | `voxterm --backend opencode` | Community tested |
+| Custom | `voxterm --backend "cmd"` | Works with any CLI |
+
+### Which Whisper model should I use?
+
+| Model | Size | Speed | Accuracy | Best for |
+|-------|------|-------|----------|----------|
+| tiny | 75 MB | Fastest | Lower | Quick testing |
+| base | 142 MB | Fast | Good | Low-end hardware |
+| small | 466 MB | Medium | Better | **Default, recommended** |
+| medium | 1.5 GB | Slower | High | Non-English languages |
+| large | 2.9 GB | Slowest | Highest | Maximum accuracy |
+
+Change model: `voxterm --whisper-model base`
+
+### Can I use VoxTerm without Codex?
+
+Yes. Use `--backend` with any CLI:
+```bash
+voxterm --backend claude
+voxterm --backend "my-custom-cli --flag"
+```
+
+### Does VoxTerm send my voice to the cloud?
+
+No. All speech-to-text happens locally via Whisper. Your audio never leaves your machine.
+
+### How do I update VoxTerm?
+
+**Homebrew:**
+```bash
+brew update && brew upgrade voxterm
+```
+
+**From source:**
+```bash
+cd voxterm && git pull && ./install.sh
+```
+
+---
 
 ## See Also
 
