@@ -28,7 +28,9 @@ cd ~/your-project
 voxterm
 ```
 
-First run downloads a Whisper model (~142 MB for base). See [Whisper docs](guides/WHISPER.md) for model options.
+First run downloads a Whisper model (~142 MB for base). Choose a different size with
+`./scripts/install.sh --small` or `./scripts/setup.sh models --medium`, or pass
+`--whisper-model-path` directly. See [Whisper docs](guides/WHISPER.md) for details.
 
 ## How It Works
 
@@ -52,7 +54,7 @@ VoxTerm wraps your AI CLI in a PTY and adds voice input. You talk → Whisper tr
 | **PTY passthrough** | CLI UI stays unchanged |
 | **Auto-voice** | Hands-free mode - no typing needed |
 | **Transcript queue** | Speak while CLI is busy, sends when ready |
-| **Multiple backends** | Codex, Claude, Gemini, Aider, or custom |
+| **Multiple backends** | Codex + Claude supported; Gemini in works |
 | **Themes** | 6 built-in themes including Catppuccin, Dracula, Nord |
 
 ### Theme Picker (Ctrl+Y)
@@ -116,13 +118,14 @@ Double-click `app/macos/VoxTerm.app`, pick a folder, it opens Terminal with VoxT
 
 ## Supported AI CLIs
 
-VoxTerm works with any terminal-based AI CLI. Install your preferred CLI, then run VoxTerm with `--backend`.
+VoxTerm is optimized for Codex and Claude Code. Gemini support is in the backlog.
 
 ### Codex (default)
 
 ```bash
 npm install -g @openai/codex
 voxterm
+voxterm --codex   # explicit (optional)
 ```
 
 ### Claude Code
@@ -134,23 +137,21 @@ voxterm --claude
 
 ![Claude Backend](https://raw.githubusercontent.com/jguida941/voxterm/master/img/claude-backend.png)
 
-### Gemini CLI (not yet supported)
+### Gemini CLI (in works - not yet supported)
 
 ```bash
 npm install -g @google/gemini-cli
 voxterm --gemini
 ```
 
-**Note:** Gemini CLI is not currently supported due to UI conflicts. We're actively working on it.
+**Note:** Gemini CLI is not currently supported due to UI conflicts and a different spawn model.
+It is tracked as backlog work.
 
-### Other CLIs
+## Roadmap (High Level)
 
-```bash
-# Any CLI that accepts text input
-voxterm --backend "my-cli --flag"
-```
-
-**Note:** VoxTerm should work with most terminal-based AI CLIs - just pass the command via `--backend`.
+Planned work (not yet supported):
+- Gemini CLI support (requires a different spawn model)
+- Windows native support (WSL2 for now)
 
 ## Documentation
 

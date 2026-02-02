@@ -1,7 +1,7 @@
 # VoxTerm Developer Makefile
 # Run `make help` to see available commands
 
-.PHONY: help build release fmt lint test check ci clean run doctor
+.PHONY: help build run doctor fmt fmt-check lint check test test-bin test-perf test-mem test-mem-loop bench ci prepush mutants mutants-all mutants-audio mutants-config mutants-voice mutants-pty mutants-results mutants-raw release homebrew model-base model-small model-tiny clean clean-tests
 
 # Default target
 help:
@@ -17,7 +17,10 @@ help:
 	@echo "  make lint         Run clippy linter"
 	@echo "  make test         Run all tests"
 	@echo "  make check        Format + lint (no tests)"
-	@echo "  make ci           Full CI check (fmt + lint + test)"
+	@echo ""
+	@echo "CI / Pre-push:"
+	@echo "  make ci           Core CI check (fmt + lint + test)"
+	@echo "  make prepush      All push/PR checks (ci + perf + memory guard)"
 	@echo ""
 	@echo "Mutation Testing:"
 	@echo "  make mutants           Interactive module selection"
@@ -27,8 +30,9 @@ help:
 	@echo ""
 	@echo "Testing:"
 	@echo "  make test-bin     Test overlay binary only"
-	@echo "  make test-perf    Run perf smoke test"
-	@echo "  make test-mem     Run memory guard test"
+	@echo "  make test-perf    Run perf smoke test + metrics verification"
+	@echo "  make test-mem     Run memory guard test once"
+	@echo "  make test-mem-loop Run memory guard loop (CI parity)"
 	@echo "  make bench        Run voice benchmark"
 	@echo ""
 	@echo "Release:"
@@ -84,9 +88,24 @@ test-bin:
 
 test-perf:
 	cd src && cargo test --no-default-features app::tests::perf_smoke_emits_voice_metrics -- --nocapture
+	@LOG_PATH=$$(python3 -c "import os, tempfile; print(os.path.join(tempfile.gettempdir(), 'voxterm_tui.log'))"); \
+	echo "Inspecting $$LOG_PATH"; \
+	if ! grep -q "voice_metrics|" "$$LOG_PATH"; then \
+		echo "voice_metrics log missing from log" >&2; \
+		exit 1; \
+	fi; \
+	python3 .github/scripts/verify_perf_metrics.py "$$LOG_PATH"
 
 test-mem:
 	cd src && cargo test --no-default-features app::tests::memory_guard_backend_threads_drop -- --nocapture
+
+test-mem-loop:
+	@set -eu; \
+	cd src; \
+	for i in $$(seq 1 20); do \
+		echo "Iteration $$i"; \
+		cargo test --no-default-features app::tests::memory_guard_backend_threads_drop -- --nocapture; \
+	done
 
 # Voice benchmark
 bench:
@@ -96,6 +115,11 @@ bench:
 ci: fmt-check lint test
 	@echo ""
 	@echo "✓ CI checks passed!"
+
+# Run all push/PR checks locally (rust_ci + perf_smoke + memory_guard)
+prepush: ci test-perf test-mem-loop
+	@echo ""
+	@echo "✓ Pre-push checks passed!"
 
 # =============================================================================
 # Mutation Testing

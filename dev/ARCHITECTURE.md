@@ -1,7 +1,7 @@
 # VoxTerm (Rust Overlay) Architecture
 
-This document describes the Rust-only overlay mode. It runs the Codex CLI (or another
-AI CLI selected via `--backend`) in a PTY and adds voice capture + a minimal status
+This document describes the Rust-only overlay mode. It runs the Codex CLI (or Claude Code
+via `--claude`) in a PTY and adds voice capture + a minimal status
 overlay without touching the native UI.
 
 ## Contents
@@ -41,12 +41,12 @@ overlay without touching the native UI.
 |---------|------|--------|-------|
 | Codex | `voxterm` (default) | Tested | Full support |
 | Claude Code | `voxterm --claude` | Tested | Full support |
-| Gemini CLI | `voxterm --gemini` | Not yet supported | UI conflict - actively working on it |
-| Custom | `voxterm --backend "cmd"` | Varies | Any CLI that accepts text input |
+| Gemini CLI | `voxterm --gemini` | In works (not yet supported) | UI conflict - different spawn model |
 
 **Primary supported backends:** Codex and Claude Code.
 
-Backend selection is handled by `src/src/backend/` which provides preset configurations for known CLIs.
+Backend selection is handled by `src/src/backend/` which provides preset configurations for Codex and Claude
+(Gemini is tracked but not yet supported).
 
 ## Architecture Decision Records (ADRs)
 
@@ -185,6 +185,16 @@ sequenceDiagram
   Prompt-->>Main: prompt detected or idle-ready
   Main->>Main: if auto-voice enabled -> start capture
 ```
+
+### 4) Transcript Queue + Send Modes
+
+When the CLI is busy (output streaming), transcripts are queued and sent once the next
+prompt appears or the transcript idle timer fires. Send mode controls whether a newline
+is added automatically.
+
+- **Auto send**: inject transcript + newline immediately when safe to send.
+- **Insert**: inject transcript only (no newline); user presses Enter to send.
+- **Enter while recording (insert mode)**: stops capture early and transcribes what was recorded.
 
 ## Overlay State Machine
 

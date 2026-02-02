@@ -47,7 +47,7 @@ use voxterm::{
 };
 
 use crate::banner::{format_minimal_banner, format_startup_banner, BannerConfig};
-use crate::config::{OverlayConfig, VoiceSendMode};
+use crate::config::{HudRightPanel, HudStyle, OverlayConfig, VoiceSendMode};
 use crate::help::{format_help_overlay, help_overlay_height};
 use crate::hud::HudRegistry;
 use crate::input::{spawn_input_thread, InputEvent};
@@ -104,10 +104,11 @@ fn main() -> Result<()> {
     let mut config = OverlayConfig::parse();
     let sound_on_complete = config.app.sounds || config.app.sound_on_complete;
     let sound_on_error = config.app.sounds || config.app.sound_on_error;
-    let mut theme = config.theme();
+    let backend = config.resolve_backend();
+    let backend_label = backend.label.clone();
+    let mut theme = config.theme_for_backend(&backend_label);
     if config.app.doctor {
         let mut report = base_doctor_report(&config.app, "voxterm");
-        let backend = config.resolve_backend();
         report.section("Overlay");
         report.push_kv("backend", backend.label);
         let mut command = vec![backend.command];
@@ -162,9 +163,7 @@ fn main() -> Result<()> {
         })
         .unwrap_or_else(|| ".".to_string());
 
-    // Resolve backend command and args
-    let backend = config.resolve_backend();
-    let backend_label = backend.label.clone();
+    // Backend command and args already resolved
 
     let prompt_log_path = if config.app.no_logs {
         None
@@ -215,12 +214,19 @@ fn main() -> Result<()> {
     // Set the color theme for the status line
     let _ = writer_tx.send(WriterMessage::SetTheme(theme));
 
+    // Compute initial HUD style (handle --minimal-hud shorthand)
+    let initial_hud_style = if config.minimal_hud {
+        HudStyle::Minimal
+    } else {
+        config.hud_style
+    };
+
     let mut terminal_cols = 0u16;
     let mut terminal_rows = 0u16;
     if let Ok((cols, rows)) = terminal_size() {
         terminal_cols = cols;
         terminal_rows = rows;
-        apply_pty_winsize(&mut session, rows, cols, OverlayMode::None);
+        apply_pty_winsize(&mut session, rows, cols, OverlayMode::None, initial_hud_style);
         let _ = writer_tx.send(WriterMessage::Resize { rows, cols });
     }
 
@@ -241,6 +247,9 @@ fn main() -> Result<()> {
     status_state.sensitivity_db = config.app.voice_vad_threshold_db;
     status_state.auto_voice_enabled = auto_voice_enabled;
     status_state.send_mode = config.voice_send_mode;
+    status_state.hud_right_panel = config.hud_right_panel;
+    status_state.hud_right_panel_recording_only = config.hud_right_panel_recording_only;
+    status_state.hud_style = initial_hud_style;
     status_state.voice_mode = if auto_voice_enabled {
         VoiceMode::Auto
     } else {
@@ -306,6 +315,34 @@ fn main() -> Result<()> {
                         if overlay_mode != OverlayMode::None {
                             match (overlay_mode, evt) {
                                 (_, InputEvent::Exit) => running = false,
+                                (mode, InputEvent::ToggleHudStyle) => {
+                                    update_hud_style(
+                                        &mut status_state,
+                                        &writer_tx,
+                                        &mut status_clear_deadline,
+                                        &mut current_status,
+                                        1,
+                                    );
+                                    update_pty_winsize(
+                                        &mut session,
+                                        &mut terminal_rows,
+                                        &mut terminal_cols,
+                                        mode,
+                                        status_state.hud_style,
+                                    );
+                                    if mode == OverlayMode::Settings {
+                                        let cols = resolved_cols(terminal_cols);
+                                        show_settings_overlay(
+                                            &writer_tx,
+                                            theme,
+                                            cols,
+                                            &settings_menu,
+                                            &config,
+                                            &status_state,
+                                            &backend_label,
+                                        );
+                                    }
+                                }
                                 (OverlayMode::Settings, InputEvent::SettingsToggle) => {
                                     overlay_mode = OverlayMode::None;
                                     let _ = writer_tx.send(WriterMessage::ClearOverlay);
@@ -314,6 +351,7 @@ fn main() -> Result<()> {
                                         &mut terminal_rows,
                                         &mut terminal_cols,
                                         overlay_mode,
+                                        status_state.hud_style,
                                     );
                                 }
                                 (OverlayMode::Settings, InputEvent::HelpToggle) => {
@@ -323,6 +361,7 @@ fn main() -> Result<()> {
                                         &mut terminal_rows,
                                         &mut terminal_cols,
                                         overlay_mode,
+                                        status_state.hud_style,
                                     );
                                     let cols = resolved_cols(terminal_cols);
                                     let content = format_help_overlay(theme, cols as usize);
@@ -339,6 +378,7 @@ fn main() -> Result<()> {
                                         &mut terminal_rows,
                                         &mut terminal_cols,
                                         overlay_mode,
+                                        status_state.hud_style,
                                     );
                                     let cols = resolved_cols(terminal_cols);
                                     let content = format_theme_picker(theme, cols as usize);
@@ -389,6 +429,44 @@ fn main() -> Result<()> {
                                             );
                                             should_redraw = true;
                                         }
+                                        SettingsItem::HudStyle => {
+                                            update_hud_style(
+                                                &mut status_state,
+                                                &writer_tx,
+                                                &mut status_clear_deadline,
+                                                &mut current_status,
+                                                1,
+                                            );
+                                            update_pty_winsize(
+                                                &mut session,
+                                                &mut terminal_rows,
+                                                &mut terminal_cols,
+                                                overlay_mode,
+                                                status_state.hud_style,
+                                            );
+                                            should_redraw = true;
+                                        }
+                                        SettingsItem::HudPanel => {
+                                            update_hud_panel(
+                                                &mut config,
+                                                &mut status_state,
+                                                &writer_tx,
+                                                &mut status_clear_deadline,
+                                                &mut current_status,
+                                                1,
+                                            );
+                                            should_redraw = true;
+                                        }
+                                        SettingsItem::HudAnimate => {
+                                            toggle_hud_panel_recording_only(
+                                                &mut config,
+                                                &mut status_state,
+                                                &writer_tx,
+                                                &mut status_clear_deadline,
+                                                &mut current_status,
+                                            );
+                                            should_redraw = true;
+                                        }
                                         SettingsItem::Backend | SettingsItem::Pipeline => {}
                                         SettingsItem::Close => {
                                             overlay_mode = OverlayMode::None;
@@ -398,6 +476,7 @@ fn main() -> Result<()> {
                                                 &mut terminal_rows,
                                                 &mut terminal_cols,
                                                 overlay_mode,
+                                                status_state.hud_style,
                                             );
                                         }
                                         SettingsItem::Quit => running = false,
@@ -424,6 +503,7 @@ fn main() -> Result<()> {
                                             &mut terminal_rows,
                                             &mut terminal_cols,
                                             overlay_mode,
+                                            status_state.hud_style,
                                         );
                                     } else {
                                         let mut should_redraw = false;
@@ -486,6 +566,44 @@ fn main() -> Result<()> {
                                                         );
                                                         should_redraw = true;
                                                     }
+                                                    SettingsItem::HudStyle => {
+                                                        update_hud_style(
+                                                            &mut status_state,
+                                                            &writer_tx,
+                                                            &mut status_clear_deadline,
+                                                            &mut current_status,
+                                                            -1,
+                                                        );
+                                                        update_pty_winsize(
+                                                            &mut session,
+                                                            &mut terminal_rows,
+                                                            &mut terminal_cols,
+                                                            overlay_mode,
+                                                            status_state.hud_style,
+                                                        );
+                                                        should_redraw = true;
+                                                    }
+                                                    SettingsItem::HudPanel => {
+                                                        update_hud_panel(
+                                                            &mut config,
+                                                            &mut status_state,
+                                                            &writer_tx,
+                                                            &mut status_clear_deadline,
+                                                            &mut current_status,
+                                                            -1,
+                                                        );
+                                                        should_redraw = true;
+                                                    }
+                                                    SettingsItem::HudAnimate => {
+                                                        toggle_hud_panel_recording_only(
+                                                            &mut config,
+                                                            &mut status_state,
+                                                            &writer_tx,
+                                                            &mut status_clear_deadline,
+                                                            &mut current_status,
+                                                        );
+                                                        should_redraw = true;
+                                                    }
                                                     SettingsItem::Backend
                                                     | SettingsItem::Pipeline
                                                     | SettingsItem::Close
@@ -540,6 +658,44 @@ fn main() -> Result<()> {
                                                         );
                                                         should_redraw = true;
                                                     }
+                                                    SettingsItem::HudStyle => {
+                                                        update_hud_style(
+                                                            &mut status_state,
+                                                            &writer_tx,
+                                                            &mut status_clear_deadline,
+                                                            &mut current_status,
+                                                            1,
+                                                        );
+                                                        update_pty_winsize(
+                                                            &mut session,
+                                                            &mut terminal_rows,
+                                                            &mut terminal_cols,
+                                                            overlay_mode,
+                                                            status_state.hud_style,
+                                                        );
+                                                        should_redraw = true;
+                                                    }
+                                                    SettingsItem::HudPanel => {
+                                                        update_hud_panel(
+                                                            &mut config,
+                                                            &mut status_state,
+                                                            &writer_tx,
+                                                            &mut status_clear_deadline,
+                                                            &mut current_status,
+                                                            1,
+                                                        );
+                                                        should_redraw = true;
+                                                    }
+                                                    SettingsItem::HudAnimate => {
+                                                        toggle_hud_panel_recording_only(
+                                                            &mut config,
+                                                            &mut status_state,
+                                                            &writer_tx,
+                                                            &mut status_clear_deadline,
+                                                            &mut current_status,
+                                                        );
+                                                        should_redraw = true;
+                                                    }
                                                     SettingsItem::Backend
                                                     | SettingsItem::Pipeline
                                                     | SettingsItem::Close
@@ -569,6 +725,7 @@ fn main() -> Result<()> {
                                         &mut terminal_rows,
                                         &mut terminal_cols,
                                         overlay_mode,
+                                        status_state.hud_style,
                                     );
                                 }
                                 (OverlayMode::Help, InputEvent::SettingsToggle) => {
@@ -578,6 +735,7 @@ fn main() -> Result<()> {
                                         &mut terminal_rows,
                                         &mut terminal_cols,
                                         overlay_mode,
+                                        status_state.hud_style,
                                     );
                                     let cols = resolved_cols(terminal_cols);
                                     show_settings_overlay(
@@ -597,6 +755,7 @@ fn main() -> Result<()> {
                                         &mut terminal_rows,
                                         &mut terminal_cols,
                                         overlay_mode,
+                                        status_state.hud_style,
                                     );
                                     let cols = resolved_cols(terminal_cols);
                                     let content = format_theme_picker(theme, cols as usize);
@@ -611,6 +770,7 @@ fn main() -> Result<()> {
                                         &mut terminal_rows,
                                         &mut terminal_cols,
                                         overlay_mode,
+                                        status_state.hud_style,
                                     );
                                     let cols = resolved_cols(terminal_cols);
                                     let content = format_help_overlay(theme, cols as usize);
@@ -625,6 +785,7 @@ fn main() -> Result<()> {
                                         &mut terminal_rows,
                                         &mut terminal_cols,
                                         overlay_mode,
+                                        status_state.hud_style,
                                     );
                                     let cols = resolved_cols(terminal_cols);
                                     show_settings_overlay(
@@ -645,6 +806,7 @@ fn main() -> Result<()> {
                                         &mut terminal_rows,
                                         &mut terminal_cols,
                                         overlay_mode,
+                                        status_state.hud_style,
                                     );
                                 }
                                 (OverlayMode::ThemePicker, InputEvent::EnterKey) => {
@@ -655,6 +817,7 @@ fn main() -> Result<()> {
                                         &mut terminal_rows,
                                         &mut terminal_cols,
                                         overlay_mode,
+                                        status_state.hud_style,
                                     );
                                 }
                                 (OverlayMode::ThemePicker, InputEvent::Bytes(bytes)) => {
@@ -666,6 +829,7 @@ fn main() -> Result<()> {
                                             &mut terminal_rows,
                                             &mut terminal_cols,
                                             overlay_mode,
+                                            status_state.hud_style,
                                         );
                                     } else if let Some(idx) =
                                         bytes.iter().find_map(|b| theme_index_from_byte(*b))
@@ -687,6 +851,7 @@ fn main() -> Result<()> {
                                                     &mut terminal_rows,
                                                     &mut terminal_cols,
                                                     overlay_mode,
+                                                    status_state.hud_style,
                                                 );
                                             }
                                         }
@@ -700,6 +865,7 @@ fn main() -> Result<()> {
                                         &mut terminal_rows,
                                         &mut terminal_cols,
                                         overlay_mode,
+                                        status_state.hud_style,
                                     );
                                 }
                             }
@@ -713,6 +879,7 @@ fn main() -> Result<()> {
                                     &mut terminal_rows,
                                     &mut terminal_cols,
                                     overlay_mode,
+                                    status_state.hud_style,
                                 );
                                 let cols = resolved_cols(terminal_cols);
                                 let content = format_help_overlay(theme, cols as usize);
@@ -727,6 +894,7 @@ fn main() -> Result<()> {
                                     &mut terminal_rows,
                                     &mut terminal_cols,
                                     overlay_mode,
+                                    status_state.hud_style,
                                 );
                                 let cols = resolved_cols(terminal_cols);
                                 let content = format_theme_picker(theme, cols as usize);
@@ -741,6 +909,7 @@ fn main() -> Result<()> {
                                     &mut terminal_rows,
                                     &mut terminal_cols,
                                     overlay_mode,
+                                    status_state.hud_style,
                                 );
                                 let cols = resolved_cols(terminal_cols);
                                 show_settings_overlay(
@@ -751,6 +920,22 @@ fn main() -> Result<()> {
                                     &config,
                                     &status_state,
                                     &backend_label,
+                                );
+                            }
+                            InputEvent::ToggleHudStyle => {
+                                update_hud_style(
+                                    &mut status_state,
+                                    &writer_tx,
+                                    &mut status_clear_deadline,
+                                    &mut current_status,
+                                    1,
+                                );
+                                update_pty_winsize(
+                                    &mut session,
+                                    &mut terminal_rows,
+                                    &mut terminal_cols,
+                                    overlay_mode,
+                                    status_state.hud_style,
                                 );
                             }
                             InputEvent::Bytes(bytes) => {
@@ -940,7 +1125,7 @@ fn main() -> Result<()> {
                     if let Ok((cols, rows)) = terminal_size() {
                         terminal_cols = cols;
                         terminal_rows = rows;
-                        apply_pty_winsize(&mut session, rows, cols, overlay_mode);
+                        apply_pty_winsize(&mut session, rows, cols, overlay_mode, status_state.hud_style);
                         let _ = writer_tx.send(WriterMessage::Resize { rows, cols });
                         match overlay_mode {
                             OverlayMode::Help => {
@@ -1146,20 +1331,26 @@ fn resolved_rows(cached: u16) -> u16 {
     }
 }
 
-fn reserved_rows_for_mode(mode: OverlayMode, cols: u16) -> usize {
+fn reserved_rows_for_mode(mode: OverlayMode, cols: u16, hud_style: HudStyle) -> usize {
     match mode {
-        OverlayMode::None => status_banner_height(cols as usize),
+        OverlayMode::None => status_banner_height(cols as usize, hud_style),
         OverlayMode::Help => help_overlay_height(),
         OverlayMode::ThemePicker => theme_picker_height(),
         OverlayMode::Settings => settings_overlay_height(),
     }
 }
 
-fn apply_pty_winsize(session: &mut PtyOverlaySession, rows: u16, cols: u16, mode: OverlayMode) {
+fn apply_pty_winsize(
+    session: &mut PtyOverlaySession,
+    rows: u16,
+    cols: u16,
+    mode: OverlayMode,
+    hud_style: HudStyle,
+) {
     if rows == 0 || cols == 0 {
         return;
     }
-    let reserved = reserved_rows_for_mode(mode, cols) as u16;
+    let reserved = reserved_rows_for_mode(mode, cols, hud_style) as u16;
     let pty_rows = rows.saturating_sub(reserved).max(1);
     let _ = session.set_winsize(pty_rows, cols);
 }
@@ -1169,12 +1360,13 @@ fn update_pty_winsize(
     terminal_rows: &mut u16,
     terminal_cols: &mut u16,
     mode: OverlayMode,
+    hud_style: HudStyle,
 ) {
     let rows = resolved_rows(*terminal_rows);
     let cols = resolved_cols(*terminal_cols);
     *terminal_rows = rows;
     *terminal_cols = cols;
-    apply_pty_winsize(session, rows, cols, mode);
+    apply_pty_winsize(session, rows, cols, mode, hud_style);
 }
 
 fn show_settings_overlay(
@@ -1192,6 +1384,9 @@ fn show_settings_overlay(
         send_mode: config.voice_send_mode,
         sensitivity_db: status_state.sensitivity_db,
         theme,
+        hud_style: status_state.hud_style,
+        hud_right_panel: config.hud_right_panel,
+        hud_right_panel_recording_only: config.hud_right_panel_recording_only,
         backend_label,
         pipeline: status_state.pipeline,
     };
@@ -1339,6 +1534,97 @@ fn adjust_sensitivity(
         status_state,
         &msg,
         Some(Duration::from_secs(3)),
+    );
+}
+
+fn cycle_hud_right_panel(current: HudRightPanel, direction: i32) -> HudRightPanel {
+    const OPTIONS: &[HudRightPanel] = &[
+        HudRightPanel::Ribbon,
+        HudRightPanel::Dots,
+        HudRightPanel::Chips,
+        HudRightPanel::Off,
+    ];
+    let len = OPTIONS.len() as i32;
+    let idx = OPTIONS
+        .iter()
+        .position(|panel| *panel == current)
+        .unwrap_or(0) as i32;
+    let next = (idx + direction).rem_euclid(len) as usize;
+    OPTIONS[next]
+}
+
+fn update_hud_panel(
+    config: &mut OverlayConfig,
+    status_state: &mut StatusLineState,
+    writer_tx: &Sender<WriterMessage>,
+    status_clear_deadline: &mut Option<Instant>,
+    current_status: &mut Option<String>,
+    direction: i32,
+) {
+    config.hud_right_panel = cycle_hud_right_panel(config.hud_right_panel, direction);
+    status_state.hud_right_panel = config.hud_right_panel;
+    let label = format!("HUD right panel: {}", config.hud_right_panel);
+    set_status(
+        writer_tx,
+        status_clear_deadline,
+        current_status,
+        status_state,
+        &label,
+        Some(Duration::from_secs(2)),
+    );
+}
+
+fn cycle_hud_style(current: HudStyle, direction: i32) -> HudStyle {
+    const OPTIONS: &[HudStyle] = &[HudStyle::Full, HudStyle::Minimal, HudStyle::Hidden];
+    let len = OPTIONS.len() as i32;
+    let idx = OPTIONS
+        .iter()
+        .position(|style| *style == current)
+        .unwrap_or(0) as i32;
+    let next = (idx + direction).rem_euclid(len) as usize;
+    OPTIONS[next]
+}
+
+fn update_hud_style(
+    status_state: &mut StatusLineState,
+    writer_tx: &Sender<WriterMessage>,
+    status_clear_deadline: &mut Option<Instant>,
+    current_status: &mut Option<String>,
+    direction: i32,
+) {
+    status_state.hud_style = cycle_hud_style(status_state.hud_style, direction);
+    let label = format!("HUD style: {}", status_state.hud_style);
+    set_status(
+        writer_tx,
+        status_clear_deadline,
+        current_status,
+        status_state,
+        &label,
+        Some(Duration::from_secs(2)),
+    );
+}
+
+fn toggle_hud_panel_recording_only(
+    config: &mut OverlayConfig,
+    status_state: &mut StatusLineState,
+    writer_tx: &Sender<WriterMessage>,
+    status_clear_deadline: &mut Option<Instant>,
+    current_status: &mut Option<String>,
+) {
+    config.hud_right_panel_recording_only = !config.hud_right_panel_recording_only;
+    status_state.hud_right_panel_recording_only = config.hud_right_panel_recording_only;
+    let label = if config.hud_right_panel_recording_only {
+        "HUD right panel: recording-only"
+    } else {
+        "HUD right panel: always on"
+    };
+    set_status(
+        writer_tx,
+        status_clear_deadline,
+        current_status,
+        status_state,
+        label,
+        Some(Duration::from_secs(2)),
     );
 }
 

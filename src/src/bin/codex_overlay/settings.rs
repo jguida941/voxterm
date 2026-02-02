@@ -1,6 +1,6 @@
 //! Settings overlay with arrow-key navigation.
 
-use crate::config::VoiceSendMode;
+use crate::config::{HudRightPanel, HudStyle, VoiceSendMode};
 use crate::status_line::Pipeline;
 use crate::theme::{Theme, ThemeColors};
 
@@ -10,6 +10,9 @@ pub enum SettingsItem {
     SendMode,
     Sensitivity,
     Theme,
+    HudStyle,
+    HudPanel,
+    HudAnimate,
     Backend,
     Pipeline,
     Close,
@@ -21,6 +24,9 @@ pub const SETTINGS_ITEMS: &[SettingsItem] = &[
     SettingsItem::SendMode,
     SettingsItem::Sensitivity,
     SettingsItem::Theme,
+    SettingsItem::HudStyle,
+    SettingsItem::HudPanel,
+    SettingsItem::HudAnimate,
     SettingsItem::Backend,
     SettingsItem::Pipeline,
     SettingsItem::Close,
@@ -66,6 +72,9 @@ pub struct SettingsView<'a> {
     pub send_mode: VoiceSendMode,
     pub sensitivity_db: f32,
     pub theme: Theme,
+    pub hud_style: HudStyle,
+    pub hud_right_panel: HudRightPanel,
+    pub hud_right_panel_recording_only: bool,
     pub backend_label: &'a str,
     pub pipeline: Pipeline,
 }
@@ -144,6 +153,24 @@ fn format_settings_row(
             button_label(&view.theme.to_string()),
             width = LABEL_WIDTH
         ),
+        SettingsItem::HudStyle => format!(
+            "{marker} {:<width$} {}",
+            "HUD style",
+            hud_style_button(view.hud_style),
+            width = LABEL_WIDTH
+        ),
+        SettingsItem::HudPanel => format!(
+            "{marker} {:<width$} {}",
+            "Right panel",
+            hud_panel_button(view.hud_right_panel),
+            width = LABEL_WIDTH
+        ),
+        SettingsItem::HudAnimate => format!(
+            "{marker} {:<width$} {}",
+            "Anim only",
+            toggle_button(view.hud_right_panel_recording_only),
+            width = LABEL_WIDTH
+        ),
         SettingsItem::Backend => format!(
             "{marker} {:<width$} {}",
             "Backend",
@@ -182,6 +209,23 @@ fn mode_button(mode: VoiceSendMode) -> String {
     match mode {
         VoiceSendMode::Auto => button_label("Auto"),
         VoiceSendMode::Insert => button_label("Insert"),
+    }
+}
+
+fn hud_panel_button(panel: HudRightPanel) -> String {
+    match panel {
+        HudRightPanel::Off => button_label("Off"),
+        HudRightPanel::Ribbon => button_label("Ribbon"),
+        HudRightPanel::Dots => button_label("Dots"),
+        HudRightPanel::Chips => button_label("Chips"),
+    }
+}
+
+fn hud_style_button(style: HudStyle) -> String {
+    match style {
+        HudStyle::Full => button_label("Full"),
+        HudStyle::Minimal => button_label("Minimal"),
+        HudStyle::Hidden => button_label("Hidden"),
     }
 }
 

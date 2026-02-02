@@ -39,6 +39,10 @@ pub const SHORTCUTS: &[Shortcut] = &[
         description: "Settings menu (use arrows)",
     },
     Shortcut {
+        key: "Ctrl+U",
+        description: "Cycle HUD style (full/min/hidden)",
+    },
+    Shortcut {
         key: "Ctrl+]",
         description: "Increase mic sensitivity",
     },

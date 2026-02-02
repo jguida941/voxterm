@@ -119,10 +119,22 @@ GitHub Actions run on every push and PR:
 
 | Workflow | File | What it checks |
 |----------|------|----------------|
-| Rust TUI CI | `.github/workflows/rust_tui.yml` | Build, test, clippy, fmt |
-| Mutation Testing | `.github/workflows/mutation-testing.yml` | 80% minimum mutation score |
+| Rust TUI CI | `.github/workflows/rust_ci.yml` | Build, test, clippy, fmt |
+| Perf Smoke | `.github/workflows/perf_smoke.yml` | Perf smoke test + metrics verification |
+| Memory Guard | `.github/workflows/memory_guard.yml` | 20x memory guard loop |
+| Mutation Testing | `.github/workflows/mutation-testing.yml` | 80% minimum mutation score (scheduled) |
 
-**Before pushing, run locally:**
+**Before pushing, run locally (recommended):**
+
+```bash
+# Core CI (matches rust_ci.yml)
+make ci
+
+# Full push/PR suite (adds perf smoke + memory guard loop)
+make prepush
+```
+
+**Manual equivalents (if you prefer direct cargo commands):**
 
 ```bash
 cd src
@@ -134,7 +146,7 @@ cargo fmt
 cargo clippy --workspace --all-features -- -D warnings
 
 # Run tests
-cargo test
+cargo test --workspace --all-features
 
 # Check mutation score (optional, CI enforces this)
 cargo mutants --timeout 300 -o mutants.out
@@ -185,7 +197,7 @@ See `scripts/README.md` for full script documentation.
 ```bash
 voxterm              # Codex (default)
 voxterm --claude     # Claude Code
-voxterm --gemini     # Gemini CLI (limited support)
+voxterm --gemini     # Gemini CLI (in works; not yet supported)
 ```
 
 **Debug logging:**

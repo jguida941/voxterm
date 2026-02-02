@@ -158,7 +158,7 @@ It samples ambient noise and your speech, then suggests a threshold.
 
 ## Codex Issues
 
-If you're using `--backend` with a different AI CLI, substitute that CLI's command wherever you see `codex` below.
+If you're using Claude Code, substitute `claude` wherever you see `codex` below.
 
 ### Codex not responding
 
@@ -178,7 +178,7 @@ If you're using `--backend` with a different AI CLI, substitute that CLI's comma
 
 ### Auto-voice not triggering
 
-Auto-voice waits for the CLI to show a prompt before listening. If detection fails (especially on non-Codex backends):
+Auto-voice waits for the CLI to show a prompt before listening. If detection fails (especially on Claude with a custom prompt):
 
 #### Override prompt detection
 
@@ -279,10 +279,9 @@ Full list: [Whisper supported languages](https://github.com/openai/whisper#avail
 |---------|---------|-----|--------|
 | Codex | `npm install -g @openai/codex` | `voxterm` | Tested |
 | Claude Code | `curl -fsSL https://claude.ai/install.sh \| bash` | `voxterm --claude` | Tested |
-| Gemini CLI | `npm install -g @google/gemini-cli` | `voxterm --gemini` | Not yet supported |
-| Custom | - | `voxterm --backend "cmd"` | Any CLI |
+| Gemini CLI | `npm install -g @google/gemini-cli` | `voxterm --gemini` | In works (not yet supported) |
 
-**Gemini CLI:** Not currently supported due to UI conflicts. We're actively working on adding support.
+**Gemini CLI:** Not currently supported due to UI conflicts and a different spawn model. It's in the backlog.
 
 ### Which Whisper model should I use?
 
@@ -296,10 +295,9 @@ voxterm --whisper-model base
 
 ### Can I use VoxTerm without Codex?
 
-Yes. Use `--backend` with any CLI:
+Yes. Use Claude Code:
 ```bash
-voxterm --backend claude
-voxterm --backend "my-custom-cli --flag"
+voxterm --claude
 ```
 
 ### Does VoxTerm send my voice to the cloud?

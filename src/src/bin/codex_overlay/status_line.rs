@@ -6,7 +6,7 @@
 //! Now supports a multi-row banner layout with themed borders.
 
 use crate::audio_meter::format_waveform;
-use crate::config::VoiceSendMode;
+use crate::config::{HudRightPanel, HudStyle, VoiceSendMode};
 use crate::hud::{HudRegistry, HudState, LatencyModule, MeterModule, Mode as HudMode, QueueModule};
 use crate::status_style::StatusType;
 use crate::theme::{BorderSet, Theme, ThemeColors};
@@ -104,6 +104,12 @@ pub struct StatusLineState {
     pub last_latency_ms: Option<u32>,
     /// Current voice send mode
     pub send_mode: VoiceSendMode,
+    /// Right-side HUD panel mode
+    pub hud_right_panel: HudRightPanel,
+    /// Only animate the right-side panel while recording
+    pub hud_right_panel_recording_only: bool,
+    /// HUD display style (Full, Minimal, Hidden)
+    pub hud_style: HudStyle,
 }
 
 impl StatusLineState {
@@ -120,6 +126,7 @@ const SHORTCUTS: &[(&str, &str)] = &[
     ("Ctrl+R", "rec"),
     ("Ctrl+V", "auto"),
     ("Ctrl+T", "send"),
+    ("Ctrl+U", "hud"),
     ("Ctrl+O", "settings"),
     ("?", "help"),
     ("Ctrl+Y", "theme"),
@@ -130,6 +137,7 @@ const SHORTCUTS_COMPACT: &[(&str, &str)] = &[
     ("^R", "rec"),
     ("^V", "auto"),
     ("^T", "send"),
+    ("^U", "hud"),
     ("^O", "settings"),
     ("?", "help"),
     ("^Y", "theme"),
@@ -163,44 +171,145 @@ mod breakpoints {
     pub const MINIMAL: usize = 25;
 }
 
-/// Return the number of rows used by the status banner for a given width.
-pub fn status_banner_height(width: usize) -> usize {
-    if width < breakpoints::COMPACT {
-        1
-    } else {
-        4
+/// Return the number of rows used by the status banner for a given width and HUD style.
+pub fn status_banner_height(width: usize, hud_style: HudStyle) -> usize {
+    match hud_style {
+        HudStyle::Hidden => 1, // Reserve a row to avoid overlaying CLI output
+        HudStyle::Minimal => 1, // Single line
+        HudStyle::Full => {
+            if width < breakpoints::COMPACT {
+                1
+            } else {
+                4
+            }
+        }
     }
+}
+
+/// Format minimal HUD text - single-line strip with indicator + status.
+///
+/// Examples:
+/// - `◉ AUTO · Ready`
+/// - `○ MANUAL · Ready`
+/// - `● REC · -55dB`
+/// - `◐ PROC`
+fn format_minimal_strip(state: &StatusLineState, colors: &ThemeColors, width: usize) -> String {
+    if width == 0 {
+        return String::new();
+    }
+
+    let (indicator, label, color) = match state.recording_state {
+        RecordingState::Recording => ("●", "REC", colors.recording),
+        RecordingState::Processing => ("◐", "PROC", colors.processing),
+        RecordingState::Idle => match state.voice_mode {
+            VoiceMode::Auto => ("◉", "AUTO", colors.info),
+            VoiceMode::Manual => ("○", "MANUAL", colors.dim),
+            VoiceMode::Idle => ("○", "IDLE", colors.dim),
+        },
+    };
+
+    let mut line = if color.is_empty() {
+        format!("{indicator} {label}")
+    } else {
+        format!("{}{} {}{}", color, indicator, label, colors.reset)
+    };
+
+    match state.recording_state {
+        RecordingState::Recording => {
+            if let Some(db) = state.meter_db {
+                line.push(' ');
+                line.push_str(colors.dim);
+                line.push('·');
+                line.push_str(colors.reset);
+                line.push(' ');
+                line.push_str(colors.info);
+                line.push_str(&format!("{:>3.0}dB", db));
+                line.push_str(colors.reset);
+            }
+        }
+        RecordingState::Processing => {}
+        RecordingState::Idle => {
+            let status_text = if state.message.is_empty() {
+                "Ready"
+            } else {
+                state.message.as_str()
+            };
+            let status_color = if state.message.is_empty() {
+                colors.dim
+            } else {
+                StatusType::from_message(status_text).color(colors)
+            };
+            let status = if status_color.is_empty() {
+                status_text.to_string()
+            } else {
+                format!("{}{}{}", status_color, status_text, colors.reset)
+            };
+            if !status.is_empty() {
+                line.push(' ');
+                line.push_str(colors.dim);
+                line.push('·');
+                line.push_str(colors.reset);
+                line.push(' ');
+                line.push_str(&status);
+            }
+        }
+    }
+
+    truncate_display(&line, width)
 }
 
 /// Format the status as a multi-row banner with themed borders.
 ///
-/// Layout (4 rows):
+/// Layout (4 rows for Full mode):
 /// ```text
 /// ╭──────────────────────────────────────────────────── VoxTerm ─╮
 /// │ ● AUTO │ Rust │ ▁▂▃▅▆▇█▅  -51dB  Status message here          │
 /// │ ^R rec  ^V auto  ^T send  ? help  ^Y theme                   │
 /// ╰──────────────────────────────────────────────────────────────╯
 /// ```
+///
+/// Minimal mode: Single-line strip with indicator + status (e.g., "◉ AUTO · Ready")
+/// Hidden mode: Blank row unless recording (shows "REC" while recording)
 pub fn format_status_banner(state: &StatusLineState, theme: Theme, width: usize) -> StatusBanner {
     let colors = theme.colors();
     let borders = &colors.borders;
 
-    // For very narrow terminals, fall back to simple single-line
-    if width < breakpoints::COMPACT {
-        let line = format_status_line(state, theme, width);
-        return StatusBanner::new(vec![line]);
+    // Handle HUD style
+    match state.hud_style {
+        HudStyle::Hidden => {
+            // Reserve a blank row when idle; show minimal indicator only when active
+            if state.recording_state == RecordingState::Recording
+                || state.recording_state == RecordingState::Processing
+            {
+                let line = format_minimal_strip(state, &colors, width);
+                StatusBanner::new(vec![line])
+            } else {
+                StatusBanner::new(vec![String::new()])
+            }
+        }
+        HudStyle::Minimal => {
+            let line = format_minimal_strip(state, &colors, width);
+            StatusBanner::new(vec![line])
+        }
+        HudStyle::Full => {
+            // For very narrow terminals, fall back to simple single-line
+            if width < breakpoints::COMPACT {
+                let line = format_status_line(state, theme, width);
+                return StatusBanner::new(vec![line]);
+            }
+
+            let inner_width = width.saturating_sub(2); // Account for left/right borders
+
+            let lines = vec![
+                format_top_border(&colors, borders, width),
+                format_main_row(state, &colors, borders, theme, inner_width),
+                format_shortcuts_row(state, &colors, borders, inner_width),
+                format_bottom_border(&colors, borders, width),
+            ];
+
+            StatusBanner::new(lines)
+        }
     }
-
-    let inner_width = width.saturating_sub(2); // Account for left/right borders
-
-    let lines = vec![
-        format_top_border(&colors, borders, width),
-        format_main_row(state, &colors, borders, theme, inner_width),
-        format_shortcuts_row(state, &colors, borders, inner_width),
-        format_bottom_border(&colors, borders, width),
-    ];
-
-    StatusBanner::new(lines)
 }
 
 /// Format the top border with VoxTerm badge.
@@ -303,27 +412,155 @@ fn format_main_row(
     let content = sections.join(&sep);
 
     let content_width = display_width(&content);
-    let message_available = inner_width.saturating_sub(content_width + 1);
+    let right_panel = format_right_panel(
+        state,
+        colors,
+        theme,
+        inner_width.saturating_sub(content_width + 1),
+    );
+    let right_width = display_width(&right_panel);
+    let message_available = inner_width.saturating_sub(content_width + right_width);
     let truncated_message = truncate_display(&message_section, message_available);
 
     let interior = format!("{content}{truncated_message}");
     let message_width = display_width(&truncated_message);
 
-    // Padding to fill the row
-    let padding_needed = inner_width.saturating_sub(content_width + message_width);
+    // Padding to fill the row (leave room for right panel)
+    let padding_needed = inner_width.saturating_sub(content_width + message_width + right_width);
     let padding = " ".repeat(padding_needed);
 
     // No background colors - use transparent backgrounds for terminal compatibility
     format!(
-        "{}{}{}{}{}{}{}{}",
+        "{}{}{}{}{}{}{}{}{}",
         colors.border,
         borders.vertical,
         colors.reset,
         interior,
         padding,
+        right_panel,
         colors.border,
         borders.vertical,
         colors.reset,
+    )
+}
+
+fn format_right_panel(
+    state: &StatusLineState,
+    colors: &ThemeColors,
+    theme: Theme,
+    max_width: usize,
+) -> String {
+    if max_width < 4 {
+        return String::new();
+    }
+
+    let mode = state.hud_right_panel;
+    if mode == HudRightPanel::Off {
+        return String::new();
+    }
+
+    let recording_active = state.recording_state == RecordingState::Recording;
+    let processing_active = state.recording_state == RecordingState::Processing;
+    let allow_idle = !state.hud_right_panel_recording_only;
+
+    let panel = match mode {
+        HudRightPanel::Ribbon => {
+            if !recording_active && !allow_idle {
+                String::new()
+            } else {
+                let width = 8.min(max_width.saturating_sub(3));
+                let waveform = if recording_active && !state.meter_levels.is_empty() {
+                    format_waveform(&state.meter_levels, width.max(3), theme)
+                } else {
+                    " ".repeat(width.max(3))
+                };
+                format!("{}[{}{}]{}", colors.dim, waveform, colors.dim, colors.reset)
+            }
+        }
+        HudRightPanel::Dots => {
+            if !recording_active && !allow_idle {
+                String::new()
+            } else {
+                let active = if recording_active {
+                    state.meter_db.unwrap_or(-60.0)
+                } else {
+                    -60.0
+                };
+                format_pulse_dots(active, colors)
+            }
+        }
+        HudRightPanel::Chips => {
+            format_state_chips(state, colors, recording_active, processing_active)
+        }
+        HudRightPanel::Off => String::new(),
+    };
+
+    if panel.is_empty() {
+        return String::new();
+    }
+
+    let with_pad = format!(" {}", panel);
+    truncate_display(&with_pad, max_width)
+}
+
+fn format_pulse_dots(level_db: f32, colors: &ThemeColors) -> String {
+    let normalized = ((level_db + 60.0) / 60.0).clamp(0.0, 1.0);
+    let active = (normalized * 5.0).round() as usize;
+    let mut dots = String::new();
+    for idx in 0..5 {
+        if idx < active {
+            let color = if normalized < 0.6 {
+                colors.success
+            } else if normalized < 0.85 {
+                colors.warning
+            } else {
+                colors.error
+            };
+            dots.push_str(color);
+            dots.push('•');
+            dots.push_str(colors.reset);
+        } else {
+            dots.push_str(colors.dim);
+            dots.push('·');
+            dots.push_str(colors.reset);
+        }
+    }
+    format!("{}[{}{}]{}", colors.dim, dots, colors.dim, colors.reset)
+}
+
+fn format_state_chips(
+    state: &StatusLineState,
+    colors: &ThemeColors,
+    recording_active: bool,
+    processing_active: bool,
+) -> String {
+    let mut parts = Vec::new();
+    if recording_active {
+        parts.push(format_chip("REC", colors.recording, colors));
+    } else if processing_active {
+        parts.push(format_chip("PROC", colors.processing, colors));
+    }
+    if state.queue_depth > 0 {
+        parts.push(format_chip(
+            &format!("Q{}", state.queue_depth),
+            colors.warning,
+            colors,
+        ));
+    }
+    if state.auto_voice_enabled {
+        parts.push(format_chip("AUTO", colors.info, colors));
+    }
+    if parts.is_empty() {
+        String::new()
+    } else {
+        parts.join(" ")
+    }
+}
+
+fn format_chip(label: &str, accent: &str, colors: &ThemeColors) -> String {
+    format!(
+        "{}[{}{}{}]{}",
+        colors.dim, accent, label, colors.dim, colors.reset
     )
 }
 
@@ -396,21 +633,29 @@ fn format_button_row(state: &StatusLineState, colors: &ThemeColors, inner_width:
 
     // [^V auto/ptt] - blue when auto-voice, dim when ptt
     let (voice_label, voice_color) = if state.auto_voice_enabled {
-        ("auto", colors.info)  // blue = auto-voice on
+        ("auto", colors.info) // blue = auto-voice on
     } else {
-        ("ptt", "")  // dim = push-to-talk mode
+        ("ptt", "") // dim = push-to-talk mode
     };
-    items.push(format_shortcut_colored(colors, "^V", voice_label, voice_color));
+    items.push(format_shortcut_colored(
+        colors,
+        "^V",
+        voice_label,
+        voice_color,
+    ));
 
     // [^T auto/insert] - green when auto-send, yellow when insert
     let (send_label, send_color) = match state.send_mode {
-        VoiceSendMode::Auto => ("auto", colors.success),    // green = auto-send
+        VoiceSendMode::Auto => ("auto", colors.success), // green = auto-send
         VoiceSendMode::Insert => ("insert", colors.warning), // yellow = insert mode
     };
-    items.push(format_shortcut_colored(colors, "^T", send_label, send_color));
+    items.push(format_shortcut_colored(
+        colors, "^T", send_label, send_color,
+    ));
 
     // Static shortcuts - always dim
     items.push(format_shortcut_colored(colors, "^O", "set", ""));
+    items.push(format_shortcut_colored(colors, "^U", "hud", ""));
     items.push(format_shortcut_colored(colors, "?", "help", ""));
     items.push(format_shortcut_colored(colors, "^Y", "theme", ""));
 
@@ -427,8 +672,13 @@ fn format_button_row(state: &StatusLineState, colors: &ThemeColors, inner_width:
         return row;
     }
 
-    // Compact: remove theme
-    let mut compact: Vec<String> = items[..5].to_vec();
+    // Compact: keep essentials (rec/auto/send/settings/help)
+    let mut compact = Vec::new();
+    compact.push(items[0].clone());
+    compact.push(items[1].clone());
+    compact.push(items[2].clone());
+    compact.push(items[3].clone());
+    compact.push(items[5].clone());
     if state.queue_depth > 0 {
         compact.push(format!(
             "{}Q:{}{}",
@@ -439,7 +689,12 @@ fn format_button_row(state: &StatusLineState, colors: &ThemeColors, inner_width:
 }
 
 /// Format a shortcut - dim brackets/key, only label gets color when active.
-fn format_shortcut_colored(colors: &ThemeColors, key: &str, label: &str, highlight: &str) -> String {
+fn format_shortcut_colored(
+    colors: &ThemeColors,
+    key: &str,
+    label: &str,
+    highlight: &str,
+) -> String {
     // Brackets and key always dim (subtle background)
     // Only label gets highlight color when active
     let label_colored = if highlight.is_empty() {
@@ -447,10 +702,7 @@ fn format_shortcut_colored(colors: &ThemeColors, key: &str, label: &str, highlig
     } else {
         format!("{}{}{}", highlight, label, colors.reset)
     };
-    format!(
-        "{}[{} {}]{}",
-        colors.dim, key, label_colored, colors.reset
-    )
+    format!("{}[{} {}]{}", colors.dim, key, label_colored, colors.reset)
 }
 
 /// Format the bottom border.
@@ -1000,5 +1252,84 @@ mod tests {
         let line = format_status_line(&state, Theme::None, 65);
         // Should have some shortcut hint
         assert!(line.contains("R") || line.contains("V") || line.contains("rec"));
+    }
+
+    #[test]
+    fn status_banner_height_respects_hud_style() {
+        // Full mode: 4 rows for wide terminals
+        assert_eq!(status_banner_height(80, HudStyle::Full), 4);
+        // Full mode: 1 row for narrow terminals
+        assert_eq!(status_banner_height(30, HudStyle::Full), 1);
+
+        // Minimal mode: always 1 row
+        assert_eq!(status_banner_height(80, HudStyle::Minimal), 1);
+        assert_eq!(status_banner_height(30, HudStyle::Minimal), 1);
+
+        // Hidden mode: reserve 1 row (blank when idle)
+        assert_eq!(status_banner_height(80, HudStyle::Hidden), 1);
+        assert_eq!(status_banner_height(30, HudStyle::Hidden), 1);
+    }
+
+    #[test]
+    fn format_status_banner_minimal_mode() {
+        let mut state = StatusLineState::new();
+        state.hud_style = HudStyle::Minimal;
+        state.voice_mode = VoiceMode::Auto;
+        state.auto_voice_enabled = true;
+
+        let banner = format_status_banner(&state, Theme::None, 80);
+        // Minimal mode should produce a single-line banner
+        assert_eq!(banner.height, 1);
+        assert!(banner.lines[0].contains("AUTO"));
+    }
+
+    #[test]
+    fn format_status_banner_hidden_mode_idle() {
+        let mut state = StatusLineState::new();
+        state.hud_style = HudStyle::Hidden;
+        state.voice_mode = VoiceMode::Auto;
+        state.recording_state = RecordingState::Idle;
+
+        let banner = format_status_banner(&state, Theme::None, 80);
+        // Hidden mode when idle should reserve a blank row
+        assert_eq!(banner.height, 1);
+        assert_eq!(banner.lines.len(), 1);
+        assert!(banner.lines[0].is_empty());
+    }
+
+    #[test]
+    fn format_status_banner_hidden_mode_recording() {
+        let mut state = StatusLineState::new();
+        state.hud_style = HudStyle::Hidden;
+        state.recording_state = RecordingState::Recording;
+
+        let banner = format_status_banner(&state, Theme::None, 80);
+        // Hidden mode when recording should show minimal indicator
+        assert_eq!(banner.height, 1);
+        assert!(banner.lines[0].contains("REC"));
+    }
+
+    #[test]
+    fn format_status_banner_minimal_mode_recording() {
+        let mut state = StatusLineState::new();
+        state.hud_style = HudStyle::Minimal;
+        state.recording_state = RecordingState::Recording;
+
+        let banner = format_status_banner(&state, Theme::None, 80);
+        // Minimal mode when recording should show REC
+        assert_eq!(banner.height, 1);
+        assert!(banner.lines[0].contains("REC"));
+    }
+
+    #[test]
+    fn format_status_banner_minimal_mode_processing() {
+        let mut state = StatusLineState::new();
+        state.hud_style = HudStyle::Minimal;
+        state.recording_state = RecordingState::Processing;
+
+        let banner = format_status_banner(&state, Theme::None, 80);
+        // Minimal mode when processing should show PROC
+        assert_eq!(banner.height, 1);
+        assert!(banner.lines[0].contains("PROC"));
     }
 }

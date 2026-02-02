@@ -145,6 +145,10 @@ pub enum Theme {
     /// Default coral/red theme (matches existing TUI)
     #[default]
     Coral,
+    /// Claude warm neutral theme (Anthropic-inspired)
+    Claude,
+    /// Codex cool blue theme (neutral, OpenAI-style)
+    Codex,
     /// Catppuccin Mocha - pastel dark theme
     Catppuccin,
     /// Dracula - high contrast dark theme
@@ -162,6 +166,8 @@ impl Theme {
     pub fn from_name(name: &str) -> Option<Self> {
         match name.to_lowercase().as_str() {
             "coral" | "default" => Some(Self::Coral),
+            "claude" | "anthropic" => Some(Self::Claude),
+            "codex" => Some(Self::Codex),
             "catppuccin" | "mocha" => Some(Self::Catppuccin),
             "dracula" => Some(Self::Dracula),
             "nord" => Some(Self::Nord),
@@ -175,6 +181,8 @@ impl Theme {
     pub fn colors(&self) -> ThemeColors {
         let mut colors = match self {
             Self::Coral => THEME_CORAL,
+            Self::Claude => THEME_CLAUDE,
+            Self::Codex => THEME_CODEX,
             Self::Catppuccin => THEME_CATPPUCCIN,
             Self::Dracula => THEME_DRACULA,
             Self::Nord => THEME_NORD,
@@ -191,12 +199,24 @@ impl Theme {
     /// List all available theme names.
     #[allow(dead_code)]
     pub fn available() -> &'static [&'static str] {
-        &["coral", "catppuccin", "dracula", "nord", "ansi", "none"]
+        &[
+            "claude",
+            "codex",
+            "coral",
+            "catppuccin",
+            "dracula",
+            "nord",
+            "ansi",
+            "none",
+        ]
     }
 
     /// Check if this theme uses truecolor (24-bit RGB).
     pub fn is_truecolor(&self) -> bool {
-        matches!(self, Self::Catppuccin | Self::Dracula | Self::Nord)
+        matches!(
+            self,
+            Self::Claude | Self::Codex | Self::Catppuccin | Self::Dracula | Self::Nord
+        )
     }
 
     /// Get a fallback theme for terminals without truecolor support.
@@ -219,6 +239,8 @@ impl std::fmt::Display for Theme {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Coral => write!(f, "coral"),
+            Self::Claude => write!(f, "claude"),
+            Self::Codex => write!(f, "codex"),
             Self::Catppuccin => write!(f, "catppuccin"),
             Self::Dracula => write!(f, "dracula"),
             Self::Nord => write!(f, "nord"),
@@ -242,6 +264,48 @@ pub const THEME_CORAL: ThemeColors = ThemeColors {
     bg_primary: "",     // Transparent
     bg_secondary: "",   // Transparent
     border: "\x1b[91m", // Coral/red borders
+    borders: BORDER_SINGLE,
+    indicator_rec: "●",
+    indicator_auto: "◉",
+    indicator_manual: "●",
+    indicator_idle: "○",
+};
+
+/// Claude theme - warm neutrals (Anthropic-inspired palette)
+/// Uses transparent backgrounds for best compatibility across terminals
+pub const THEME_CLAUDE: ThemeColors = ThemeColors {
+    recording: "\x1b[38;2;217;119;87m",  // Orange #d97757
+    processing: "\x1b[38;2;106;155;204m", // Blue #6a9bcc
+    success: "\x1b[38;2;120;140;93m",     // Green #788c5d
+    warning: "\x1b[38;2;217;119;87m",     // Orange #d97757
+    error: "\x1b[38;2;217;119;87m",       // Orange #d97757
+    info: "\x1b[38;2;106;155;204m",       // Blue #6a9bcc
+    reset: "\x1b[0m",
+    dim: "\x1b[38;2;176;174;165m",    // Mid gray #b0aea5
+    bg_primary: "",                   // Transparent
+    bg_secondary: "",                 // Transparent
+    border: "\x1b[38;2;176;174;165m", // Mid gray #b0aea5
+    borders: BORDER_ROUNDED,
+    indicator_rec: "●",
+    indicator_auto: "◉",
+    indicator_manual: "●",
+    indicator_idle: "○",
+};
+
+/// Codex theme - cool blue neutrals (OpenAI-style, neutral)
+/// Uses transparent backgrounds for best compatibility across terminals
+pub const THEME_CODEX: ThemeColors = ThemeColors {
+    recording: "\x1b[38;2;111;177;255m",  // Blue #6fb1ff
+    processing: "\x1b[38;2;154;215;255m", // Light blue #9ad7ff
+    success: "\x1b[38;2;122;212;168m",    // Mint #7ad4a8
+    warning: "\x1b[38;2;242;201;125m",    // Amber #f2c97d
+    error: "\x1b[38;2;255;123;123m",      // Soft red #ff7b7b
+    info: "\x1b[38;2;143;200;255m",       // Sky #8fc8ff
+    reset: "\x1b[0m",
+    dim: "\x1b[38;2;122;133;153m",    // Cool gray #7a8599
+    bg_primary: "",                   // Transparent
+    bg_secondary: "",                 // Transparent
+    border: "\x1b[38;2;143;200;255m", // Sky #8fc8ff
     borders: BORDER_SINGLE,
     indicator_rec: "●",
     indicator_auto: "◉",
@@ -363,6 +427,9 @@ mod tests {
     #[test]
     fn theme_from_name_parses_valid() {
         assert_eq!(Theme::from_name("coral"), Some(Theme::Coral));
+        assert_eq!(Theme::from_name("claude"), Some(Theme::Claude));
+        assert_eq!(Theme::from_name("anthropic"), Some(Theme::Claude));
+        assert_eq!(Theme::from_name("codex"), Some(Theme::Codex));
         assert_eq!(Theme::from_name("CATPPUCCIN"), Some(Theme::Catppuccin));
         assert_eq!(Theme::from_name("Dracula"), Some(Theme::Dracula));
         assert_eq!(Theme::from_name("nord"), Some(Theme::Nord));
@@ -375,6 +442,8 @@ mod tests {
     #[test]
     fn theme_is_truecolor() {
         assert!(!Theme::Coral.is_truecolor());
+        assert!(Theme::Claude.is_truecolor());
+        assert!(Theme::Codex.is_truecolor());
         assert!(Theme::Catppuccin.is_truecolor());
         assert!(Theme::Dracula.is_truecolor());
         assert!(Theme::Nord.is_truecolor());
@@ -385,6 +454,8 @@ mod tests {
     #[test]
     fn theme_fallback_for_ansi() {
         assert_eq!(Theme::Coral.fallback_for_ansi(), Theme::Coral);
+        assert_eq!(Theme::Claude.fallback_for_ansi(), Theme::Ansi);
+        assert_eq!(Theme::Codex.fallback_for_ansi(), Theme::Ansi);
         assert_eq!(Theme::Catppuccin.fallback_for_ansi(), Theme::Ansi);
         assert_eq!(Theme::Dracula.fallback_for_ansi(), Theme::Ansi);
         assert_eq!(Theme::None.fallback_for_ansi(), Theme::None);
@@ -409,6 +480,8 @@ mod tests {
     #[test]
     fn theme_display_matches_name() {
         assert_eq!(format!("{}", Theme::Coral), "coral");
+        assert_eq!(format!("{}", Theme::Claude), "claude");
+        assert_eq!(format!("{}", Theme::Codex), "codex");
         assert_eq!(format!("{}", Theme::Catppuccin), "catppuccin");
     }
 

@@ -8,7 +8,7 @@ Get voice input for your AI CLI in under 2 minutes. Works on macOS and Linux (Wi
 npm install -g @openai/codex
 ```
 
-Or use another AI CLI: `voxterm --claude` or `voxterm --gemini`.
+Or use another AI CLI: `voxterm --claude`. (Gemini support is in works and not yet supported.)
 
 ## 2) Install VoxTerm
 
@@ -36,12 +36,15 @@ cd ~/my-project
 voxterm
 ```
 
-First run downloads a Whisper model if missing.
+First run downloads a Whisper model if missing. To pick a size, use
+`./scripts/install.sh --small` or `./scripts/setup.sh models --medium`.
 
-To target another AI CLI instead of Codex, pass `--backend`:
+Codex is the default backend; `voxterm --codex` is optional if you want to be explicit.
+
+To target Claude instead of Codex:
 
 ```bash
-voxterm --backend claude
+voxterm --claude
 ```
 
 ## 4) Essential controls

@@ -22,8 +22,9 @@ All flags for the `voxterm` command. Run `voxterm --help` for the live output.
 Most common flags:
 
 ```bash
+voxterm --codex                   # Use Codex (default)
 voxterm --claude                  # Use Claude Code
-voxterm --gemini                  # Use Gemini CLI
+voxterm --gemini                  # Gemini CLI (in works; not yet supported)
 voxterm --auto-voice              # Hands-free mode
 voxterm --theme dracula           # Change theme
 voxterm --voice-vad-threshold-db -50  # Adjust mic sensitivity
@@ -50,8 +51,8 @@ voxterm --logs                    # Enable debug logging
 |------|---------|---------|
 | `--codex` | Use Codex CLI (shorthand) | - |
 | `--claude` | Use Claude Code (shorthand) | - |
-| `--gemini` | Use Gemini CLI (shorthand) | - |
-| `--backend <NAME\|CMD>` | AI CLI: preset name or custom command | codex |
+| `--gemini` | Gemini CLI (in works; not yet supported) | - |
+| `--backend <NAME>` | Backend preset: `codex` or `claude` (Gemini in works) | codex |
 | `--prompt-regex <REGEX>` | Override prompt detection pattern | auto-learned |
 | `--prompt-log <PATH>` | Log detected prompts to file (debugging) | disabled |
 | `--codex-cmd <PATH>` | Path to Codex binary | codex |
@@ -59,10 +60,12 @@ voxterm --logs                    # Enable debug logging
 
 **Examples:**
 ```bash
+voxterm --codex               # Use Codex (default)
 voxterm --claude              # Use Claude Code
-voxterm --gemini              # Use Gemini CLI
-voxterm --backend "my-cli"    # Custom CLI
+voxterm --gemini              # Gemini CLI (in works; not yet supported)
 ```
+
+**Note:** Gemini CLI support is in works and not yet supported.
 
 ---
 
@@ -115,9 +118,20 @@ voxterm --backend "my-cli"    # Custom CLI
 
 | Flag | Purpose | Default |
 |------|---------|---------|
-| `--theme <NAME>` | Theme: `coral`, `catppuccin`, `dracula`, `nord`, `ansi`, `none` | coral |
+| `--theme <NAME>` | Theme: `coral`, `claude`, `codex`, `catppuccin`, `dracula`, `nord`, `ansi`, `none` | backend default |
 | `--no-color` | Disable all colors | off |
+| `--hud-style <MODE>` | HUD display style: `full`, `minimal`, `hidden` | full |
+| `--minimal-hud` | Shorthand for `--hud-style minimal` | off |
+| `--hud-right-panel <MODE>` | Right-side HUD panel: `off`, `ribbon`, `dots`, `chips` | ribbon |
+| `--hud-right-panel-recording-only` | Only animate right panel while recording | on |
 | `--term <TERM>` | TERM value for the CLI | inherited |
+
+**HUD styles:**
+- `full`: 4-row banner with borders, mode indicator, dB meter, and shortcuts
+- `minimal`: Single-line strip (e.g., `◉ AUTO · Ready`, `● REC · -55dB`) - unobtrusive
+- `hidden`: No HUD content when idle (keeps a blank row); shows "REC" indicator only while recording
+
+**Theme defaults:** If `--theme` is not provided, VoxTerm selects a backend-appropriate default (Claude → `claude`, Codex → `codex`, others → `coral`).
 
 ---
 

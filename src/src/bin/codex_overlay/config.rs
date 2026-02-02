@@ -13,6 +13,50 @@ pub(crate) enum VoiceSendMode {
     Insert,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum, Default)]
+pub(crate) enum HudRightPanel {
+    #[default]
+    Ribbon,
+    Dots,
+    Chips,
+    Off,
+}
+
+/// HUD display style - controls overall banner visibility.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum, Default)]
+pub(crate) enum HudStyle {
+    /// Full 4-row banner with borders and shortcuts (default)
+    #[default]
+    Full,
+    /// Single-line minimal indicator (just colored text, no borders)
+    Minimal,
+    /// Hidden unless recording
+    Hidden,
+}
+
+impl std::fmt::Display for HudStyle {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let label = match self {
+            HudStyle::Full => "Full",
+            HudStyle::Minimal => "Minimal",
+            HudStyle::Hidden => "Hidden",
+        };
+        write!(f, "{label}")
+    }
+}
+
+impl std::fmt::Display for HudRightPanel {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let label = match self {
+            HudRightPanel::Off => "Off",
+            HudRightPanel::Ribbon => "Ribbon",
+            HudRightPanel::Dots => "Dots",
+            HudRightPanel::Chips => "Chips",
+        };
+        write!(f, "{label}")
+    }
+}
+
 #[derive(Debug, Parser, Clone)]
 #[command(about = "VoxTerm", author, version)]
 pub(crate) struct OverlayConfig {
@@ -51,6 +95,22 @@ pub(crate) struct OverlayConfig {
     #[arg(long = "no-color", default_value_t = false)]
     pub(crate) no_color: bool,
 
+    /// Right-side HUD panel (off, ribbon, dots, chips)
+    #[arg(long = "hud-right-panel", value_enum, default_value_t = HudRightPanel::Ribbon)]
+    pub(crate) hud_right_panel: HudRightPanel,
+
+    /// Only animate the right-side panel while recording
+    #[arg(long = "hud-right-panel-recording-only", default_value_t = true)]
+    pub(crate) hud_right_panel_recording_only: bool,
+
+    /// HUD display style (full, minimal, hidden)
+    #[arg(long = "hud-style", value_enum, default_value_t = HudStyle::Full)]
+    pub(crate) hud_style: HudStyle,
+
+    /// Shorthand for --hud-style minimal
+    #[arg(long = "minimal-hud", default_value_t = false)]
+    pub(crate) minimal_hud: bool,
+
     /// Backend CLI to run (codex, claude, gemini, or custom command)
     ///
     /// Use a preset name or provide a custom command string.
@@ -82,8 +142,8 @@ pub(crate) struct ResolvedBackend {
 }
 
 impl OverlayConfig {
-    /// Get the resolved theme, respecting --no-color and NO_COLOR env var.
-    pub(crate) fn theme(&self) -> Theme {
+    /// Get the resolved theme, respecting --no-color/NO_COLOR and backend defaults.
+    pub(crate) fn theme_for_backend(&self, backend_label: &str) -> Theme {
         if self.no_color || std::env::var("NO_COLOR").is_ok() {
             return Theme::None;
         }
@@ -91,7 +151,7 @@ impl OverlayConfig {
             .theme_name
             .as_deref()
             .and_then(Theme::from_name)
-            .unwrap_or_default();
+            .unwrap_or_else(|| default_theme_for_backend(backend_label));
         let mode = self.color_mode();
         if !mode.supports_color() {
             Theme::None
@@ -182,6 +242,14 @@ impl OverlayConfig {
     }
 }
 
+fn default_theme_for_backend(backend_label: &str) -> Theme {
+    match backend_label.to_lowercase().as_str() {
+        "claude" => Theme::Claude,
+        "codex" => Theme::Codex,
+        _ => Theme::Coral,
+    }
+}
+
 fn split_backend_command(raw: &str) -> (String, Vec<String>) {
     let trimmed = raw.trim();
     if trimmed.is_empty() {
@@ -232,6 +300,10 @@ mod tests {
             voice_send_mode: VoiceSendMode::Auto,
             theme_name: None,
             no_color: false,
+            hud_right_panel: HudRightPanel::Ribbon,
+            hud_right_panel_recording_only: true,
+            hud_style: HudStyle::Full,
+            minimal_hud: false,
             backend: backend.to_string(),
             codex: false,
             claude: false,

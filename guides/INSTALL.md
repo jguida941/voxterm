@@ -31,6 +31,8 @@ This doc covers all install and run options, plus model setup.
 | Claude Code | `curl -fsSL https://claude.ai/install.sh \| bash` |
 | Gemini CLI | `npm install -g @google/gemini-cli` |
 
+**Gemini status:** Gemini CLI support is in works and not yet supported.
+
 **Other requirements:**
 - Rust toolchain (stable) for building from source: https://rustup.rs
 - Whisper model (GGML format) - downloaded automatically on first run
@@ -47,6 +49,13 @@ cd voxterm
 The installer builds the overlay, installs the `voxterm` wrapper, and downloads a Whisper
 model to the correct path for the CLI.
 
+To choose a model size during install:
+```bash
+./scripts/install.sh --tiny
+./scripts/install.sh --small
+./scripts/install.sh --medium
+```
+
 Run from any project:
 
 ```bash
@@ -54,10 +63,10 @@ cd ~/my-project
 voxterm
 ```
 
-To target another AI CLI, pass `--backend` (example):
+To target Claude instead of Codex:
 
 ```bash
-voxterm --backend claude
+voxterm --claude
 ```
 
 ### PATH notes

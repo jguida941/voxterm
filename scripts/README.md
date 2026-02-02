@@ -17,6 +17,11 @@ Builds VoxTerm and installs the `voxterm` command.
 ./scripts/install.sh
 ```
 
+Pick a model size during install:
+```bash
+./scripts/install.sh --small
+```
+
 ## start.sh
 
 Launches VoxTerm directly (downloads model if needed).

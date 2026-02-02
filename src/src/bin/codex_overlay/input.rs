@@ -14,6 +14,7 @@ pub(crate) enum InputEvent {
     HelpToggle,
     ThemePicker,
     SettingsToggle,
+    ToggleHudStyle,
     EnterKey,
     Exit,
 }
@@ -108,6 +109,10 @@ impl InputParser {
                 0x0f => {
                     self.flush_pending(out);
                     out.push(InputEvent::SettingsToggle);
+                }
+                0x15 => {
+                    self.flush_pending(out);
+                    out.push(InputEvent::ToggleHudStyle);
                 }
                 b'?' => {
                     self.flush_pending(out);
@@ -230,6 +235,7 @@ fn parse_csi_u_event(buffer: &[u8]) -> Option<InputEvent> {
         't' => Some(InputEvent::ToggleSendMode),
         'y' => Some(InputEvent::ThemePicker),
         'o' => Some(InputEvent::SettingsToggle),
+        'u' => Some(InputEvent::ToggleHudStyle),
         '?' => Some(InputEvent::HelpToggle),
         'q' => Some(InputEvent::Exit),
         _ => None,

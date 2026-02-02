@@ -3,6 +3,18 @@
 All notable changes to this project will be documented here, following the SDLC policy defined in `agents.md`.
 Note: Some historical entries reference internal documents that are not published in this repository.
 
+## [Unreleased]
+
+### Features
+- Add minimal mode HUD: `--hud-style minimal` or `--minimal-hud` shows a single-line strip (e.g., `◉ AUTO · Ready`, `● REC · -55dB`).
+- Add hidden mode HUD: `--hud-style hidden` keeps a blank row when idle, only shows `REC` while recording.
+- Add `Ctrl+U` hotkey to cycle HUD style (Full → Minimal → Hidden) at runtime.
+- Add Claude and Codex themes; default theme now follows backend when `--theme` is not set.
+
+### Documentation
+- Simplify backend docs to Codex + Claude, mark Gemini as in works, and remove references to other AI backends.
+- Clarify Whisper model selection in install/quick start docs and call out the optional `--codex` flag.
+
 ## [1.0.34] - 2026-02-02
 
 ### Bug Fixes
@@ -20,6 +32,7 @@ Note: Some historical entries reference internal documents that are not publishe
 - Auto-voice button shows blue when listening, dim when push-to-talk.
 - Send mode button shows green for auto-send, yellow for insert mode.
 - All button colors are theme-aware and match the current theme palette.
+- Add a right-side HUD panel (Ribbon/Dots/Chips) with a recording-only animation toggle in Settings.
 
 ## [1.0.33] - 2026-02-02
 

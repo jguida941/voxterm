@@ -1,7 +1,7 @@
 # Usage Guide
 
 This guide explains how to use VoxTerm for hands-free coding with the Codex CLI
-(or another AI CLI via `--backend`).
+or Claude Code.
 
 ![Overlay Running](https://raw.githubusercontent.com/jguida941/voxterm/master/img/hero.png)
 
@@ -26,10 +26,10 @@ This guide explains how to use VoxTerm for hands-free coding with the Codex CLI
 
 That's it! Read on for more control over how voice input works.
 
-**Backend note:** By default, `voxterm` launches the Codex CLI. To use another AI CLI:
-- `voxterm --claude` for Claude Code
-- `voxterm --gemini` for Gemini CLI
-- `voxterm --backend "custom-cli"` for any other CLI
+**Backend note:** By default, `voxterm` launches the Codex CLI. To use Claude Code:
+- `voxterm --claude`
+
+**Gemini status:** Gemini CLI support is in works and not yet supported.
 
 ---
 
@@ -57,6 +57,7 @@ All shortcuts in one place:
 | `Ctrl+T` | **Typing mode** - Switch between auto-send and insert mode |
 | `Ctrl+Y` | **Theme picker** - Choose a status line theme |
 | `Ctrl+O` | **Settings** - Open the settings menu (use ↑↓←→ + Enter) |
+| `Ctrl+U` | **HUD style** - Cycle Full → Minimal → Hidden |
 | `Ctrl+]` | **Threshold up** - Make mic less sensitive (+5 dB) |
 | `Ctrl+\` | **Threshold down** - Make mic more sensitive (-5 dB) |
 | `?` | **Help** - Show shortcut help overlay |
@@ -75,6 +76,10 @@ Press `Ctrl+O` to open the settings overlay. Navigate with **↑/↓**, adjust v
 ![Settings Menu](https://raw.githubusercontent.com/jguida941/voxterm/master/img/settings.png)
 
 The menu surfaces the most common controls (auto-voice, send mode, mic sensitivity, theme) along with backend/pipeline info.
+It also lets you configure:
+- **HUD style**: Full (default banner), Minimal (single word), or Hidden (no HUD unless recording)
+- **Right-side panel**: Off / Ribbon / Dots / Chips
+- **Anim only**: Whether the right panel animates only while recording
 
 ---
 
@@ -95,7 +100,7 @@ If auto-voice is off, press `Ctrl+R` to start recording.
 **Notes**
 - **Insert mode Enter**: press `Enter` while recording to stop early, then press `Enter` again to send.
 - **Auto-voice status**: "Auto-voice enabled" means it is waiting to listen; the mic is not recording yet.
-- **Prompt detection fallback**: if auto-voice does not start after the CLI finishes, it will fall back to an idle timer; set `--prompt-regex` if your prompt is unusual or you are using a non-Codex backend.
+- **Prompt detection fallback**: if auto-voice does not start after the CLI finishes, it will fall back to an idle timer; set `--prompt-regex` if your prompt is unusual (especially with Claude).
 - **When the CLI is busy**: transcripts queue (manual or auto) and send when the next prompt appears (status shows the queued count). If a prompt is not detected, the queue will auto-send after output has been idle for the transcript idle timeout.
 - **Python fallback**: if the Python pipeline is active, pressing `Enter` while recording cancels the capture instead of stopping early.
 
@@ -159,6 +164,7 @@ Sections (left to right):
 - Mic sensitivity in dB
 - Status message (recording adds a live waveform + dB readout)
 - Shortcut hints (on wide terminals)
+- Optional right-side panel (Ribbon / Dots / Chips) if enabled in Settings
 
 When recording/processing, the mode label includes a pipeline tag (e.g., `REC R` or `… PY`).
 
@@ -180,10 +186,31 @@ Press `Ctrl+Y` to open the theme picker:
 
 ![Theme Picker](https://raw.githubusercontent.com/jguida941/voxterm/master/img/theme-picker.png)
 
-Available themes: **coral** (default), **catppuccin**, **dracula**, **nord**, **ansi** (16-color), **none**.
+Available themes: **claude**, **codex**, **coral**, **catppuccin**, **dracula**, **nord**, **ansi** (16-color), **none**.
 
 - `voxterm --theme catppuccin` to start with a specific theme.
+- If `--theme` is not set, VoxTerm picks a backend default (Claude → `claude`, Codex → `codex`, others → `coral`).
 - `voxterm --no-color` or `NO_COLOR=1` to disable colors entirely.
+
+### HUD Styles
+
+For users who prefer less UI clutter, VoxTerm offers three HUD styles:
+
+| Style | Flag | Description |
+|-------|------|-------------|
+| **Full** | (default) | 4-row banner with borders, shortcuts, and detailed info |
+| **Minimal** | `--hud-style minimal` or `--minimal-hud` | Single-line strip (e.g., `◉ AUTO · Ready`, `● REC · -55dB`) |
+| **Hidden** | `--hud-style hidden` | Blank row when idle; shows `REC` while recording |
+
+```bash
+# Minimal HUD - just a colored mode indicator
+voxterm --minimal-hud
+
+# Hidden HUD - nothing until you record
+voxterm --hud-style hidden
+```
+
+You can also change HUD style at runtime via the settings menu (`Ctrl+O`).
 
 Preview tips:
 - When a transcript completes, a short preview snippet appears in quotes for a few seconds.
@@ -198,9 +225,6 @@ Common startup configurations:
 ```bash
 # Use Claude Code
 voxterm --claude
-
-# Use Gemini CLI
-voxterm --gemini
 
 # Fully hands-free (auto-voice + auto-send)
 voxterm --auto-voice

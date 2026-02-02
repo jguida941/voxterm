@@ -4,6 +4,12 @@ Scripts for development, testing, and releases.
 
 **Tip:** Use the Makefile for common tasks: `make help`
 
+Common pre-push checks:
+```bash
+make ci       # Core CI (fmt + clippy + tests)
+make prepush  # All push/PR checks (ci + perf smoke + memory guard)
+```
+
 ## Scripts
 
 | Script | Purpose | Usage |
