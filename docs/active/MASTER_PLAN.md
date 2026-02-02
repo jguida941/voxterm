@@ -22,9 +22,9 @@
 
 ### P0 - Reliability and UX correctness
 - [x] MP-001 Fix transcript queue flush reliability (user-reported).
-- [ ] MP-002 Stop status spam: repeated "Transcript ready (Rust pipeline)" lines.
+- [ ] MP-002 Stop status spam: repeated "Transcript ready (Rust)" lines.
 - [ ] MP-003 Investigate unexpected "Use /skills..." output in UI and confirm source.
-- [ ] MP-004 Confirm auto-voice "Listening..." stays visible while capture is active; fix if not.
+- [ ] MP-004 Confirm auto-voice recording visibility (REC tag + meter) while capture is active.
 
 ### P1 - Testing and verification
 - [ ] MP-010 Add integration tests for voice -> STT -> injection flow.
@@ -61,6 +61,7 @@
 - [ ] MP-035 Optional HUD input preview while Codex is thinking.
 - [ ] MP-036 Investigate processing delay/freeze after sending input while Codex is thinking (after queue fix).
 - [ ] MP-037 Consider making PTY output channel capacity configurable.
+- [x] MP-040 Add settings overlay with arrow-key navigation and button-style controls.
 
 ## Archive log
 - `docs/archive/2026-01-29-claudeaudit-completed.md`

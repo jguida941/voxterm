@@ -35,6 +35,10 @@ pub const SHORTCUTS: &[Shortcut] = &[
         description: "Theme picker",
     },
     Shortcut {
+        key: "Ctrl+O",
+        description: "Settings menu",
+    },
+    Shortcut {
         key: "Ctrl+]",
         description: "Increase mic sensitivity",
     },

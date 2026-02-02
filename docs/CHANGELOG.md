@@ -3,9 +3,30 @@
 All notable changes to this project will be documented here, following the SDLC policy defined in `agents.md`.
 Note: Some historical entries reference internal documents that are not published in this repository.
 
+## [1.0.31] - 2026-02-02
+
+### Bug Fixes
+- Fix theme picker border alignment where right border extended too far.
+- Fix status banner background color bleeding outside the box on themed overlays (Nord, etc.).
+- Fix top border width calculation in status banner.
+
 ## [Unreleased] - 2026-02-02
 
-- TBD
+- Fix manual hotkeys in terminals that emit CSI-u key sequences (Ctrl+R/Ctrl+V/etc).
+- Retry PTY writes on would-block errors so transcript injection is reliable under load.
+- In manual mode, send transcripts immediately instead of waiting on prompt detection.
+- Avoid auto-voice status flicker on empty captures; only surface dropped-frame notes.
+- Skip duplicate startup banners when launched from wrapper scripts.
+- Use ANSI save/restore for status redraws and improve themed banner background alignment.
+- Reserve terminal rows for the status banner/overlays so CLI output no longer overlaps the HUD.
+- Clear banner rows on every redraw to prevent stacked ghost lines after scrolling.
+- Lower the default VAD threshold to -55 dB to improve voice detection on quieter mics.
+- Suppress the auto-voice "Listening" status message so the meter display stays clean.
+- Add a settings overlay with arrow-key navigation and button-style controls.
+- Move pipeline labeling into the recording tag and shorten status labels to "Rust"/"Python".
+- Use combined ANSI/DEC cursor save/restore to keep the input cursor stable across overlays.
+- Fill the status banner background across the full row to avoid uneven tinting.
+- Make Nord theme HUD backgrounds transparent to avoid a washed-out look on dark terminals.
 
 ## [1.0.30] - 2026-02-02
 

@@ -53,6 +53,7 @@ All shortcuts in one place:
 | `Ctrl+V` | **Voice toggle** - Turn auto-voice on/off |
 | `Ctrl+T` | **Typing mode** - Switch between auto-send and insert mode |
 | `Ctrl+Y` | **Theme picker** - Choose a status line theme |
+| `Ctrl+O` | **Settings** - Open the settings menu (use ↑↓←→ + Enter) |
 | `Ctrl+]` | **Threshold up** - Make mic less sensitive (+5 dB) |
 | `Ctrl+\` | **Threshold down** - Make mic more sensitive (-5 dB) |
 | `?` | **Help** - Show shortcut help overlay |
@@ -61,6 +62,14 @@ All shortcuts in one place:
 | `Ctrl+Q` | **Quit** - Exit the overlay |
 
 **Tip**: `Ctrl+/` also works for decreasing threshold (same as `Ctrl+\`).
+
+---
+
+## Settings Menu
+
+Press `Ctrl+O` to open the settings overlay. Navigate with **↑/↓**, adjust values with **←/→**, and press **Enter** to toggle or activate the selected row. `Esc` closes the menu.
+
+The menu surfaces the most common controls (auto-voice, send mode, mic sensitivity, theme) along with backend/pipeline info.
 
 ---
 
@@ -138,27 +147,27 @@ Prints terminal capabilities, log paths, and audio device info without starting 
 The bottom of your terminal shows the current state:
 
 Example layout:
-`◉ AUTO │ Rust │ -35dB │ Auto-voice enabled   Ctrl+R rec  Ctrl+V auto`
+`◉ AUTO │ -35dB │ Auto-voice enabled   Ctrl+R rec  Ctrl+V auto`
 
 Sections (left to right):
 - Mode indicator (auto/manual/idle)
-- Pipeline (Rust or Python)
 - Mic sensitivity in dB
 - Status message (recording adds a live waveform + dB readout)
 - Shortcut hints (on wide terminals)
 
+When recording/processing, the mode label includes a pipeline tag (e.g., `REC R` or `… PY`).
+
 | Status | Meaning |
 |--------|---------|
 | `Auto-voice enabled` | Listening will start when the CLI is ready |
-| `Listening Manual Mode (Rust pipeline)` | Recording now (you pressed Ctrl+R) |
-| `Listening Auto Mode (Rust pipeline)` | Recording now (auto-triggered) |
+| `Listening Manual Mode (Rust)` | Recording now (you pressed Ctrl+R) |
 | `Processing …` | Transcribing your speech (spinner updates) |
-| `Transcript ready (Rust pipeline)` | Text sent to the CLI |
+| `Transcript ready (Rust)` | Text sent to the CLI |
 | `No speech detected` | Recording finished but no voice was heard |
 | `Transcript queued (2)` | 2 transcripts waiting for the CLI to be ready |
 | `Mic sensitivity: -35 dB` | Threshold changed |
 
-"Rust pipeline" means fast native transcription. "Python pipeline" means fallback mode (slower but more compatible).
+"Rust" means fast native transcription. "Python" means fallback mode (slower but more compatible).
 
 Theme tips:
 - `voxterm --theme catppuccin` to change the status line palette.

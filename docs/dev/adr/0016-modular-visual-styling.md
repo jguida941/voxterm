@@ -35,8 +35,8 @@ Implement a modular visual styling system with these components:
    - Respects `NO_COLOR` standard (https://no-color.org/)
 
 4. **`status_line.rs`** - Enhanced status line layout
-   - Structured format: `◉ AUTO │ Rust │ -35dB │ Ready   Ctrl+R rec`
-   - Mode indicator, pipeline, sensitivity, message, shortcuts
+   - Structured format: `◉ AUTO │ -35dB │ Ready   Ctrl+R rec`
+   - Mode indicator, pipeline tag (during recording), sensitivity, message, shortcuts
 
 ### CLI Flags
 

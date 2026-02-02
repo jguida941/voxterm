@@ -1,4 +1,4 @@
-use crate::{audio::Recorder, crash_log_path, config::AppConfig, log_file_path};
+use crate::{audio::Recorder, config::AppConfig, crash_log_path, log_file_path};
 use crossterm::terminal::size as terminal_size;
 use std::{env, fmt::Display};
 
@@ -35,10 +35,7 @@ pub fn base_doctor_report(config: &AppConfig, binary_name: &str) -> DoctorReport
     let mut report = DoctorReport::new("VoxTerm Doctor");
     report.push_kv("version", env!("CARGO_PKG_VERSION"));
     report.push_kv("binary", binary_name);
-    report.push_kv(
-        "os",
-        format!("{}/{}", env::consts::OS, env::consts::ARCH),
-    );
+    report.push_kv("os", format!("{}/{}", env::consts::OS, env::consts::ARCH));
 
     let mut validated = config.clone();
     let validation_result = validated.validate();
@@ -77,17 +74,21 @@ pub fn base_doctor_report(config: &AppConfig, binary_name: &str) -> DoctorReport
     }
     let logs_enabled = (resolved.logs || resolved.log_timings) && !resolved.no_logs;
     report.push_kv("logs", if logs_enabled { "enabled" } else { "disabled" });
-    report.push_kv("log_content", if resolved.log_content { "enabled" } else { "disabled" });
+    report.push_kv(
+        "log_content",
+        if resolved.log_content {
+            "enabled"
+        } else {
+            "disabled"
+        },
+    );
     report.push_kv("log_file", log_file_path().display());
     report.push_kv("crash_log", crash_log_path().display());
     report.push_kv("pipeline_script", resolved.pipeline_script.display());
     report.push_kv("whisper_model", &resolved.whisper_model);
     report.push_kv(
         "whisper_model_path",
-        resolved
-            .whisper_model_path
-            .as_deref()
-            .unwrap_or("unset"),
+        resolved.whisper_model_path.as_deref().unwrap_or("unset"),
     );
     report.push_kv("python_cmd", &resolved.python_cmd);
     report.push_kv("ffmpeg_cmd", &resolved.ffmpeg_cmd);

@@ -189,10 +189,7 @@ impl HudRegistry {
     /// Returns the shortest tick interval, or `None` if no modules
     /// require periodic updates.
     pub fn min_tick_interval(&self) -> Option<Duration> {
-        self.modules
-            .iter()
-            .filter_map(|m| m.tick_interval())
-            .min()
+        self.modules.iter().filter_map(|m| m.tick_interval()).min()
     }
 
     /// Iterate over all registered modules.

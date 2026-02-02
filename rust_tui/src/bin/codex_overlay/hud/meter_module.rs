@@ -209,7 +209,10 @@ mod tests {
         };
         let output = module.render(&state, 30);
         // Count waveform chars (excluding dB label)
-        let waveform_count = output.chars().filter(|c| WAVEFORM_CHARS.contains(c)).count();
+        let waveform_count = output
+            .chars()
+            .filter(|c| WAVEFORM_CHARS.contains(c))
+            .count();
         assert_eq!(waveform_count, 10);
     }
 }

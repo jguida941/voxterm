@@ -8,6 +8,9 @@ use crate::status_line::{format_status_banner, StatusBanner, StatusLineState};
 use crate::status_style::StatusType;
 use crate::theme::Theme;
 
+const SAVE_CURSOR: &[u8] = b"\x1b7\x1b[s";
+const RESTORE_CURSOR: &[u8] = b"\x1b8\x1b[u";
+
 #[derive(Debug, Clone)]
 struct OverlayPanel {
     content: String,
@@ -372,9 +375,9 @@ fn maybe_redraw_status(ctx: StatusRedraw<'_>) {
         let _ = write_overlay_panel(ctx.stdout, panel, *ctx.rows);
     } else if let Some(state) = ctx.enhanced_status.as_ref() {
         let banner = format_status_banner(state, ctx.theme, *ctx.cols as usize);
-        // Clear old banner if height changed
-        if *ctx.current_banner_height > 0 && *ctx.current_banner_height != banner.height {
-            let _ = clear_status_banner(ctx.stdout, *ctx.rows, *ctx.current_banner_height);
+        let clear_height = (*ctx.current_banner_height).max(banner.height);
+        if clear_height > 0 {
+            let _ = clear_status_banner(ctx.stdout, *ctx.rows, clear_height);
         }
         *ctx.current_banner_height = banner.height;
         let _ = write_status_banner(ctx.stdout, &banner, *ctx.rows);
@@ -409,20 +412,16 @@ fn write_status_line(
         format!("{prefix}{truncated}")
     };
     let mut sequence = Vec::new();
-    sequence.extend_from_slice(b"\x1b7");
+    sequence.extend_from_slice(SAVE_CURSOR);
     sequence.extend_from_slice(format!("\x1b[{rows};1H").as_bytes());
     sequence.extend_from_slice(b"\x1b[2K");
     sequence.extend_from_slice(formatted.as_bytes());
-    sequence.extend_from_slice(b"\x1b8");
+    sequence.extend_from_slice(RESTORE_CURSOR);
     stdout.write_all(&sequence)
 }
 
 /// Write a multi-line status banner at the bottom of the terminal.
-fn write_status_banner(
-    stdout: &mut dyn Write,
-    banner: &StatusBanner,
-    rows: u16,
-) -> io::Result<()> {
+fn write_status_banner(stdout: &mut dyn Write, banner: &StatusBanner, rows: u16) -> io::Result<()> {
     if rows == 0 || banner.height == 0 {
         return Ok(());
     }
@@ -430,7 +429,7 @@ fn write_status_banner(
     let start_row = rows.saturating_sub(height as u16).saturating_add(1);
 
     let mut sequence = Vec::new();
-    sequence.extend_from_slice(b"\x1b7"); // Save cursor
+    sequence.extend_from_slice(SAVE_CURSOR); // Save cursor
 
     for (idx, line) in banner.lines.iter().take(height).enumerate() {
         let row = start_row + idx as u16;
@@ -439,28 +438,32 @@ fn write_status_banner(
         sequence.extend_from_slice(line.as_bytes()); // Write content
     }
 
-    sequence.extend_from_slice(b"\x1b8"); // Restore cursor
+    sequence.extend_from_slice(RESTORE_CURSOR); // Restore cursor
     stdout.write_all(&sequence)
 }
 
 /// Clear a multi-line status banner.
+/// Also clears extra rows above to catch ghost content from terminal scrolling.
 fn clear_status_banner(stdout: &mut dyn Write, rows: u16, height: usize) -> io::Result<()> {
     if rows == 0 || height == 0 {
         return Ok(());
     }
-    let height = height.min(rows as usize);
-    let start_row = rows.saturating_sub(height as u16).saturating_add(1);
+    // Clear extra rows above the banner to catch ghost lines from scrolling
+    // Use a generous buffer since rapid scrolling can leave ghosts several lines up
+    let extra_rows = 4;
+    let clear_height = (height + extra_rows).min(rows as usize);
+    let start_row = rows.saturating_sub(clear_height as u16).saturating_add(1);
 
     let mut sequence = Vec::new();
-    sequence.extend_from_slice(b"\x1b7"); // Save cursor
+    sequence.extend_from_slice(SAVE_CURSOR); // Save cursor
 
-    for idx in 0..height {
+    for idx in 0..clear_height {
         let row = start_row + idx as u16;
         sequence.extend_from_slice(format!("\x1b[{row};1H").as_bytes()); // Move to row
         sequence.extend_from_slice(b"\x1b[2K"); // Clear line
     }
 
-    sequence.extend_from_slice(b"\x1b8"); // Restore cursor
+    sequence.extend_from_slice(RESTORE_CURSOR); // Restore cursor
     stdout.write_all(&sequence)
 }
 
@@ -469,10 +472,10 @@ fn clear_status_line(stdout: &mut dyn Write, rows: u16, cols: u16) -> io::Result
         return Ok(());
     }
     let mut sequence = Vec::new();
-    sequence.extend_from_slice(b"\x1b7");
+    sequence.extend_from_slice(SAVE_CURSOR);
     sequence.extend_from_slice(format!("\x1b[{rows};1H").as_bytes());
     sequence.extend_from_slice(b"\x1b[2K");
-    sequence.extend_from_slice(b"\x1b8");
+    sequence.extend_from_slice(RESTORE_CURSOR);
     stdout.write_all(&sequence)
 }
 
@@ -484,14 +487,14 @@ fn write_overlay_panel(stdout: &mut dyn Write, panel: &OverlayPanel, rows: u16) 
     let height = panel.height.min(lines.len()).min(rows as usize);
     let start_row = rows.saturating_sub(height as u16).saturating_add(1);
     let mut sequence = Vec::new();
-    sequence.extend_from_slice(b"\x1b7");
+    sequence.extend_from_slice(SAVE_CURSOR);
     for (idx, line) in lines.iter().take(height).enumerate() {
         let row = start_row + idx as u16;
         sequence.extend_from_slice(format!("\x1b[{row};1H").as_bytes());
         sequence.extend_from_slice(b"\x1b[2K");
         sequence.extend_from_slice(line.as_bytes());
     }
-    sequence.extend_from_slice(b"\x1b8");
+    sequence.extend_from_slice(RESTORE_CURSOR);
     stdout.write_all(&sequence)
 }
 
@@ -502,13 +505,13 @@ fn clear_overlay_panel(stdout: &mut dyn Write, rows: u16, height: usize) -> io::
     let height = height.min(rows as usize);
     let start_row = rows.saturating_sub(height as u16).saturating_add(1);
     let mut sequence = Vec::new();
-    sequence.extend_from_slice(b"\x1b7");
+    sequence.extend_from_slice(SAVE_CURSOR);
     for idx in 0..height {
         let row = start_row + idx as u16;
         sequence.extend_from_slice(format!("\x1b[{row};1H").as_bytes());
         sequence.extend_from_slice(b"\x1b[2K");
     }
-    sequence.extend_from_slice(b"\x1b8");
+    sequence.extend_from_slice(RESTORE_CURSOR);
     stdout.write_all(&sequence)
 }
 

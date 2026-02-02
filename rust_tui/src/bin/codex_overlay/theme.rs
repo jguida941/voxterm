@@ -224,10 +224,10 @@ pub const THEME_CORAL: ThemeColors = ThemeColors {
     error: "\x1b[91m",      // Bright red
     info: "\x1b[94m",       // Bright blue
     reset: "\x1b[0m",
-    dim: "\x1b[2m",         // Dim attribute
-    bg_primary: "",         // No background (transparent)
+    dim: "\x1b[2m",                 // Dim attribute
+    bg_primary: "",                 // No background (transparent)
     bg_secondary: "\x1b[48;5;236m", // Dark gray background
-    border: "\x1b[91m",     // Coral/red borders
+    border: "\x1b[91m",             // Coral/red borders
     borders: BORDER_SINGLE,
     indicator_rec: "●",
     indicator_auto: "◉",
@@ -245,10 +245,10 @@ pub const THEME_CATPPUCCIN: ThemeColors = ThemeColors {
     error: "\x1b[38;2;243;139;168m",      // Red #f38ba8
     info: "\x1b[38;2;137;180;250m",       // Blue #89b4fa
     reset: "\x1b[0m",
-    dim: "\x1b[38;2;108;112;134m",        // Overlay0 #6c7086
-    bg_primary: "\x1b[48;2;30;30;46m",    // Base #1e1e2e
-    bg_secondary: "\x1b[48;2;24;24;37m",  // Mantle #181825
-    border: "\x1b[38;2;180;190;254m",     // Lavender #b4befe
+    dim: "\x1b[38;2;108;112;134m",       // Overlay0 #6c7086
+    bg_primary: "\x1b[48;2;30;30;46m",   // Base #1e1e2e
+    bg_secondary: "\x1b[48;2;24;24;37m", // Mantle #181825
+    border: "\x1b[38;2;180;190;254m",    // Lavender #b4befe
     borders: BORDER_DOUBLE,
     indicator_rec: "◉",
     indicator_auto: "◈",
@@ -266,10 +266,10 @@ pub const THEME_DRACULA: ThemeColors = ThemeColors {
     error: "\x1b[38;2;255;85;85m",        // Red #ff5555
     info: "\x1b[38;2;139;233;253m",       // Cyan #8be9fd
     reset: "\x1b[0m",
-    dim: "\x1b[38;2;98;114;164m",         // Comment #6272a4
-    bg_primary: "\x1b[48;2;40;42;54m",    // Background #282a36
-    bg_secondary: "\x1b[48;2;33;34;44m",  // Current Line darker
-    border: "\x1b[38;2;189;147;249m",     // Purple #bd93f9
+    dim: "\x1b[38;2;98;114;164m",        // Comment #6272a4
+    bg_primary: "\x1b[48;2;40;42;54m",   // Background #282a36
+    bg_secondary: "\x1b[48;2;33;34;44m", // Current Line darker
+    border: "\x1b[38;2;189;147;249m",    // Purple #bd93f9
     borders: BORDER_HEAVY,
     indicator_rec: "⬤",
     indicator_auto: "⏺",
@@ -287,10 +287,10 @@ pub const THEME_NORD: ThemeColors = ThemeColors {
     error: "\x1b[38;2;191;97;106m",       // Aurora red #bf616a
     info: "\x1b[38;2;136;192;208m",       // Frost #88c0d0
     reset: "\x1b[0m",
-    dim: "\x1b[38;2;76;86;106m",          // Polar Night #4c566a
-    bg_primary: "\x1b[48;2;46;52;64m",    // Polar Night #2e3440
-    bg_secondary: "\x1b[48;2;59;66;82m",  // Polar Night #3b4252
-    border: "\x1b[38;2;136;192;208m",     // Frost #88c0d0
+    dim: "\x1b[38;2;76;86;106m",      // Polar Night #4c566a
+    bg_primary: "",                   // Transparent to avoid wash-out on dark terminals
+    bg_secondary: "",                 // Transparent to avoid wash-out on dark terminals
+    border: "\x1b[38;2;136;192;208m", // Frost #88c0d0
     borders: BORDER_ROUNDED,
     indicator_rec: "◆",
     indicator_auto: "❄",
@@ -311,7 +311,7 @@ pub const THEME_ANSI: ThemeColors = ThemeColors {
     dim: "\x1b[2m",         // Dim attribute
     bg_primary: "\x1b[40m", // Black background
     bg_secondary: "\x1b[40m",
-    border: "\x1b[37m",     // White
+    border: "\x1b[37m", // White
     borders: BORDER_SINGLE,
     indicator_rec: "*",
     indicator_auto: "@",

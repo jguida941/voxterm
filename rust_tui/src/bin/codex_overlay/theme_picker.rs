@@ -5,14 +5,14 @@
 
 use crate::theme::{Theme, ThemeColors};
 
-/// Theme options with labels and border previews.
+/// Theme options with labels and descriptions.
 pub const THEME_OPTIONS: &[(Theme, &str, &str)] = &[
-    (Theme::Coral, "coral", "─│┌ Default red accents"),
-    (Theme::Catppuccin, "catppuccin", "═║╔ Pastel elegance"),
-    (Theme::Dracula, "dracula", "━┃┏ Bold high contrast"),
-    (Theme::Nord, "nord", "─│╭ Rounded arctic blue"),
-    (Theme::Ansi, "ansi", "─│┌ 16-color compatible"),
-    (Theme::None, "none", "─│┌ No color styling"),
+    (Theme::Coral, "coral", "Default red accents"),
+    (Theme::Catppuccin, "catppuccin", "Pastel elegance"),
+    (Theme::Dracula, "dracula", "Bold high contrast"),
+    (Theme::Nord, "nord", "Rounded arctic blue"),
+    (Theme::Ansi, "ansi", "16-color compatible"),
+    (Theme::None, "none", "No color styling"),
 ];
 
 pub fn format_theme_picker(current_theme: Theme, width: usize) -> String {
@@ -28,8 +28,14 @@ pub fn format_theme_picker(current_theme: Theme, width: usize) -> String {
         colors.border, borders.top_left, top_inner, borders.top_right, colors.reset
     ));
 
-    // Title
-    lines.push(format_title_line(&colors, borders, "VoxTerm - Themes", content_width));
+    // Title - pass content_width - 2 since format_title_line adds 4 extra spaces (2 each side)
+    // This makes inside = 4 + (content_width - 2) = content_width + 2, matching border width
+    lines.push(format_title_line(
+        &colors,
+        borders,
+        "VoxTerm - Themes",
+        content_width.saturating_sub(2),
+    ));
 
     // Separator
     let sep_inner: String = std::iter::repeat_n(borders.horizontal, content_width + 2).collect();
@@ -60,12 +66,16 @@ pub fn format_theme_picker(current_theme: Theme, width: usize) -> String {
         colors.border, borders.t_left, sep_inner, borders.t_right, colors.reset
     ));
 
-    // Footer
-    lines.push(format_title_line(&colors, borders, "1-6 select • Esc close", content_width));
+    // Footer - same adjustment as title
+    lines.push(format_title_line(
+        &colors,
+        borders,
+        "1-6 select • Esc close",
+        content_width.saturating_sub(2),
+    ));
 
     // Bottom border
-    let bottom_inner: String =
-        std::iter::repeat_n(borders.horizontal, content_width + 2).collect();
+    let bottom_inner: String = std::iter::repeat_n(borders.horizontal, content_width + 2).collect();
     lines.push(format!(
         "{}{}{}{}{}",
         colors.border, borders.bottom_left, bottom_inner, borders.bottom_right, colors.reset
@@ -111,30 +121,37 @@ fn format_option_line_with_preview(
     width: usize,
 ) -> String {
     // Build the preview indicator using the theme's own indicator
-    let preview = format!(
+    let indicator = format!(
         "{}{}{}",
-        theme_colors.recording,
-        theme_colors.indicator_rec,
-        colors.reset
+        theme_colors.recording, theme_colors.indicator_rec, colors.reset
     );
 
     // Current theme marker
-    let marker = if is_current { "▶" } else { " " };
+    let marker = if is_current { ">" } else { " " };
 
-    let label = format!("{} {}. {}", marker, num, name);
-    let label_width = 16;
-    let desc_width = width.saturating_sub(label_width + 6);
-    let label_padded = format!("{:<width$}", label, width = label_width);
-    let desc_truncated: String = desc.chars().take(desc_width).collect();
-    let desc_padded = format!("{:<width$}", desc_truncated, width = desc_width);
+    // Format: "● > 1. coral       Default red accents"
+    let label = format!("{}. {}", num, name);
+
+    // Calculate widths - use fixed columns for alignment
+    // Format inside borders: space + indicator + space + marker + space + label + space + desc
+    // = 4 spaces + 1 indicator + 1 marker + 14 label + desc = 20 + desc
+    // Inside should equal content_width + 2 (to match border horizontal count)
+    // So desc = content_width - 18
+    let label_col = 14; // "1. catppuccin  " (longest name with "N. " prefix)
+    let desc_col = (width + 2).saturating_sub(6 + label_col); // 6 = 4 spaces + 1 indicator + 1 marker
+
+    let label_padded = format!("{:<width$}", label, width = label_col);
+    let desc_truncated: String = desc.chars().take(desc_col).collect();
+    let desc_padded = format!("{:<width$}", desc_truncated, width = desc_col);
 
     format!(
-        "{}{}{} {} {}{}{} {} {}{}{}",
+        "{}{}{} {} {} {}{}{} {}{}{}{}",
         colors.border,
         borders.vertical,
         colors.reset,
-        preview,
-        colors.success,
+        indicator,
+        marker,
+        colors.info,
         label_padded,
         colors.reset,
         desc_padded,
@@ -174,7 +191,7 @@ mod tests {
     fn theme_picker_shows_current_theme() {
         let output = format_theme_picker(Theme::Dracula, 60);
         // Should have marker for current theme (Dracula = option 3)
-        assert!(output.contains("▶"));
+        assert!(output.contains(">"));
         assert!(output.contains("3. dracula"));
     }
 

@@ -6,6 +6,8 @@
 
 # Save the user's current directory so voxterm works on their project
 export VOXTERM_CWD="$(pwd)"
+# Mark wrapper so the binary can skip duplicate startup banners
+export VOXTERM_WRAPPER=1
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
@@ -89,68 +91,8 @@ if [[ "$BACKEND_LABEL" == *" "* ]]; then
 fi
 BACKEND_LABEL="$(basename "$BACKEND_LABEL")"
 
-truncate() {
-    local value="$1"
-    local width="$2"
-
-    if [ "$width" -le 0 ]; then
-        printf ""
-        return
-    fi
-    if [ ${#value} -le "$width" ]; then
-        printf "%s" "$value"
-        return
-    fi
-    if [ "$width" -le 3 ]; then
-        printf "%.*s" "$width" "$value"
-        return
-    fi
-    printf "%s" "${value:0:$((width - 3))}..."
-}
-
-pad_line() {
-    local value="$1"
-    local width="$2"
-    local clipped
-    clipped="$(truncate "$value" "$width")"
-    printf "%-*s" "$width" "$clipped"
-}
-
-print_header() {
-    local max_inner=72
-    local min_inner=44
-    local inner=$((TERM_COLS - 6))
-    if [ "$inner" -gt "$max_inner" ]; then
-        inner="$max_inner"
-    fi
-    if [ "$inner" -lt "$min_inner" ]; then
-        echo ""
-        echo -e "  ${BOLD}VoxTerm${NC} ${DIM}v${VERSION}${NC}"
-        echo -e "  ${DIM}Voice HUD for AI CLIs${NC}"
-        echo -e "  ${DIM}Keys:${NC} ${BOLD}Ctrl+R${NC} record  ${DIM}|${NC} ${BOLD}Ctrl+V${NC} auto  ${DIM}|${NC} ${BOLD}?${NC} help  ${DIM}|${NC} ${BOLD}Ctrl+Q${NC} quit"
-        echo ""
-        return
-    fi
-
-    local border
-    border=$(printf '%*s' "$inner" '' | tr ' ' '─')
-    local line1 line2 line3 line4
-    line1=$(pad_line "VoxTerm v${VERSION}" "$inner")
-    line2=$(pad_line "Voice HUD for AI CLIs" "$inner")
-    line3=$(pad_line "Backend: ${BACKEND_LABEL}  ·  Theme: ${THEME_LABEL}  ·  Auto: ${AUTO_LABEL}" "$inner")
-    line4=$(pad_line "Keys: Ctrl+R record · Ctrl+V auto · ? help · Ctrl+Q quit" "$inner")
-
-    echo ""
-    echo -e "  ${CORAL}┌${border}┐${NC}"
-    echo -e "  ${CORAL}│${NC} ${BOLD}${line1}${NC} ${CORAL}│${NC}"
-    echo -e "  ${CORAL}│${NC} ${DIM}${line2}${NC} ${CORAL}│${NC}"
-    echo -e "  ${CORAL}│${NC} ${DIM}${line3}${NC} ${CORAL}│${NC}"
-    echo -e "  ${CORAL}│${NC} ${DIM}${line4}${NC} ${CORAL}│${NC}"
-    echo -e "  ${CORAL}└${border}┘${NC}"
-    echo ""
-}
-
-print_header
+# Minimal startup - Rust binary shows the full banner
+echo ""
 
 # Startup output-only mode for tests
 if [ "${VOXTERM_STARTUP_ONLY:-0}" = "1" ]; then
@@ -244,8 +186,6 @@ if [ -z "$MODEL_PATH" ]; then
 fi
 MODEL_PATH_ABS="$MODEL_PATH"
 
-echo -e "  ${DIM}Initializing...${NC}"
-echo ""
 if [ -z "$OVERLAY_BIN" ]; then
     echo -e "${RED}Overlay binary not found. Please run ./install.sh or build rust_tui.${NC}"
     exit 1

@@ -25,7 +25,7 @@ The Python fallback:
 - Uses `ffmpeg` for audio capture (more compatible across platforms)
 - Uses `whisper` CLI for transcription (pip-installable, well-tested)
 - Requires Python 3, ffmpeg, and whisper on PATH
-- Shows "Python pipeline" in status line when active
+- Shows "Python" (or `REC PY` tag while recording) in the status line when active
 
 ## Consequences
 

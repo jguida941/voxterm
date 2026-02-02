@@ -13,6 +13,7 @@ pub(crate) enum InputEvent {
     DecreaseSensitivity,
     HelpToggle,
     ThemePicker,
+    SettingsToggle,
     EnterKey,
     Exit,
 }
@@ -60,7 +61,7 @@ impl InputParser {
 
     fn consume_bytes(&mut self, bytes: &[u8], out: &mut Vec<InputEvent>) {
         for &byte in bytes {
-            if self.consume_escape(byte) {
+            if self.consume_escape(byte, out) {
                 continue;
             }
             if self.skip_lf {
@@ -104,6 +105,10 @@ impl InputParser {
                     self.flush_pending(out);
                     out.push(InputEvent::ThemePicker);
                 }
+                0x0f => {
+                    self.flush_pending(out);
+                    out.push(InputEvent::SettingsToggle);
+                }
                 b'?' => {
                     self.flush_pending(out);
                     out.push(InputEvent::HelpToggle);
@@ -120,7 +125,7 @@ impl InputParser {
         }
     }
 
-    fn consume_escape(&mut self, byte: u8) -> bool {
+    fn consume_escape(&mut self, byte: u8, out: &mut Vec<InputEvent>) -> bool {
         const MAX_CSI_LEN: usize = 32;
 
         if let Some(ref mut buffer) = self.esc_buffer {
@@ -133,8 +138,21 @@ impl InputParser {
 
             if buffer.len() >= 2 && buffer[1] == b'[' {
                 if buffer.len() >= 3 && is_csi_final(byte) {
-                    if is_csi_u_numeric(buffer) {
+                    let (is_csi_u, event) = {
+                        let is_csi_u = is_csi_u_numeric(buffer);
+                        let event = if is_csi_u {
+                            parse_csi_u_event(buffer)
+                        } else {
+                            None
+                        };
+                        (is_csi_u, event)
+                    };
+                    if is_csi_u {
                         self.esc_buffer = None;
+                        if let Some(event) = event {
+                            self.flush_pending(out);
+                            out.push(event);
+                        }
                     } else {
                         self.pending.extend_from_slice(buffer);
                         self.esc_buffer = None;
@@ -189,6 +207,49 @@ fn is_csi_u_numeric(buffer: &[u8]) -> bool {
         .all(|b| b.is_ascii_digit() || *b == b';')
 }
 
+fn parse_csi_u_event(buffer: &[u8]) -> Option<InputEvent> {
+    if buffer.len() < 4 || buffer[0] != 0x1b || buffer[1] != b'[' || *buffer.last().unwrap() != b'u'
+    {
+        return None;
+    }
+    let params = &buffer[2..buffer.len() - 1];
+    let mut parts = params.split(|b| *b == b';');
+    let code = parts.next().and_then(parse_csi_u_number)?;
+    let modifiers = parts.next().and_then(parse_csi_u_number).unwrap_or(0);
+
+    // Kitty/CSI-u modifier mask uses bit 2^2 (4) for Ctrl.
+    if modifiers & 4 == 0 {
+        return None;
+    }
+
+    let ch = std::char::from_u32(code)?;
+    let key = ch.to_ascii_lowercase();
+    match key {
+        'r' => Some(InputEvent::VoiceTrigger),
+        'v' => Some(InputEvent::ToggleAutoVoice),
+        't' => Some(InputEvent::ToggleSendMode),
+        'y' => Some(InputEvent::ThemePicker),
+        'o' => Some(InputEvent::SettingsToggle),
+        '?' => Some(InputEvent::HelpToggle),
+        'q' => Some(InputEvent::Exit),
+        _ => None,
+    }
+}
+
+fn parse_csi_u_number(bytes: &[u8]) -> Option<u32> {
+    if bytes.is_empty() {
+        return None;
+    }
+    let mut value: u32 = 0;
+    for &b in bytes {
+        if !b.is_ascii_digit() {
+            return None;
+        }
+        value = value.saturating_mul(10).saturating_add((b - b'0') as u32);
+    }
+    Some(value)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -209,7 +270,7 @@ mod tests {
     fn input_parser_maps_control_keys() {
         let mut parser = InputParser::new();
         let mut out = Vec::new();
-        parser.consume_bytes(&[0x11, 0x16, 0x14, 0x1d, 0x1c, 0x1f], &mut out);
+        parser.consume_bytes(&[0x11, 0x16, 0x14, 0x1d, 0x1c, 0x1f, 0x0f], &mut out);
         parser.flush_pending(&mut out);
         assert_eq!(
             out,
@@ -220,6 +281,7 @@ mod tests {
                 InputEvent::IncreaseSensitivity,
                 InputEvent::DecreaseSensitivity,
                 InputEvent::DecreaseSensitivity,
+                InputEvent::SettingsToggle,
             ]
         );
     }
@@ -287,5 +349,15 @@ mod tests {
         parser.flush_pending(&mut out);
         assert_eq!(out.len(), 1);
         assert_eq!(out[0], InputEvent::Bytes(b"\x1b[A".to_vec()));
+    }
+
+    #[test]
+    fn input_parser_maps_csi_u_ctrl_sequences() {
+        let mut parser = InputParser::new();
+        let mut out = Vec::new();
+        // Ctrl+R (kitty/CSI-u: ESC [ 114 ; 5 u)
+        parser.consume_bytes(b"\x1b[114;5u", &mut out);
+        parser.flush_pending(&mut out);
+        assert_eq!(out, vec![InputEvent::VoiceTrigger]);
     }
 }

@@ -1,6 +1,6 @@
 //! Enhanced status line layout with sections.
 //!
-//! Provides a structured status line with mode indicator, pipeline info,
+//! Provides a structured status line with mode indicator, pipeline tag,
 //! sensitivity level, status message, and keyboard shortcuts.
 //!
 //! Now supports a multi-row banner layout with themed borders.
@@ -10,6 +10,7 @@ use crate::hud::{HudRegistry, HudState, LatencyModule, MeterModule, Mode as HudM
 use crate::status_style::StatusType;
 use crate::theme::{BorderSet, Theme, ThemeColors};
 use std::sync::OnceLock;
+use unicode_width::UnicodeWidthChar;
 
 /// Current voice mode.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -156,6 +157,15 @@ mod breakpoints {
     pub const MINIMAL: usize = 25;
 }
 
+/// Return the number of rows used by the status banner for a given width.
+pub fn status_banner_height(width: usize) -> usize {
+    if width < breakpoints::COMPACT {
+        1
+    } else {
+        4
+    }
+}
+
 /// Format the status as a multi-row banner with themed borders.
 ///
 /// Layout (4 rows):
@@ -198,8 +208,9 @@ fn format_top_border(
     let theme_badge_len = theme_name.len();
 
     // Calculate border segments
+    // Total: top_left(1) + left_segment + theme_name + right_segment + top_right(1) = width
     let left_border_len = 2;
-    let right_border_len = width.saturating_sub(left_border_len + theme_badge_len + 1);
+    let right_border_len = width.saturating_sub(left_border_len + theme_badge_len + 2); // +2 for corners
 
     let left_segment: String = std::iter::repeat_n(borders.horizontal, left_border_len).collect();
     let right_segment: String = std::iter::repeat_n(borders.horizontal, right_border_len).collect();
@@ -220,7 +231,7 @@ fn format_top_border(
     ) + &format!("{}{}", borders.top_right, colors.reset)
 }
 
-/// Format the main status row with mode, pipeline, meter, and message.
+/// Format the main status row with mode, sensitivity, meter, and message.
 fn format_main_row(
     state: &StatusLineState,
     colors: &ThemeColors,
@@ -230,7 +241,6 @@ fn format_main_row(
 ) -> String {
     // Build content sections
     let mode_section = format_mode_indicator(state, colors);
-    let pipeline_section = format!(" {} ", state.pipeline.label());
     let sensitivity_section = format!(" {:>3.0}dB ", state.sensitivity_db);
 
     // Duration (if recording)
@@ -241,31 +251,26 @@ fn format_main_row(
     };
 
     // Waveform and meter (if recording)
-    let meter_section = if state.recording_state == RecordingState::Recording
-        && !state.meter_levels.is_empty()
-    {
-        let waveform = format_waveform(&state.meter_levels, 8, theme);
-        if let Some(db) = state.meter_db {
-            format!(" {} {}{:>4.0}dB{} ", waveform, colors.info, db, colors.reset)
+    let meter_section =
+        if state.recording_state == RecordingState::Recording && !state.meter_levels.is_empty() {
+            let waveform = format_waveform(&state.meter_levels, 8, theme);
+            if let Some(db) = state.meter_db {
+                format!(
+                    " {} {}{:>4.0}dB{} ",
+                    waveform, colors.info, db, colors.reset
+                )
+            } else {
+                format!(" {} ", waveform)
+            }
         } else {
-            format!(" {} ", waveform)
-        }
-    } else {
-        String::new()
-    };
+            String::new()
+        };
 
     // Status message with color
     let status_type = StatusType::from_message(&state.message);
     let status_color = status_type.color(colors);
     let message_section = if state.message.is_empty() {
-        if state.voice_mode == VoiceMode::Auto {
-            format!(
-                " {}Listening Auto Mode{}",
-                colors.info, colors.reset
-            )
-        } else {
-            " Ready".to_string()
-        }
+        " Ready".to_string()
     } else {
         format!(" {}{}{}", status_color, state.message, colors.reset)
     };
@@ -273,19 +278,16 @@ fn format_main_row(
     // Combine all sections
     let sep = format!("{}│{}", colors.dim, colors.reset);
     let content = format!(
-        "{}{}{}{}{}{}{}",
-        mode_section,
-        sep,
-        pipeline_section,
-        sep,
-        sensitivity_section,
-        duration_section,
-        meter_section,
+        "{}{}{}{}{}",
+        mode_section, sep, sensitivity_section, duration_section, meter_section,
     );
 
     let content_width = display_width(&content);
     let message_available = inner_width.saturating_sub(content_width + 1);
     let truncated_message = truncate_display(&message_section, message_available);
+
+    let interior = format!("{content}{truncated_message}");
+    let interior = apply_bg(interior, colors.bg_primary, colors.reset);
     let message_width = display_width(&truncated_message);
 
     // Padding to fill the row
@@ -293,31 +295,37 @@ fn format_main_row(
     let padding = " ".repeat(padding_needed);
 
     format!(
-        "{}{}{}{}{}{}{}{}{}",
-        colors.bg_primary,
+        "{}{}{}{}{}{}{}{}{}{}",
         colors.border,
         borders.vertical,
         colors.reset,
         colors.bg_primary,
-        content,
-        truncated_message,
+        interior,
         padding,
         colors.reset,
-    ) + &format!(
-        "{}{}{}",
-        colors.border, borders.vertical, colors.reset
+        colors.border,
+        borders.vertical,
+        colors.reset,
     )
 }
 
 /// Format the mode indicator with appropriate color and symbol.
 fn format_mode_indicator(state: &StatusLineState, colors: &ThemeColors) -> String {
+    let pipeline_tag = match state.pipeline {
+        Pipeline::Rust => "R",
+        Pipeline::Python => "PY",
+    };
     let (indicator, label, color) = match state.recording_state {
-        RecordingState::Recording => (colors.indicator_rec, "REC", colors.recording),
-        RecordingState::Processing => ("◐", "...", colors.processing),
+        RecordingState::Recording => (
+            colors.indicator_rec,
+            format!("REC {pipeline_tag}"),
+            colors.recording,
+        ),
+        RecordingState::Processing => ("◐", format!("... {pipeline_tag}"), colors.processing),
         RecordingState::Idle => match state.voice_mode {
-            VoiceMode::Auto => (colors.indicator_auto, "AUTO", colors.info),
-            VoiceMode::Manual => (colors.indicator_manual, "MANUAL", ""),
-            VoiceMode::Idle => (colors.indicator_idle, "IDLE", ""),
+            VoiceMode::Auto => (colors.indicator_auto, "AUTO".to_string(), colors.info),
+            VoiceMode::Manual => (colors.indicator_manual, "MANUAL".to_string(), ""),
+            VoiceMode::Idle => (colors.indicator_idle, "IDLE".to_string(), ""),
         },
     };
 
@@ -334,15 +342,15 @@ fn format_shortcuts_row(colors: &ThemeColors, borders: &BorderSet, inner_width: 
         .iter()
         .map(|(key, action)| format!("{}{}{} {}", colors.info, key, colors.reset, action))
         .collect();
-    let shortcuts_str = shortcuts.join("  ");
+    let shortcuts_str = apply_bg(shortcuts.join("  "), colors.bg_secondary, colors.reset);
 
     let shortcuts_width = display_width(&shortcuts_str);
     let padding_needed = inner_width.saturating_sub(shortcuts_width + 1);
     let padding = " ".repeat(padding_needed);
 
+    // Don't set background before left border - only between the borders
     format!(
-        "{}{}{}{}{}{}{}{}{}{}",
-        colors.bg_secondary,
+        "{}{}{}{}{}{}{}{}{}",
         colors.border,
         borders.vertical,
         colors.reset,
@@ -352,24 +360,16 @@ fn format_shortcuts_row(colors: &ThemeColors, borders: &BorderSet, inner_width: 
         shortcuts_str,
         padding,
         colors.reset,
-    ) + &format!(
-        "{}{}{}",
-        colors.border, borders.vertical, colors.reset
-    )
+    ) + &format!("{}{}{}", colors.border, borders.vertical, colors.reset)
 }
 
 /// Format the bottom border.
 fn format_bottom_border(colors: &ThemeColors, borders: &BorderSet, width: usize) -> String {
-    let inner: String =
-        std::iter::repeat_n(borders.horizontal, width.saturating_sub(2)).collect();
+    let inner: String = std::iter::repeat_n(borders.horizontal, width.saturating_sub(2)).collect();
 
     format!(
         "{}{}{}{}{}",
-        colors.border,
-        borders.bottom_left,
-        inner,
-        borders.bottom_right,
-        colors.reset
+        colors.border, borders.bottom_left, inner, borders.bottom_right, colors.reset
     )
 }
 
@@ -485,9 +485,17 @@ fn format_compact(
     theme: Theme,
     width: usize,
 ) -> String {
+    let pipeline_tag = match state.pipeline {
+        Pipeline::Rust => "R",
+        Pipeline::Python => "PY",
+    };
     let mode = match state.recording_state {
-        RecordingState::Recording => format!("{}● R{}", colors.recording, colors.reset),
-        RecordingState::Processing => format!("{}◐ ..{}", colors.processing, colors.reset),
+        RecordingState::Recording => {
+            format!("{}● {}{}", colors.recording, pipeline_tag, colors.reset)
+        }
+        RecordingState::Processing => {
+            format!("{}◐ {}{}", colors.processing, pipeline_tag, colors.reset)
+        }
         RecordingState::Idle => {
             let label = match state.voice_mode {
                 VoiceMode::Auto => "A",
@@ -550,6 +558,10 @@ fn compact_hud_registry() -> &'static HudRegistry {
 
 /// Format compact left section for medium terminals.
 fn format_left_compact(state: &StatusLineState, colors: &ThemeColors) -> String {
+    let pipeline_tag = match state.pipeline {
+        Pipeline::Rust => "R",
+        Pipeline::Python => "PY",
+    };
     let mode_indicator = match state.recording_state {
         RecordingState::Recording => format!("{}●{}", colors.recording, colors.reset),
         RecordingState::Processing => format!("{}◐{}", colors.processing, colors.reset),
@@ -568,8 +580,8 @@ fn format_left_compact(state: &StatusLineState, colors: &ThemeColors) -> String 
     };
 
     let mode_label = match state.recording_state {
-        RecordingState::Recording => "R",
-        RecordingState::Processing => "..",
+        RecordingState::Recording => pipeline_tag,
+        RecordingState::Processing => pipeline_tag,
         RecordingState::Idle => match state.voice_mode {
             VoiceMode::Auto => "A",
             VoiceMode::Manual => "M",
@@ -597,6 +609,10 @@ fn format_shortcuts_compact(colors: &ThemeColors) -> String {
 }
 
 fn format_left_section(state: &StatusLineState, colors: &ThemeColors) -> String {
+    let pipeline_tag = match state.pipeline {
+        Pipeline::Rust => "R",
+        Pipeline::Python => "PY",
+    };
     let mode_color = match state.recording_state {
         RecordingState::Recording => colors.recording,
         RecordingState::Processing => colors.processing,
@@ -616,12 +632,11 @@ fn format_left_section(state: &StatusLineState, colors: &ThemeColors) -> String 
     };
 
     let mode_label = match state.recording_state {
-        RecordingState::Recording => "REC",
-        RecordingState::Processing => "...",
-        RecordingState::Idle => state.voice_mode.label(),
+        RecordingState::Recording => format!("REC {pipeline_tag}"),
+        RecordingState::Processing => format!("... {pipeline_tag}"),
+        RecordingState::Idle => state.voice_mode.label().to_string(),
     };
 
-    let pipeline = state.pipeline.label();
     let sensitivity = format!("{:.0}dB", state.sensitivity_db);
 
     // Add recording duration if active
@@ -633,19 +648,13 @@ fn format_left_section(state: &StatusLineState, colors: &ThemeColors) -> String 
 
     if mode_color.is_empty() {
         format!(
-            "{} {} │ {} │ {}{}",
-            mode_indicator, mode_label, pipeline, sensitivity, duration_part
+            "{} {} │ {}{}",
+            mode_indicator, mode_label, sensitivity, duration_part
         )
     } else {
         format!(
-            "{}{} {}{} │ {} │ {}{}",
-            mode_color,
-            mode_indicator,
-            mode_label,
-            colors.reset,
-            pipeline,
-            sensitivity,
-            duration_part
+            "{}{} {}{} │ {}{}",
+            mode_color, mode_indicator, mode_label, colors.reset, sensitivity, duration_part
         )
     }
 }
@@ -712,7 +721,7 @@ fn format_shortcuts(colors: &ThemeColors) -> String {
 
 /// Calculate display width excluding ANSI escape codes.
 fn display_width(s: &str) -> usize {
-    let mut width = 0;
+    let mut width: usize = 0;
     let mut in_escape = false;
 
     for ch in s.chars() {
@@ -723,9 +732,7 @@ fn display_width(s: &str) -> usize {
                 in_escape = false;
             }
         } else {
-            // Most unicode chars are width 1, but some CJK are width 2
-            // For simplicity, treat all as width 1
-            width += 1;
+            width += UnicodeWidthChar::width(ch).unwrap_or(0);
         }
     }
 
@@ -739,7 +746,7 @@ fn truncate_display(s: &str, max_width: usize) -> String {
     }
 
     let mut result = String::new();
-    let mut width = 0;
+    let mut width: usize = 0;
     let mut in_escape = false;
     let mut escape_seq = String::new();
 
@@ -755,11 +762,12 @@ fn truncate_display(s: &str, max_width: usize) -> String {
                 in_escape = false;
             }
         } else {
-            if width >= max_width {
+            let ch_width = UnicodeWidthChar::width(ch).unwrap_or(0);
+            if width.saturating_add(ch_width) > max_width {
                 break;
             }
             result.push(ch);
-            width += 1;
+            width = width.saturating_add(ch_width);
         }
     }
 
@@ -769,6 +777,17 @@ fn truncate_display(s: &str, max_width: usize) -> String {
     }
 
     result
+}
+
+fn apply_bg(mut text: String, bg: &str, reset: &str) -> String {
+    if bg.is_empty() || reset.is_empty() {
+        return text;
+    }
+    let reset_bg = format!("{reset}{bg}");
+    if text.contains(reset) {
+        text = text.replace(reset, &reset_bg);
+    }
+    text
 }
 
 #[cfg(test)]
@@ -822,7 +841,6 @@ mod tests {
         };
         let line = format_status_line(&state, Theme::Coral, 80);
         assert!(line.contains("AUTO"));
-        assert!(line.contains("Rust"));
         assert!(line.contains("-35dB"));
         assert!(line.contains("Ready"));
     }

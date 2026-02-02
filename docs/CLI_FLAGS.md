@@ -87,7 +87,7 @@ Backend notes:
 | `--voice-lookback-ms <MS>` | Audio retained prior to silence stop | 500 |
 | `--voice-buffer-ms <MS>` | Total buffered audio budget (max 120000) | 30000 |
 | `--voice-channel-capacity <N>` | Frame channel capacity between capture and STT workers | 100 |
-| `--voice-vad-threshold-db <DB>` | Mic sensitivity (lower = more sensitive) | -40 |
+| `--voice-vad-threshold-db <DB>` | Mic sensitivity (lower = more sensitive) | -55 |
 | `--voice-vad-frame-ms <MS>` | VAD frame size | 20 |
 | `--voice-vad-smoothing-frames <N>` | VAD smoothing window (frames) | 3 |
 | `--voice-vad-engine <earshot\|simple>` | VAD implementation | earshot (if available) |
@@ -185,7 +185,7 @@ Backend notes:
 | `--voice-lookback-ms <MS>` | Audio retained prior to silence stop | 500 |
 | `--voice-buffer-ms <MS>` | Total buffered audio budget (max 120000) | 30000 |
 | `--voice-channel-capacity <N>` | Frame channel capacity between capture and STT workers | 100 |
-| `--voice-vad-threshold-db <DB>` | Mic sensitivity (lower = more sensitive) | -40 |
+| `--voice-vad-threshold-db <DB>` | Mic sensitivity (lower = more sensitive) | -55 |
 | `--voice-vad-frame-ms <MS>` | VAD frame size | 20 |
 | `--voice-vad-smoothing-frames <N>` | VAD smoothing window (frames) | 3 |
 | `--voice-vad-engine <earshot\|simple>` | VAD implementation | earshot (if available) |

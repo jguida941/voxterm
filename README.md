@@ -60,6 +60,7 @@ To target another AI CLI instead of Codex, pass `--backend` (example: `voxterm -
 | `Ctrl+V` | Toggle auto-voice (hands-free mode) |
 | `Ctrl+T` | Toggle auto-send vs manual send |
 | `Ctrl+Y` | Theme picker |
+| `Ctrl+O` | Settings menu |
 | `Ctrl+]` | Mic sensitivity up |
 | `Ctrl+\` | Mic sensitivity down (also `Ctrl+/`) |
 | `?` | Show shortcut help |

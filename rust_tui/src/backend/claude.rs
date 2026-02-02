@@ -70,9 +70,6 @@ mod tests {
     #[test]
     fn test_claude_with_args() {
         let backend = ClaudeBackend::with_args(vec!["--model".to_string(), "opus".to_string()]);
-        assert_eq!(
-            backend.command(),
-            vec!["claude", "--model", "opus"]
-        );
+        assert_eq!(backend.command(), vec!["claude", "--model", "opus"]);
     }
 }

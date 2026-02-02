@@ -43,7 +43,10 @@ pub(crate) fn resolve_prompt_regex(
         });
     }
 
-    if let Some(raw) = backend_fallback.map(str::trim).filter(|pattern| !pattern.is_empty()) {
+    if let Some(raw) = backend_fallback
+        .map(str::trim)
+        .filter(|pattern| !pattern.is_empty())
+    {
         let regex = Regex::new(raw).with_context(|| format!("invalid prompt regex: {raw}"))?;
         return Ok(PromptRegexConfig {
             regex: Some(regex),

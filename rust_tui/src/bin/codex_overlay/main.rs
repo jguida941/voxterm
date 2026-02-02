@@ -21,6 +21,7 @@ mod input;
 mod progress;
 mod prompt;
 mod session_stats;
+mod settings;
 mod status_line;
 mod status_style;
 mod theme;
@@ -31,7 +32,7 @@ mod writer;
 
 use anyhow::{anyhow, Result};
 use clap::Parser;
-use crossbeam_channel::{bounded, select};
+use crossbeam_channel::{bounded, select, Sender};
 use crossterm::terminal::size as terminal_size;
 use rust_tui::pty_session::PtyOverlaySession;
 use rust_tui::{
@@ -54,7 +55,12 @@ use crate::prompt::{
     resolve_prompt_log, resolve_prompt_regex, should_auto_trigger, PromptLogger, PromptTracker,
 };
 use crate::session_stats::{format_session_stats, SessionStats};
-use crate::status_line::{Pipeline, RecordingState, StatusLineState, VoiceMode};
+use crate::settings::{
+    format_settings_overlay, settings_overlay_height, SettingsItem, SettingsMenuState, SettingsView,
+};
+use crate::status_line::{
+    status_banner_height, Pipeline, RecordingState, StatusLineState, VoiceMode,
+};
 use crate::theme::Theme;
 use crate::theme_picker::{format_theme_picker, theme_picker_height, THEME_OPTIONS};
 use crate::transcript::{
@@ -83,6 +89,7 @@ enum OverlayMode {
     None,
     Help,
     ThemePicker,
+    Settings,
 }
 
 /// Signal handler for terminal resize events.
@@ -118,10 +125,7 @@ fn main() -> Result<()> {
                 .map(|path| path.display().to_string())
                 .unwrap_or_else(|| "disabled".to_string()),
         );
-        report.push_kv(
-            "theme",
-            config.theme_name.as_deref().unwrap_or("coral"),
-        );
+        report.push_kv("theme", config.theme_name.as_deref().unwrap_or("coral"));
         report.push_kv("no_color", config.no_color);
         report.push_kv("auto_voice", config.auto_voice);
         report.push_kv(
@@ -160,6 +164,7 @@ fn main() -> Result<()> {
 
     // Resolve backend command and args
     let backend = config.resolve_backend();
+    let backend_label = backend.label.clone();
 
     let prompt_log_path = if config.app.no_logs {
         None
@@ -168,8 +173,11 @@ fn main() -> Result<()> {
     };
     let prompt_logger = PromptLogger::new(prompt_log_path);
     let prompt_regex = resolve_prompt_regex(&config, backend.prompt_pattern.as_deref())?;
-    let mut prompt_tracker =
-        PromptTracker::new(prompt_regex.regex, prompt_regex.allow_auto_learn, prompt_logger);
+    let mut prompt_tracker = PromptTracker::new(
+        prompt_regex.regex,
+        prompt_regex.allow_auto_learn,
+        prompt_logger,
+    );
 
     let banner_config = BannerConfig {
         auto_voice: config.auto_voice,
@@ -178,12 +186,18 @@ fn main() -> Result<()> {
         sensitivity_db: config.app.voice_vad_threshold_db,
         backend: backend.label.clone(),
     };
-    let banner = match terminal_size() {
-        Ok((cols, _)) if cols < 60 => format_minimal_banner(theme),
-        _ => format_startup_banner(&banner_config, theme),
-    };
-    print!("{banner}");
-    let _ = io::stdout().flush();
+    let skip_banner = env::var("VOXTERM_WRAPPER")
+        .map(|v| v == "1")
+        .unwrap_or(false)
+        || env::var("VOXTERM_NO_STARTUP_BANNER").is_ok();
+    if !skip_banner {
+        let banner = match terminal_size() {
+            Ok((cols, _)) if cols < 60 => format_minimal_banner(theme),
+            _ => format_startup_banner(&banner_config, theme),
+        };
+        print!("{banner}");
+        let _ = io::stdout().flush();
+    }
 
     let mut session = PtyOverlaySession::new(
         &backend.command,
@@ -202,9 +216,11 @@ fn main() -> Result<()> {
     let _ = writer_tx.send(WriterMessage::SetTheme(theme));
 
     let mut terminal_cols = 0u16;
+    let mut terminal_rows = 0u16;
     if let Ok((cols, rows)) = terminal_size() {
         terminal_cols = cols;
-        let _ = session.set_winsize(rows, cols);
+        terminal_rows = rows;
+        apply_pty_winsize(&mut session, rows, cols, OverlayMode::None);
         let _ = writer_tx.send(WriterMessage::Resize { rows, cols });
     }
 
@@ -241,6 +257,7 @@ fn main() -> Result<()> {
     let mut processing_spinner_index = 0usize;
     let mut last_processing_tick = Instant::now();
     let mut overlay_mode = OverlayMode::None;
+    let mut settings_menu = SettingsMenuState::new();
     let mut meter_levels: VecDeque<f32> = VecDeque::with_capacity(METER_HISTORY_MAX);
     let mut last_meter_update = Instant::now();
     let mut preview_clear_deadline: Option<Instant> = None;
@@ -253,7 +270,7 @@ fn main() -> Result<()> {
             &mut current_status,
             &mut status_state,
             "Auto-voice enabled",
-            None,
+            Some(Duration::from_secs(2)),
         );
         if voice_manager.is_idle() {
             if let Err(err) = start_voice_capture(
@@ -288,61 +305,388 @@ fn main() -> Result<()> {
                         if overlay_mode != OverlayMode::None {
                             match (overlay_mode, evt) {
                                 (_, InputEvent::Exit) => running = false,
-                                (OverlayMode::Help, InputEvent::HelpToggle) => {
+                                (OverlayMode::Settings, InputEvent::SettingsToggle) => {
                                     overlay_mode = OverlayMode::None;
                                     let _ = writer_tx.send(WriterMessage::ClearOverlay);
+                                    update_pty_winsize(
+                                        &mut session,
+                                        &mut terminal_rows,
+                                        &mut terminal_cols,
+                                        overlay_mode,
+                                    );
                                 }
-                                (OverlayMode::Help, InputEvent::ThemePicker) => {
-                                    let cols = resolved_cols(terminal_cols);
-                                    let content = format_theme_picker(theme, cols as usize);
-                                    let height = theme_picker_height();
-                                    let _ = writer_tx.send(WriterMessage::ShowOverlay { content, height });
-                                    overlay_mode = OverlayMode::ThemePicker;
-                                }
-                                (OverlayMode::ThemePicker, InputEvent::HelpToggle) => {
+                                (OverlayMode::Settings, InputEvent::HelpToggle) => {
+                                    overlay_mode = OverlayMode::Help;
+                                    update_pty_winsize(
+                                        &mut session,
+                                        &mut terminal_rows,
+                                        &mut terminal_cols,
+                                        overlay_mode,
+                                    );
                                     let cols = resolved_cols(terminal_cols);
                                     let content = format_help_overlay(theme, cols as usize);
                                     let height = help_overlay_height();
-                                    let _ = writer_tx.send(WriterMessage::ShowOverlay { content, height });
+                                    let _ = writer_tx.send(WriterMessage::ShowOverlay {
+                                        content,
+                                        height,
+                                    });
+                                }
+                                (OverlayMode::Settings, InputEvent::ThemePicker) => {
+                                    overlay_mode = OverlayMode::ThemePicker;
+                                    update_pty_winsize(
+                                        &mut session,
+                                        &mut terminal_rows,
+                                        &mut terminal_cols,
+                                        overlay_mode,
+                                    );
+                                    let cols = resolved_cols(terminal_cols);
+                                    let content = format_theme_picker(theme, cols as usize);
+                                    let height = theme_picker_height();
+                                    let _ = writer_tx.send(WriterMessage::ShowOverlay {
+                                        content,
+                                        height,
+                                    });
+                                }
+                                (OverlayMode::Settings, InputEvent::EnterKey) => {
+                                    let mut should_redraw = false;
+                                    match settings_menu.selected_item() {
+                                        SettingsItem::AutoVoice => {
+                                            toggle_auto_voice(
+                                                &mut auto_voice_enabled,
+                                                &mut voice_manager,
+                                                &writer_tx,
+                                                &mut status_clear_deadline,
+                                                &mut current_status,
+                                                &mut status_state,
+                                                &mut last_auto_trigger_at,
+                                                &mut recording_started_at,
+                                                &mut meter_levels,
+                                                &mut preview_clear_deadline,
+                                                &mut last_meter_update,
+                                            );
+                                            should_redraw = true;
+                                        }
+                                        SettingsItem::SendMode => {
+                                            toggle_send_mode(
+                                                &mut config,
+                                                &writer_tx,
+                                                &mut status_clear_deadline,
+                                                &mut current_status,
+                                                &mut status_state,
+                                            );
+                                            should_redraw = true;
+                                        }
+                                        SettingsItem::Sensitivity => {}
+                                        SettingsItem::Theme => {
+                                            theme = apply_theme_selection(
+                                                &mut config,
+                                                cycle_theme(theme, 1),
+                                                &writer_tx,
+                                                &mut status_clear_deadline,
+                                                &mut current_status,
+                                                &mut status_state,
+                                            );
+                                            should_redraw = true;
+                                        }
+                                        SettingsItem::Backend | SettingsItem::Pipeline => {}
+                                        SettingsItem::Close => {
+                                            overlay_mode = OverlayMode::None;
+                                            let _ = writer_tx.send(WriterMessage::ClearOverlay);
+                                            update_pty_winsize(
+                                                &mut session,
+                                                &mut terminal_rows,
+                                                &mut terminal_cols,
+                                                overlay_mode,
+                                            );
+                                        }
+                                        SettingsItem::Quit => running = false,
+                                    }
+                                    if overlay_mode == OverlayMode::Settings && should_redraw {
+                                        let cols = resolved_cols(terminal_cols);
+                                        show_settings_overlay(
+                                            &writer_tx,
+                                            theme,
+                                            cols,
+                                            &settings_menu,
+                                            &config,
+                                            &status_state,
+                                            &backend_label,
+                                        );
+                                    }
+                                }
+                                (OverlayMode::Settings, InputEvent::Bytes(bytes)) => {
+                                    if bytes == [0x1b] {
+                                        overlay_mode = OverlayMode::None;
+                                        let _ = writer_tx.send(WriterMessage::ClearOverlay);
+                                        update_pty_winsize(
+                                            &mut session,
+                                            &mut terminal_rows,
+                                            &mut terminal_cols,
+                                            overlay_mode,
+                                        );
+                                    } else {
+                                        let mut should_redraw = false;
+                                        for key in parse_arrow_keys(&bytes) {
+                                            match key {
+                                                ArrowKey::Up => {
+                                                    settings_menu.move_up();
+                                                    should_redraw = true;
+                                                }
+                                                ArrowKey::Down => {
+                                                    settings_menu.move_down();
+                                                    should_redraw = true;
+                                                }
+                                                ArrowKey::Left => match settings_menu.selected_item() {
+                                                    SettingsItem::AutoVoice => {
+                                                        toggle_auto_voice(
+                                                            &mut auto_voice_enabled,
+                                                            &mut voice_manager,
+                                                            &writer_tx,
+                                                            &mut status_clear_deadline,
+                                                            &mut current_status,
+                                                            &mut status_state,
+                                                            &mut last_auto_trigger_at,
+                                                            &mut recording_started_at,
+                                                            &mut meter_levels,
+                                                            &mut preview_clear_deadline,
+                                                            &mut last_meter_update,
+                                                        );
+                                                        should_redraw = true;
+                                                    }
+                                                    SettingsItem::SendMode => {
+                                                        toggle_send_mode(
+                                                            &mut config,
+                                                            &writer_tx,
+                                                            &mut status_clear_deadline,
+                                                            &mut current_status,
+                                                            &mut status_state,
+                                                        );
+                                                        should_redraw = true;
+                                                    }
+                                                    SettingsItem::Sensitivity => {
+                                                        adjust_sensitivity(
+                                                            &mut voice_manager,
+                                                            -5.0,
+                                                            &writer_tx,
+                                                            &mut status_clear_deadline,
+                                                            &mut current_status,
+                                                            &mut status_state,
+                                                        );
+                                                        should_redraw = true;
+                                                    }
+                                                    SettingsItem::Theme => {
+                                                        theme = apply_theme_selection(
+                                                            &mut config,
+                                                            cycle_theme(theme, -1),
+                                                            &writer_tx,
+                                                            &mut status_clear_deadline,
+                                                            &mut current_status,
+                                                            &mut status_state,
+                                                        );
+                                                        should_redraw = true;
+                                                    }
+                                                    SettingsItem::Backend
+                                                    | SettingsItem::Pipeline
+                                                    | SettingsItem::Close
+                                                    | SettingsItem::Quit => {}
+                                                },
+                                                ArrowKey::Right => match settings_menu.selected_item() {
+                                                    SettingsItem::AutoVoice => {
+                                                        toggle_auto_voice(
+                                                            &mut auto_voice_enabled,
+                                                            &mut voice_manager,
+                                                            &writer_tx,
+                                                            &mut status_clear_deadline,
+                                                            &mut current_status,
+                                                            &mut status_state,
+                                                            &mut last_auto_trigger_at,
+                                                            &mut recording_started_at,
+                                                            &mut meter_levels,
+                                                            &mut preview_clear_deadline,
+                                                            &mut last_meter_update,
+                                                        );
+                                                        should_redraw = true;
+                                                    }
+                                                    SettingsItem::SendMode => {
+                                                        toggle_send_mode(
+                                                            &mut config,
+                                                            &writer_tx,
+                                                            &mut status_clear_deadline,
+                                                            &mut current_status,
+                                                            &mut status_state,
+                                                        );
+                                                        should_redraw = true;
+                                                    }
+                                                    SettingsItem::Sensitivity => {
+                                                        adjust_sensitivity(
+                                                            &mut voice_manager,
+                                                            5.0,
+                                                            &writer_tx,
+                                                            &mut status_clear_deadline,
+                                                            &mut current_status,
+                                                            &mut status_state,
+                                                        );
+                                                        should_redraw = true;
+                                                    }
+                                                    SettingsItem::Theme => {
+                                                        theme = apply_theme_selection(
+                                                            &mut config,
+                                                            cycle_theme(theme, 1),
+                                                            &writer_tx,
+                                                            &mut status_clear_deadline,
+                                                            &mut current_status,
+                                                            &mut status_state,
+                                                        );
+                                                        should_redraw = true;
+                                                    }
+                                                    SettingsItem::Backend
+                                                    | SettingsItem::Pipeline
+                                                    | SettingsItem::Close
+                                                    | SettingsItem::Quit => {}
+                                                },
+                                            }
+                                        }
+                                        if should_redraw {
+                                            let cols = resolved_cols(terminal_cols);
+                                            show_settings_overlay(
+                                                &writer_tx,
+                                                theme,
+                                                cols,
+                                                &settings_menu,
+                                                &config,
+                                                &status_state,
+                                                &backend_label,
+                                            );
+                                        }
+                                    }
+                                }
+                                (OverlayMode::Help, InputEvent::HelpToggle) => {
+                                    overlay_mode = OverlayMode::None;
+                                    let _ = writer_tx.send(WriterMessage::ClearOverlay);
+                                    update_pty_winsize(
+                                        &mut session,
+                                        &mut terminal_rows,
+                                        &mut terminal_cols,
+                                        overlay_mode,
+                                    );
+                                }
+                                (OverlayMode::Help, InputEvent::SettingsToggle) => {
+                                    overlay_mode = OverlayMode::Settings;
+                                    update_pty_winsize(
+                                        &mut session,
+                                        &mut terminal_rows,
+                                        &mut terminal_cols,
+                                        overlay_mode,
+                                    );
+                                    let cols = resolved_cols(terminal_cols);
+                                    show_settings_overlay(
+                                        &writer_tx,
+                                        theme,
+                                        cols,
+                                        &settings_menu,
+                                        &config,
+                                        &status_state,
+                                        &backend_label,
+                                    );
+                                }
+                                (OverlayMode::Help, InputEvent::ThemePicker) => {
+                                    overlay_mode = OverlayMode::ThemePicker;
+                                    update_pty_winsize(
+                                        &mut session,
+                                        &mut terminal_rows,
+                                        &mut terminal_cols,
+                                        overlay_mode,
+                                    );
+                                    let cols = resolved_cols(terminal_cols);
+                                    let content = format_theme_picker(theme, cols as usize);
+                                    let height = theme_picker_height();
+                                    let _ =
+                                        writer_tx.send(WriterMessage::ShowOverlay { content, height });
+                                }
+                                (OverlayMode::ThemePicker, InputEvent::HelpToggle) => {
                                     overlay_mode = OverlayMode::Help;
+                                    update_pty_winsize(
+                                        &mut session,
+                                        &mut terminal_rows,
+                                        &mut terminal_cols,
+                                        overlay_mode,
+                                    );
+                                    let cols = resolved_cols(terminal_cols);
+                                    let content = format_help_overlay(theme, cols as usize);
+                                    let height = help_overlay_height();
+                                    let _ =
+                                        writer_tx.send(WriterMessage::ShowOverlay { content, height });
+                                }
+                                (OverlayMode::ThemePicker, InputEvent::SettingsToggle) => {
+                                    overlay_mode = OverlayMode::Settings;
+                                    update_pty_winsize(
+                                        &mut session,
+                                        &mut terminal_rows,
+                                        &mut terminal_cols,
+                                        overlay_mode,
+                                    );
+                                    let cols = resolved_cols(terminal_cols);
+                                    show_settings_overlay(
+                                        &writer_tx,
+                                        theme,
+                                        cols,
+                                        &settings_menu,
+                                        &config,
+                                        &status_state,
+                                        &backend_label,
+                                    );
                                 }
                                 (OverlayMode::ThemePicker, InputEvent::ThemePicker) => {
                                     overlay_mode = OverlayMode::None;
                                     let _ = writer_tx.send(WriterMessage::ClearOverlay);
+                                    update_pty_winsize(
+                                        &mut session,
+                                        &mut terminal_rows,
+                                        &mut terminal_cols,
+                                        overlay_mode,
+                                    );
                                 }
                                 (OverlayMode::ThemePicker, InputEvent::EnterKey) => {
                                     overlay_mode = OverlayMode::None;
                                     let _ = writer_tx.send(WriterMessage::ClearOverlay);
+                                    update_pty_winsize(
+                                        &mut session,
+                                        &mut terminal_rows,
+                                        &mut terminal_cols,
+                                        overlay_mode,
+                                    );
                                 }
                                 (OverlayMode::ThemePicker, InputEvent::Bytes(bytes)) => {
                                     if bytes.contains(&0x1b) {
                                         overlay_mode = OverlayMode::None;
                                         let _ = writer_tx.send(WriterMessage::ClearOverlay);
-                                    } else if let Some(idx) = bytes.iter().find_map(|b| theme_index_from_byte(*b)) {
+                                        update_pty_winsize(
+                                            &mut session,
+                                            &mut terminal_rows,
+                                            &mut terminal_cols,
+                                            overlay_mode,
+                                        );
+                                    } else if let Some(idx) =
+                                        bytes.iter().find_map(|b| theme_index_from_byte(*b))
+                                    {
                                         if let Some((_, name, _)) = THEME_OPTIONS.get(idx) {
                                             if let Some(requested) = Theme::from_name(name) {
-                                                config.theme_name = Some(name.to_string());
-                                                let (resolved, note) = resolve_theme_choice(&config, requested);
-                                                theme = resolved;
-                                                let _ = writer_tx.send(WriterMessage::SetTheme(theme));
-                                                let mut status = if resolved == Theme::None && requested != Theme::None {
-                                                    "Theme set: none".to_string()
-                                                } else {
-                                                    format!("Theme set: {name}")
-                                                };
-                                                if let Some(note) = note {
-                                                    status = format!("{status} ({note})");
-                                                }
-                                                set_status(
+                                                theme = apply_theme_selection(
+                                                    &mut config,
+                                                    requested,
                                                     &writer_tx,
                                                     &mut status_clear_deadline,
                                                     &mut current_status,
                                                     &mut status_state,
-                                                    &status,
-                                                    Some(Duration::from_secs(2)),
                                                 );
                                                 overlay_mode = OverlayMode::None;
                                                 let _ = writer_tx.send(WriterMessage::ClearOverlay);
+                                                update_pty_winsize(
+                                                    &mut session,
+                                                    &mut terminal_rows,
+                                                    &mut terminal_cols,
+                                                    overlay_mode,
+                                                );
                                             }
                                         }
                                     }
@@ -350,24 +694,63 @@ fn main() -> Result<()> {
                                 (_, _) => {
                                     overlay_mode = OverlayMode::None;
                                     let _ = writer_tx.send(WriterMessage::ClearOverlay);
+                                    update_pty_winsize(
+                                        &mut session,
+                                        &mut terminal_rows,
+                                        &mut terminal_cols,
+                                        overlay_mode,
+                                    );
                                 }
                             }
                             continue;
                         }
                         match evt {
                             InputEvent::HelpToggle => {
+                                overlay_mode = OverlayMode::Help;
+                                update_pty_winsize(
+                                    &mut session,
+                                    &mut terminal_rows,
+                                    &mut terminal_cols,
+                                    overlay_mode,
+                                );
                                 let cols = resolved_cols(terminal_cols);
                                 let content = format_help_overlay(theme, cols as usize);
                                 let height = help_overlay_height();
-                                let _ = writer_tx.send(WriterMessage::ShowOverlay { content, height });
-                                overlay_mode = OverlayMode::Help;
+                                let _ =
+                                    writer_tx.send(WriterMessage::ShowOverlay { content, height });
                             }
                             InputEvent::ThemePicker => {
+                                overlay_mode = OverlayMode::ThemePicker;
+                                update_pty_winsize(
+                                    &mut session,
+                                    &mut terminal_rows,
+                                    &mut terminal_cols,
+                                    overlay_mode,
+                                );
                                 let cols = resolved_cols(terminal_cols);
                                 let content = format_theme_picker(theme, cols as usize);
                                 let height = theme_picker_height();
-                                let _ = writer_tx.send(WriterMessage::ShowOverlay { content, height });
-                                overlay_mode = OverlayMode::ThemePicker;
+                                let _ =
+                                    writer_tx.send(WriterMessage::ShowOverlay { content, height });
+                            }
+                            InputEvent::SettingsToggle => {
+                                overlay_mode = OverlayMode::Settings;
+                                update_pty_winsize(
+                                    &mut session,
+                                    &mut terminal_rows,
+                                    &mut terminal_cols,
+                                    overlay_mode,
+                                );
+                                let cols = resolved_cols(terminal_cols);
+                                show_settings_overlay(
+                                    &writer_tx,
+                                    theme,
+                                    cols,
+                                    &settings_menu,
+                                    &config,
+                                    &status_state,
+                                    &backend_label,
+                                );
                             }
                             InputEvent::Bytes(bytes) => {
                                 if let Err(err) = session.send_bytes(&bytes) {
@@ -404,102 +787,47 @@ fn main() -> Result<()> {
                                 }
                             }
                             InputEvent::ToggleAutoVoice => {
-                                auto_voice_enabled = !auto_voice_enabled;
-                                status_state.auto_voice_enabled = auto_voice_enabled;
-                                status_state.voice_mode = if auto_voice_enabled {
-                                    VoiceMode::Auto
-                                } else {
-                                    VoiceMode::Manual
-                                };
-                                let msg = if auto_voice_enabled {
-                                    "Auto-voice enabled"
-                                } else {
-                                    // Cancel any running capture when disabling auto-voice
-                                    if voice_manager.cancel_capture() {
-                                        status_state.recording_state = RecordingState::Idle;
-                                        recording_started_at = None;
-                                        "Auto-voice disabled (capture cancelled)"
-                                    } else {
-                                        "Auto-voice disabled"
-                                    }
-                                };
-                                set_status(
+                                toggle_auto_voice(
+                                    &mut auto_voice_enabled,
+                                    &mut voice_manager,
                                     &writer_tx,
                                     &mut status_clear_deadline,
                                     &mut current_status,
                                     &mut status_state,
-                                    msg,
-                                    if auto_voice_enabled {
-                                        None
-                                    } else {
-                                        Some(Duration::from_secs(2))
-                                    },
+                                    &mut last_auto_trigger_at,
+                                    &mut recording_started_at,
+                                    &mut meter_levels,
+                                    &mut preview_clear_deadline,
+                                    &mut last_meter_update,
                                 );
-                                if auto_voice_enabled && voice_manager.is_idle() {
-                                    if let Err(err) = start_voice_capture(
-                                        &mut voice_manager,
-                                        VoiceCaptureTrigger::Auto,
-                                        &writer_tx,
-                                        &mut status_clear_deadline,
-                                        &mut current_status,
-                                        &mut status_state,
-                                    ) {
-                                        log_debug(&format!("auto voice capture failed: {err:#}"));
-                                    } else {
-                                        let now = Instant::now();
-                                        last_auto_trigger_at = Some(now);
-                                        recording_started_at = Some(now);
-                                        reset_capture_visuals(
-                                            &mut meter_levels,
-                                            &mut status_state,
-                                            &mut preview_clear_deadline,
-                                            &mut last_meter_update,
-                                        );
-                                    }
-                                }
                             }
                             InputEvent::ToggleSendMode => {
-                                config.voice_send_mode = match config.voice_send_mode {
-                                    VoiceSendMode::Auto => VoiceSendMode::Insert,
-                                    VoiceSendMode::Insert => VoiceSendMode::Auto,
-                                };
-                                let msg = match config.voice_send_mode {
-                                    VoiceSendMode::Auto => "Send mode: auto (sends Enter)",
-                                    VoiceSendMode::Insert => "Send mode: insert (press Enter to send)",
-                                };
-                                set_status(
+                                toggle_send_mode(
+                                    &mut config,
                                     &writer_tx,
                                     &mut status_clear_deadline,
                                     &mut current_status,
                                     &mut status_state,
-                                    msg,
-                                    Some(Duration::from_secs(3)),
                                 );
                             }
                             InputEvent::IncreaseSensitivity => {
-                                let threshold_db = voice_manager.adjust_sensitivity(5.0);
-                                status_state.sensitivity_db = threshold_db;
-                                let msg = format!("Mic sensitivity: {threshold_db:.0} dB (less sensitive)");
-                                set_status(
+                                adjust_sensitivity(
+                                    &mut voice_manager,
+                                    5.0,
                                     &writer_tx,
                                     &mut status_clear_deadline,
                                     &mut current_status,
                                     &mut status_state,
-                                    &msg,
-                                    Some(Duration::from_secs(3)),
                                 );
                             }
                             InputEvent::DecreaseSensitivity => {
-                                let threshold_db = voice_manager.adjust_sensitivity(-5.0);
-                                status_state.sensitivity_db = threshold_db;
-                                let msg = format!("Mic sensitivity: {threshold_db:.0} dB (more sensitive)");
-                                set_status(
+                                adjust_sensitivity(
+                                    &mut voice_manager,
+                                    -5.0,
                                     &writer_tx,
                                     &mut status_clear_deadline,
                                     &mut current_status,
                                     &mut status_state,
-                                    &msg,
-                                    Some(Duration::from_secs(3)),
                                 );
                             }
                             InputEvent::EnterKey => {
@@ -586,7 +914,8 @@ fn main() -> Result<()> {
                 if SIGWINCH_RECEIVED.swap(false, Ordering::SeqCst) {
                     if let Ok((cols, rows)) = terminal_size() {
                         terminal_cols = cols;
-                        let _ = session.set_winsize(rows, cols);
+                        terminal_rows = rows;
+                        apply_pty_winsize(&mut session, rows, cols, overlay_mode);
                         let _ = writer_tx.send(WriterMessage::Resize { rows, cols });
                         match overlay_mode {
                             OverlayMode::Help => {
@@ -598,6 +927,17 @@ fn main() -> Result<()> {
                                 let content = format_theme_picker(theme, cols as usize);
                                 let height = theme_picker_height();
                                 let _ = writer_tx.send(WriterMessage::ShowOverlay { content, height });
+                            }
+                            OverlayMode::Settings => {
+                                show_settings_overlay(
+                                    &writer_tx,
+                                    theme,
+                                    cols,
+                                    &settings_menu,
+                                    &config,
+                                    &status_state,
+                                    &backend_label,
+                                );
                             }
                             OverlayMode::None => {}
                         }
@@ -675,12 +1015,16 @@ fn main() -> Result<()> {
                                     status_state.last_latency_ms = Some(ms);
                                 }
                             }
-                            let ready = transcript_ready(
-                                &prompt_tracker,
-                                last_enter_at,
-                                now,
-                                transcript_idle_timeout,
-                            );
+                            let ready = if auto_voice_enabled {
+                                transcript_ready(
+                                    &prompt_tracker,
+                                    last_enter_at,
+                                    now,
+                                    transcript_idle_timeout,
+                                )
+                            } else {
+                                true
+                            };
                             if auto_voice_enabled {
                                 prompt_tracker.note_activity(now);
                             }
@@ -917,9 +1261,7 @@ fn main() -> Result<()> {
                         status_clear_deadline = None;
                         current_status = None;
                         status_state.message.clear();
-                        if auto_voice_enabled && voice_manager.is_idle() {
-                            status_state.message = "Auto-voice enabled".to_string();
-                        }
+                        // Don't repeatedly set "Auto-voice enabled" - the mode indicator shows it
                         send_enhanced_status(&writer_tx, &status_state);
                     }
                 }
@@ -945,6 +1287,253 @@ fn resolved_cols(cached: u16) -> u16 {
     } else {
         cached
     }
+}
+
+fn resolved_rows(cached: u16) -> u16 {
+    if cached == 0 {
+        terminal_size().map(|(_, r)| r).unwrap_or(24)
+    } else {
+        cached
+    }
+}
+
+fn reserved_rows_for_mode(mode: OverlayMode, cols: u16) -> usize {
+    match mode {
+        OverlayMode::None => status_banner_height(cols as usize),
+        OverlayMode::Help => help_overlay_height(),
+        OverlayMode::ThemePicker => theme_picker_height(),
+        OverlayMode::Settings => settings_overlay_height(),
+    }
+}
+
+fn apply_pty_winsize(session: &mut PtyOverlaySession, rows: u16, cols: u16, mode: OverlayMode) {
+    if rows == 0 || cols == 0 {
+        return;
+    }
+    let reserved = reserved_rows_for_mode(mode, cols) as u16;
+    let pty_rows = rows.saturating_sub(reserved).max(1);
+    let _ = session.set_winsize(pty_rows, cols);
+}
+
+fn update_pty_winsize(
+    session: &mut PtyOverlaySession,
+    terminal_rows: &mut u16,
+    terminal_cols: &mut u16,
+    mode: OverlayMode,
+) {
+    let rows = resolved_rows(*terminal_rows);
+    let cols = resolved_cols(*terminal_cols);
+    *terminal_rows = rows;
+    *terminal_cols = cols;
+    apply_pty_winsize(session, rows, cols, mode);
+}
+
+fn show_settings_overlay(
+    writer_tx: &Sender<WriterMessage>,
+    theme: Theme,
+    cols: u16,
+    settings_menu: &SettingsMenuState,
+    config: &OverlayConfig,
+    status_state: &StatusLineState,
+    backend_label: &str,
+) {
+    let view = SettingsView {
+        selected: settings_menu.selected,
+        auto_voice_enabled: status_state.auto_voice_enabled,
+        send_mode: config.voice_send_mode,
+        sensitivity_db: status_state.sensitivity_db,
+        theme,
+        backend_label,
+        pipeline: status_state.pipeline,
+    };
+    let content = format_settings_overlay(&view, cols as usize);
+    let height = settings_overlay_height();
+    let _ = writer_tx.send(WriterMessage::ShowOverlay { content, height });
+}
+
+#[derive(Debug, Clone, Copy)]
+enum ArrowKey {
+    Up,
+    Down,
+    Left,
+    Right,
+}
+
+fn parse_arrow_keys(bytes: &[u8]) -> Vec<ArrowKey> {
+    let mut keys = Vec::new();
+    let mut idx = 0;
+    while idx + 2 < bytes.len() {
+        if bytes[idx] == 0x1b && (bytes[idx + 1] == b'[' || bytes[idx + 1] == b'O') {
+            match bytes[idx + 2] {
+                b'A' => keys.push(ArrowKey::Up),
+                b'B' => keys.push(ArrowKey::Down),
+                b'C' => keys.push(ArrowKey::Right),
+                b'D' => keys.push(ArrowKey::Left),
+                _ => {}
+            }
+            idx += 3;
+        } else {
+            idx += 1;
+        }
+    }
+    keys
+}
+
+fn toggle_auto_voice(
+    auto_voice_enabled: &mut bool,
+    voice_manager: &mut VoiceManager,
+    writer_tx: &Sender<WriterMessage>,
+    status_clear_deadline: &mut Option<Instant>,
+    current_status: &mut Option<String>,
+    status_state: &mut StatusLineState,
+    last_auto_trigger_at: &mut Option<Instant>,
+    recording_started_at: &mut Option<Instant>,
+    meter_levels: &mut VecDeque<f32>,
+    preview_clear_deadline: &mut Option<Instant>,
+    last_meter_update: &mut Instant,
+) {
+    *auto_voice_enabled = !*auto_voice_enabled;
+    status_state.auto_voice_enabled = *auto_voice_enabled;
+    status_state.voice_mode = if *auto_voice_enabled {
+        VoiceMode::Auto
+    } else {
+        VoiceMode::Manual
+    };
+    let msg = if *auto_voice_enabled {
+        "Auto-voice enabled"
+    } else {
+        if voice_manager.cancel_capture() {
+            status_state.recording_state = RecordingState::Idle;
+            *recording_started_at = None;
+            "Auto-voice disabled (capture cancelled)"
+        } else {
+            "Auto-voice disabled"
+        }
+    };
+    set_status(
+        writer_tx,
+        status_clear_deadline,
+        current_status,
+        status_state,
+        msg,
+        Some(Duration::from_secs(2)),
+    );
+    if *auto_voice_enabled && voice_manager.is_idle() {
+        if let Err(err) = start_voice_capture(
+            voice_manager,
+            VoiceCaptureTrigger::Auto,
+            writer_tx,
+            status_clear_deadline,
+            current_status,
+            status_state,
+        ) {
+            log_debug(&format!("auto voice capture failed: {err:#}"));
+        } else {
+            let now = Instant::now();
+            *last_auto_trigger_at = Some(now);
+            *recording_started_at = Some(now);
+            reset_capture_visuals(
+                meter_levels,
+                status_state,
+                preview_clear_deadline,
+                last_meter_update,
+            );
+        }
+    }
+}
+
+fn toggle_send_mode(
+    config: &mut OverlayConfig,
+    writer_tx: &Sender<WriterMessage>,
+    status_clear_deadline: &mut Option<Instant>,
+    current_status: &mut Option<String>,
+    status_state: &mut StatusLineState,
+) {
+    config.voice_send_mode = match config.voice_send_mode {
+        VoiceSendMode::Auto => VoiceSendMode::Insert,
+        VoiceSendMode::Insert => VoiceSendMode::Auto,
+    };
+    let msg = match config.voice_send_mode {
+        VoiceSendMode::Auto => "Send mode: auto (sends Enter)",
+        VoiceSendMode::Insert => "Send mode: insert (press Enter to send)",
+    };
+    set_status(
+        writer_tx,
+        status_clear_deadline,
+        current_status,
+        status_state,
+        msg,
+        Some(Duration::from_secs(3)),
+    );
+}
+
+fn adjust_sensitivity(
+    voice_manager: &mut VoiceManager,
+    delta_db: f32,
+    writer_tx: &Sender<WriterMessage>,
+    status_clear_deadline: &mut Option<Instant>,
+    current_status: &mut Option<String>,
+    status_state: &mut StatusLineState,
+) {
+    let threshold_db = voice_manager.adjust_sensitivity(delta_db);
+    status_state.sensitivity_db = threshold_db;
+    let direction = if delta_db >= 0.0 {
+        "less sensitive"
+    } else {
+        "more sensitive"
+    };
+    let msg = format!("Mic sensitivity: {threshold_db:.0} dB ({direction})");
+    set_status(
+        writer_tx,
+        status_clear_deadline,
+        current_status,
+        status_state,
+        &msg,
+        Some(Duration::from_secs(3)),
+    );
+}
+
+fn cycle_theme(current: Theme, direction: i32) -> Theme {
+    let len = THEME_OPTIONS.len() as i32;
+    if len == 0 {
+        return current;
+    }
+    let idx = THEME_OPTIONS
+        .iter()
+        .position(|(theme, _, _)| *theme == current)
+        .unwrap_or(0) as i32;
+    let next = (idx + direction).rem_euclid(len) as usize;
+    THEME_OPTIONS[next].0
+}
+
+fn apply_theme_selection(
+    config: &mut OverlayConfig,
+    requested: Theme,
+    writer_tx: &Sender<WriterMessage>,
+    status_clear_deadline: &mut Option<Instant>,
+    current_status: &mut Option<String>,
+    status_state: &mut StatusLineState,
+) -> Theme {
+    config.theme_name = Some(requested.to_string());
+    let (resolved, note) = resolve_theme_choice(config, requested);
+    let _ = writer_tx.send(WriterMessage::SetTheme(resolved));
+    let mut status = if resolved == Theme::None && requested != Theme::None {
+        "Theme set: none".to_string()
+    } else {
+        format!("Theme set: {}", requested)
+    };
+    if let Some(note) = note {
+        status = format!("{status} ({note})");
+    }
+    set_status(
+        writer_tx,
+        status_clear_deadline,
+        current_status,
+        status_state,
+        &status,
+        Some(Duration::from_secs(2)),
+    );
+    resolved
 }
 
 fn theme_index_from_byte(byte: u8) -> Option<usize> {

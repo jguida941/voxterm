@@ -11,10 +11,11 @@ use crate::config::OverlayConfig;
 use crate::session_stats::SessionStats;
 use crate::status_line::{Pipeline, RecordingState, StatusLineState};
 use crate::transcript::{send_transcript, TranscriptSession};
-use crate::writer::{set_status, WriterMessage};
+use crate::writer::{send_enhanced_status, set_status, WriterMessage};
 
 struct VoiceStartInfo {
-    pipeline_label: &'static str,
+    pipeline_display: &'static str,
+    source: VoiceCaptureSource,
     fallback_note: Option<String>,
 }
 
@@ -126,6 +127,11 @@ impl VoiceManager {
         };
 
         let using_native = using_native_pipeline(transcriber.is_some(), recorder.is_some());
+        let source = if using_native {
+            VoiceCaptureSource::Native
+        } else {
+            VoiceCaptureSource::Python
+        };
         let job = voice::start_voice_job(
             recorder,
             transcriber.clone(),
@@ -134,17 +140,14 @@ impl VoiceManager {
         );
         self.job = Some(job);
         self.cancel_pending = false;
-        self.active_source = Some(if using_native {
-            VoiceCaptureSource::Native
-        } else {
-            VoiceCaptureSource::Python
-        });
+        self.active_source = Some(source);
 
         let pipeline_label = if using_native {
             "Rust pipeline"
         } else {
             "Python pipeline"
         };
+        let pipeline_display = if using_native { "Rust" } else { "Python" };
 
         let status = match trigger {
             VoiceCaptureTrigger::Manual => "manual",
@@ -155,7 +158,8 @@ impl VoiceManager {
         ));
 
         Ok(Some(VoiceStartInfo {
-            pipeline_label,
+            pipeline_display,
+            source,
             fallback_note,
         }))
     }
@@ -233,16 +237,20 @@ pub(crate) fn start_voice_capture(
     match voice_manager.start_capture(trigger)? {
         Some(info) => {
             status_state.recording_state = RecordingState::Recording;
-            status_state.pipeline = if info.pipeline_label.contains("Python") {
-                Pipeline::Python
-            } else {
-                Pipeline::Rust
+            status_state.pipeline = match info.source {
+                VoiceCaptureSource::Native => Pipeline::Rust,
+                VoiceCaptureSource::Python => Pipeline::Python,
             };
+            if trigger == VoiceCaptureTrigger::Auto {
+                status_state.message.clear();
+                send_enhanced_status(writer_tx, status_state);
+                return Ok(());
+            }
             let mode_label = match trigger {
                 VoiceCaptureTrigger::Manual => "Manual Mode",
                 VoiceCaptureTrigger::Auto => "Auto Mode",
             };
-            let mut status = format!("Listening {mode_label} ({})", info.pipeline_label);
+            let mut status = format!("Listening {mode_label} ({})", info.pipeline_display);
             if let Some(note) = info.fallback_note {
                 status.push(' ');
                 status.push_str(&note);
@@ -302,7 +310,7 @@ pub(crate) fn handle_voice_message(
                 VoiceCaptureSource::Native => Pipeline::Rust,
                 VoiceCaptureSource::Python => Pipeline::Python,
             };
-            let label = source.label();
+            let label = pipeline_status_label(source);
             let drop_note = metrics
                 .as_ref()
                 .filter(|metrics| metrics.frames_dropped > 0)
@@ -340,32 +348,26 @@ pub(crate) fn handle_voice_message(
                 VoiceCaptureSource::Native => Pipeline::Rust,
                 VoiceCaptureSource::Python => Pipeline::Python,
             };
-            let label = source.label();
+            let label = pipeline_status_label(source);
             let drop_note = metrics
                 .as_ref()
                 .filter(|metrics| metrics.frames_dropped > 0)
                 .map(|metrics| format!("dropped {} frames", metrics.frames_dropped));
             if auto_voice_enabled {
                 log_debug(&format!("auto voice capture detected no speech ({label})"));
+                // Don't show redundant "Auto-voice enabled" - the mode indicator shows it
+                // Only show a note if frames were dropped
                 if let Some(note) = drop_note {
                     set_status(
                         writer_tx,
                         status_clear_deadline,
                         current_status,
                         status_state,
-                        &format!("Auto-voice enabled ({note})"),
-                        None,
-                    );
-                } else {
-                    set_status(
-                        writer_tx,
-                        status_clear_deadline,
-                        current_status,
-                        status_state,
-                        "Auto-voice enabled",
-                        None,
+                        &format!("Listening... ({note})"),
+                        Some(std::time::Duration::from_secs(2)),
                     );
                 }
+                // Otherwise leave the message empty - mode indicator shows we're in auto mode
             } else {
                 let status = if let Some(note) = drop_note {
                     format!("No speech detected ({label}, {note})")
@@ -401,6 +403,13 @@ pub(crate) fn handle_voice_message(
 
 fn using_native_pipeline(has_transcriber: bool, has_recorder: bool) -> bool {
     has_transcriber && has_recorder
+}
+
+fn pipeline_status_label(source: VoiceCaptureSource) -> &'static str {
+    match source {
+        VoiceCaptureSource::Native => "Rust",
+        VoiceCaptureSource::Python => "Python",
+    }
 }
 
 #[cfg(test)]

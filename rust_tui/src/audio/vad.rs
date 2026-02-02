@@ -28,7 +28,7 @@ impl Default for VadConfig {
         Self {
             sample_rate: TARGET_RATE,
             frame_ms: 20,
-            silence_threshold_db: -40.0,
+            silence_threshold_db: -55.0,
             silence_duration_ms: 500,
             max_recording_duration_ms: 10_000,
             min_recording_duration_ms: 200,

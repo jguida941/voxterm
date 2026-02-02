@@ -213,7 +213,7 @@ pub(crate) fn transcript_ready(
     if let (Some(enter_at), Some(last_output_at)) =
         (last_enter_at, prompt_tracker.last_pty_output_at())
     {
-        if last_output_at > enter_at && idle_ready {
+        if last_output_at >= enter_at && idle_ready {
             return true;
         }
     }
@@ -366,12 +366,7 @@ mod tests {
 
         let idle_timeout = Duration::from_millis(10);
         let now = Instant::now() + idle_timeout + Duration::from_millis(1);
-        assert!(transcript_ready(
-            &tracker,
-            last_enter_at,
-            now,
-            idle_timeout
-        ));
+        assert!(transcript_ready(&tracker, last_enter_at, now, idle_timeout));
     }
 
     #[test]

@@ -508,7 +508,7 @@ VoxTerm has **two UI modes**:
 #### 1. Multi-Row Status Banner (`status_line.rs`)
 ```
 ╭─── coral ──────────────────────────────────────────────────────╮
-│ ● AUTO │ Rust │ -40dB  ▁▂▃▅▆▇█  -51dB  Listening Auto Mode    │
+│ ● AUTO │ -40dB  ▁▂▃▅▆▇█  -51dB  Listening Auto Mode    │
 │ ^R rec  ^V auto  ^T send  ? help  ^Y theme                    │
 ╰────────────────────────────────────────────────────────────────╯
 ```

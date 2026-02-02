@@ -140,7 +140,8 @@ pub(super) fn write_all(fd: RawFd, mut data: &[u8]) -> Result<()> {
         let written = unsafe { libc::write(fd, data.as_ptr() as *const libc::c_void, write_len) };
         if written < 0 {
             let err = io::Error::last_os_error();
-            if err.kind() == ErrorKind::Interrupted {
+            if err.kind() == ErrorKind::Interrupted || err.kind() == ErrorKind::WouldBlock {
+                thread::sleep(Duration::from_millis(1));
                 continue;
             }
             return Err(anyhow!("write to PTY failed: {err}"));

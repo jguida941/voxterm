@@ -7,8 +7,8 @@ use crate::utf8_safe::window_by_columns;
 use crate::voice::VoiceCaptureTrigger;
 use crate::App;
 use anyhow::Result;
-use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
 use crossterm::event;
+use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
 use ratatui::{
     backend::CrosstermBackend,
     layout::{Constraint, Direction, Layout},
