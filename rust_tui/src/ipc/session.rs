@@ -87,7 +87,7 @@ impl IpcState {
         let codex_backend = Arc::new(CliBackend::new(config.clone()));
 
         // Get default provider from env or config
-        let default_provider = env::var("CODEX_VOICE_PROVIDER")
+        let default_provider = env::var("VOXTERM_PROVIDER")
             .ok()
             .and_then(|s| Provider::from_str(&s))
             .unwrap_or(Provider::Codex);

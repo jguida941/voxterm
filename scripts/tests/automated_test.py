@@ -10,7 +10,7 @@ def test_enter_key_fix():
     """Test that multiple voice captures and Enter key presses work."""
 
     # Clear the log
-    log_file = os.path.join(os.environ.get('TMPDIR', '/tmp'), 'codex_voice_tui.log')
+    log_file = os.path.join(os.environ.get('TMPDIR', '/tmp'), 'voxterm_tui.log')
     print(f"Clearing log at: {log_file}")
     open(log_file, 'w').close()
 
@@ -37,7 +37,7 @@ def test_enter_key_fix():
     print("Starting TUI...")
     proc = subprocess.Popen(
         cmd,
-        cwd='/Users/jguida941/new_github_projects/codex_voice/rust_tui',
+        cwd='/Users/jguida941/new_github_projects/voxterm/rust_tui',
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -89,7 +89,7 @@ def verify_build():
     print("\n=== Verifying Build ===\n")
 
     # Check if the event clearing code is in place
-    main_rs = '/Users/jguida941/new_github_projects/codex_voice/rust_tui/src/main.rs'
+    main_rs = '/Users/jguida941/new_github_projects/voxterm/rust_tui/src/main.rs'
     with open(main_rs, 'r') as f:
         content = f.read()
 

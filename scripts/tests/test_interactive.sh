@@ -10,5 +10,5 @@ exit
 EOF
 
 # Run codex in interactive mode with test input
-cd /Users/jguida941/new_github_projects/codex_voice
+cd /Users/jguida941/new_github_projects/voxterm
 codex < /tmp/test_input.txt 2>&1 | head -50

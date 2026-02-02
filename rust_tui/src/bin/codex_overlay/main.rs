@@ -1,4 +1,4 @@
-//! Codex Voice overlay - voice input for the Codex CLI (or another AI CLI via --backend).
+//! VoxTerm overlay - voice input for the Codex CLI (or another AI CLI via --backend).
 //!
 //! Runs the selected CLI in a PTY and intercepts hotkeys for voice capture. Transcripts
 //! are injected as keystrokes, preserving the native TUI.
@@ -99,7 +99,7 @@ fn main() -> Result<()> {
     let sound_on_error = config.app.sounds || config.app.sound_on_error;
     let mut theme = config.theme();
     if config.app.doctor {
-        let mut report = base_doctor_report(&config.app, "codex-voice");
+        let mut report = base_doctor_report(&config.app, "voxterm");
         let backend = config.resolve_backend();
         report.section("Overlay");
         report.push_kv("backend", backend.label);
@@ -144,12 +144,12 @@ fn main() -> Result<()> {
     config.app.validate()?;
     init_logging(&config.app);
     let log_path = log_file_path();
-    log_debug("=== Codex Voice Overlay Started ===");
+    log_debug("=== VoxTerm Overlay Started ===");
     log_debug(&format!("Log file: {log_path:?}"));
 
     install_sigwinch_handler()?;
 
-    let working_dir = env::var("CODEX_VOICE_CWD")
+    let working_dir = env::var("VOXTERM_CWD")
         .ok()
         .or_else(|| {
             env::current_dir()
@@ -935,7 +935,7 @@ fn main() -> Result<()> {
         print!("{stats_output}");
         let _ = io::stdout().flush();
     }
-    log_debug("=== Codex Voice Overlay Exiting ===");
+    log_debug("=== VoxTerm Overlay Exiting ===");
     Ok(())
 }
 

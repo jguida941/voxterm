@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Codex Voice Setup Script
+# VoxTerm Setup Script
 # Downloads Whisper models and verifies dependencies
 #
 
@@ -9,15 +9,15 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 DEFAULT_MODELS_DIR="$PROJECT_ROOT/models"
-FALLBACK_MODELS_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/codex-voice/models"
+FALLBACK_MODELS_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/voxterm/models"
 
 IS_HOMEBREW=0
 case "$PROJECT_ROOT" in
     /opt/homebrew/Cellar/*|/usr/local/Cellar/*) IS_HOMEBREW=1 ;;
 esac
 
-if [ -n "${CODEX_VOICE_MODEL_DIR:-}" ]; then
-    MODELS_DIR="$CODEX_VOICE_MODEL_DIR"
+if [ -n "${VOXTERM_MODEL_DIR:-}" ]; then
+    MODELS_DIR="$VOXTERM_MODEL_DIR"
 elif [ "$IS_HOMEBREW" -eq 1 ]; then
     MODELS_DIR="$FALLBACK_MODELS_DIR"
 else
@@ -38,7 +38,7 @@ NC='\033[0m' # No Color
 print_header() {
     echo ""
     echo -e "${BLUE}╔══════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${BLUE}║${NC}              ${GREEN}Codex Voice Setup${NC}                               ${BLUE}║${NC}"
+    echo -e "${BLUE}║${NC}              ${GREEN}VoxTerm Setup${NC}                               ${BLUE}║${NC}"
     echo -e "${BLUE}╚══════════════════════════════════════════════════════════════╝${NC}"
     echo ""
 }
@@ -155,7 +155,7 @@ build_rust_overlay() {
 
     cd "$PROJECT_ROOT/rust_tui"
 
-    if cargo build --release --bin codex-voice; then
+    if cargo build --release --bin voxterm; then
         print_success "Rust overlay built successfully"
         return 0
     else
@@ -168,9 +168,9 @@ install_wrapper() {
     local install_dir=""
     local wrapper_path=""
 
-    if [ -n "${CODEX_VOICE_INSTALL_DIR:-}" ]; then
-        install_dir="$CODEX_VOICE_INSTALL_DIR"
-        wrapper_path="$install_dir/codex-voice"
+    if [ -n "${VOXTERM_INSTALL_DIR:-}" ]; then
+        install_dir="$VOXTERM_INSTALL_DIR"
+        wrapper_path="$install_dir/voxterm"
     else
         local candidates=(
             "/opt/homebrew/bin"
@@ -181,7 +181,7 @@ install_wrapper() {
 
         for candidate in "${candidates[@]}"; do
             if mkdir -p "$candidate" 2>/dev/null && [ -w "$candidate" ]; then
-                local candidate_path="$candidate/codex-voice"
+                local candidate_path="$candidate/voxterm"
                 if [ -e "$candidate_path" ]; then
                     case "$candidate" in
                         "$HOME/.local/bin"|"$PROJECT_ROOT/bin")
@@ -204,19 +204,19 @@ install_wrapper() {
 
     if [ -z "$install_dir" ]; then
         print_error "No writable install directory found."
-        print_warning "Set CODEX_VOICE_INSTALL_DIR to a writable path and rerun."
+        print_warning "Set VOXTERM_INSTALL_DIR to a writable path and rerun."
         return 1
     fi
 
-    wrapper_path="${wrapper_path:-$install_dir/codex-voice}"
+    wrapper_path="${wrapper_path:-$install_dir/voxterm}"
 
-    print_step "Installing codex-voice wrapper into $install_dir"
+    print_step "Installing voxterm wrapper into $install_dir"
 
     mkdir -p "$install_dir"
 cat > "$wrapper_path" <<EOF
 #!/bin/bash
-export CODEX_VOICE_CWD="\$(pwd)"
-export CODEX_VOICE_WRAPPER=1
+export VOXTERM_CWD="\$(pwd)"
+export VOXTERM_WRAPPER=1
 exec "$PROJECT_ROOT/start.sh" "\$@"
 EOF
     chmod 0755 "$wrapper_path"
@@ -226,7 +226,7 @@ EOF
     case ":$PATH:" in
         *":$install_dir:"*) ;;
         *)
-            print_warning "Add $install_dir to PATH to run 'codex-voice' from anywhere."
+            print_warning "Add $install_dir to PATH to run 'voxterm' from anywhere."
             echo "         Example: echo 'export PATH=\"$install_dir:\$PATH\"' >> ~/.zshrc"
             ;;
     esac
@@ -285,7 +285,7 @@ main() {
             echo -e "${GREEN}╚══════════════════════════════════════════════════════════════╝${NC}"
             echo ""
             echo "Run from any project:"
-            echo "  codex-voice"
+            echo "  voxterm"
             echo ""
             ;;
 
@@ -307,7 +307,7 @@ main() {
             echo -e "${GREEN}║${NC}                    Overlay Ready!                            ${GREEN}║${NC}"
             echo -e "${GREEN}╚══════════════════════════════════════════════════════════════╝${NC}"
             echo ""
-            echo "To start Codex Voice:"
+            echo "To start VoxTerm:"
             echo "  ./start.sh"
             echo ""
             ;;

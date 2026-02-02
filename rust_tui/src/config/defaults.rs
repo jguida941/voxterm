@@ -31,7 +31,7 @@ pub(super) const ISO_639_1_CODES: &[&str] = &[
 pub(super) const FORBIDDEN_DEVICE_CHARS: &[char] =
     &[';', '|', '&', '$', '`', '<', '>', '\\', '\'', '"'];
 pub(super) const DEFAULT_PIPELINE_SCRIPT: &str =
-    concat!(env!("CARGO_MANIFEST_DIR"), "/../scripts/codex_voice.py");
+    concat!(env!("CARGO_MANIFEST_DIR"), "/../scripts/voxterm.py");
 // PTY helper removed - using native Rust PtyCodexSession instead
 
 pub const fn default_vad_engine() -> VadEngineKind {

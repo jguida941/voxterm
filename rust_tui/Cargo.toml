@@ -1,8 +1,8 @@
 [package]
 name = "rust_tui"
-version = "1.0.29"
+version = "1.0.30"
 edition = "2021"
-default-run = "codex-voice"
+default-run = "voxterm"
 autobins = false
 
 [features]
@@ -33,7 +33,7 @@ rubato = { version = "0.12", optional = true }
 earshot = { version = "0.1", optional = true }
 
 [[bin]]
-name = "codex-voice"
+name = "voxterm"
 path = "src/bin/codex_overlay/main.rs"
 
 [[bin]]

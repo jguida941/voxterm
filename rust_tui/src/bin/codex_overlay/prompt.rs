@@ -16,7 +16,7 @@ pub(crate) fn resolve_prompt_log(config: &OverlayConfig) -> Option<PathBuf> {
     if let Some(path) = &config.prompt_log {
         return Some(path.clone());
     }
-    if let Ok(path) = env::var("CODEX_VOICE_PROMPT_LOG") {
+    if let Ok(path) = env::var("VOXTERM_PROMPT_LOG") {
         return Some(PathBuf::from(path));
     }
     None
@@ -34,7 +34,7 @@ pub(crate) fn resolve_prompt_regex(
     let user_override = config
         .prompt_regex
         .clone()
-        .or_else(|| env::var("CODEX_VOICE_PROMPT_REGEX").ok());
+        .or_else(|| env::var("VOXTERM_PROMPT_REGEX").ok());
     if let Some(raw) = user_override {
         let regex = Regex::new(&raw).with_context(|| format!("invalid prompt regex: {raw}"))?;
         return Ok(PromptRegexConfig {
@@ -390,7 +390,7 @@ mod tests {
     fn resolve_prompt_log_uses_env() {
         let _guard = env_lock().lock().unwrap();
         let env_path = PathBuf::from("/tmp/codex_prompt_env.log");
-        env::set_var("CODEX_VOICE_PROMPT_LOG", &env_path);
+        env::set_var("VOXTERM_PROMPT_LOG", &env_path);
         let config = OverlayConfig {
             app: AppConfig::parse_from(["test"]),
             prompt_regex: None,
@@ -404,14 +404,14 @@ mod tests {
             backend: "codex".to_string(),
         };
         let resolved = resolve_prompt_log(&config);
-        env::remove_var("CODEX_VOICE_PROMPT_LOG");
+        env::remove_var("VOXTERM_PROMPT_LOG");
         assert_eq!(resolved, Some(env_path));
     }
 
     #[test]
     fn resolve_prompt_log_defaults_to_none() {
         let _guard = env_lock().lock().unwrap();
-        env::remove_var("CODEX_VOICE_PROMPT_LOG");
+        env::remove_var("VOXTERM_PROMPT_LOG");
         let config = OverlayConfig {
             app: AppConfig::parse_from(["test"]),
             prompt_regex: None,
@@ -532,7 +532,7 @@ mod tests {
 
     #[test]
     fn prompt_tracker_learns_prompt_on_idle() {
-        let logger = PromptLogger::new(Some(env::temp_dir().join("codex_voice_prompt_test.log")));
+        let logger = PromptLogger::new(Some(env::temp_dir().join("voxterm_prompt_test.log")));
         let mut tracker = PromptTracker::new(None, true, logger);
         tracker.feed_output(b"codex> ");
         let now = tracker.last_output_at() + Duration::from_millis(2000);
@@ -542,7 +542,7 @@ mod tests {
 
     #[test]
     fn prompt_tracker_matches_regex() {
-        let logger = PromptLogger::new(Some(env::temp_dir().join("codex_voice_prompt_test.log")));
+        let logger = PromptLogger::new(Some(env::temp_dir().join("voxterm_prompt_test.log")));
         let regex = Regex::new(r"^codex> $").unwrap();
         let mut tracker = PromptTracker::new(Some(regex), false, logger);
         tracker.feed_output(b"codex> \n");

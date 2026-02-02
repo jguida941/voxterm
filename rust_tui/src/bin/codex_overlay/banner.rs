@@ -1,4 +1,4 @@
-//! Startup banner for Codex Voice.
+//! Startup banner for VoxTerm.
 //!
 //! Displays version and configuration info on startup.
 
@@ -44,7 +44,7 @@ pub fn format_startup_banner(config: &BannerConfig, theme: Theme) -> String {
     };
 
     format!(
-        "{}Codex Voice{} v{} │ {} │ {} │ theme: {} │ auto-voice: {} │ {:.0}dB\n",
+        "{}VoxTerm{} v{} │ {} │ {} │ theme: {} │ auto-voice: {} │ {:.0}dB\n",
         colors.info,
         colors.reset,
         VERSION,
@@ -60,7 +60,7 @@ pub fn format_startup_banner(config: &BannerConfig, theme: Theme) -> String {
 pub fn format_minimal_banner(theme: Theme) -> String {
     let colors = theme.colors();
     format!(
-        "{}Codex Voice{} v{} │ Ctrl+R rec │ Ctrl+V auto │ Ctrl+Q quit\n",
+        "{}VoxTerm{} v{} │ Ctrl+R rec │ Ctrl+V auto │ Ctrl+Q quit\n",
         colors.info, colors.reset, VERSION
     )
 }
@@ -79,7 +79,7 @@ mod tests {
         let config = BannerConfig::default();
         let banner = format_startup_banner(&config, Theme::Coral);
         assert!(banner.contains(VERSION));
-        assert!(banner.contains("Codex Voice"));
+        assert!(banner.contains("VoxTerm"));
     }
 
     #[test]
@@ -110,7 +110,7 @@ mod tests {
     fn banner_no_color() {
         let config = BannerConfig::default();
         let banner = format_startup_banner(&config, Theme::None);
-        assert!(banner.contains("Codex Voice"));
+        assert!(banner.contains("VoxTerm"));
         // No color codes
         assert!(!banner.contains("\x1b[9"));
     }

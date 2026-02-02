@@ -1,6 +1,6 @@
 # Usage Guide
 
-This guide explains how to use Codex Voice for hands-free coding with the Codex CLI
+This guide explains how to use VoxTerm for hands-free coding with the Codex CLI
 (or another AI CLI via `--backend`).
 
 ![Overlay Running](../img/overlay-running.png)
@@ -20,13 +20,13 @@ This guide explains how to use Codex Voice for hands-free coding with the Codex 
 
 **Already installed?** Here's how to start talking to the CLI:
 
-1. **Launch**: Run `codex-voice` in your project folder
+1. **Launch**: Run `voxterm` in your project folder
 2. **Speak**: Press `Ctrl+R`, say your request, then pause, it sends automatically
 3. **Done**: Your words appear as text and the CLI responds
 
 That's it! Read on for more control over how voice input works.
 
-**Backend note:** By default, `codex-voice` launches the Codex CLI. To target another AI CLI,
+**Backend note:** By default, `voxterm` launches the Codex CLI. To target another AI CLI,
 pass `--backend` (for example `--backend claude` or `--backend gemini`). You can also pass a
 custom command string.
 
@@ -34,7 +34,7 @@ custom command string.
 
 ## How Voice Input Works
 
-When you speak, Codex Voice:
+When you speak, VoxTerm:
 1. Records your voice until you stop talking (silence detection)
 2. Transcribes it to text using Whisper (runs locally, nothing sent to the cloud)
 3. Types that text into the active CLI (Codex by default) and optionally presses Enter for you
@@ -110,23 +110,23 @@ If the mic picks up too much background noise or misses your voice:
 The status line shows the current threshold (e.g., "Mic sensitivity: -35 dB").
 Range: -80 dB (very sensitive) to -10 dB (less sensitive). Default: -40 dB.
 
-**Tip**: Run `codex-voice --mic-meter` to measure your environment and get a suggested threshold.
+**Tip**: Run `voxterm --mic-meter` to measure your environment and get a suggested threshold.
 
 ### Check which audio device is being used
 
 ```bash
-codex-voice --list-input-devices
+voxterm --list-input-devices
 ```
 
 To use a specific device:
 ```bash
-codex-voice --input-device "MacBook Pro Microphone"
+voxterm --input-device "MacBook Pro Microphone"
 ```
 
 ### Run diagnostics
 
 ```bash
-codex-voice --doctor
+voxterm --doctor
 ```
 
 Prints terminal capabilities, log paths, and audio device info without starting the overlay.
@@ -161,8 +161,8 @@ Sections (left to right):
 "Rust pipeline" means fast native transcription. "Python pipeline" means fallback mode (slower but more compatible).
 
 Theme tips:
-- `codex-voice --theme catppuccin` to change the status line palette.
-- `codex-voice --no-color` or `NO_COLOR=1` to disable colors.
+- `voxterm --theme catppuccin` to change the status line palette.
+- `voxterm --no-color` or `NO_COLOR=1` to disable colors.
 - `Ctrl+Y` opens the theme picker overlay while the app is running.
 
 Preview tips:
@@ -177,25 +177,25 @@ Common startup configurations:
 
 ```bash
 # Use a different AI CLI backend
-codex-voice --backend claude
+voxterm --backend claude
 
 # Fully hands-free (auto-voice + auto-send)
-codex-voice --auto-voice
+voxterm --auto-voice
 
 # Hands-free with review before sending
-codex-voice --auto-voice --voice-send-mode insert
+voxterm --auto-voice --voice-send-mode insert
 
 # Specific microphone
-codex-voice --input-device "USB Microphone"
+voxterm --input-device "USB Microphone"
 
 # Custom sensitivity
-codex-voice --voice-vad-threshold-db -35
+voxterm --voice-vad-threshold-db -35
 
 # Force Whisper language
-codex-voice --lang en
+voxterm --lang en
 
 # Enable notification sounds
-codex-voice --sounds
+voxterm --sounds
 ```
 
 ---

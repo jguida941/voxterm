@@ -44,7 +44,7 @@ pub const SHORTCUTS: &[Shortcut] = &[
     },
     Shortcut {
         key: "Ctrl+Q",
-        description: "Exit Codex Voice",
+        description: "Exit VoxTerm",
     },
     Shortcut {
         key: "Ctrl+C",
@@ -70,7 +70,7 @@ pub fn format_help_overlay(theme: Theme, width: usize) -> String {
     // Title
     lines.push(format_title_line(
         &colors,
-        "Codex Voice - Shortcuts",
+        "VoxTerm - Shortcuts",
         content_width,
     ));
 

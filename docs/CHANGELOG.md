@@ -5,11 +5,24 @@ Note: Some historical entries reference internal documents that are not publishe
 
 ## [Unreleased] - 2026-02-02
 
+- TBD
+
+## [1.0.30] - 2026-02-02
+
+### Branding (Breaking)
+- Rename the project to VoxTerm across the CLI, docs, and UI strings.
+- New primary command: `voxterm` (replaces `codex-voice`).
+- New env var prefix: `VOXTERM_*` (replaces `CODEX_VOICE_*`).
+- New config path: `~/.config/voxterm/`.
+- New model path: `~/.local/share/voxterm/models`.
+- New log files: `voxterm_tui.log` and `voxterm_crash.log`.
+- macOS app renamed to `VoxTerm.app`.
+
 ### Privacy
 - Avoid logging full panic details to the debug log unless `--log-content` is enabled.
 
 ### UX
-- Refresh the startup banner styling and show backend/theme/auto state (header now shows "VoxTerm").
+- Refresh the startup banner styling and show backend/theme/auto state.
 
 ## [1.0.29] - 2026-02-02
 
@@ -78,7 +91,7 @@ Note: Some historical entries reference internal documents that are not publishe
 ## [1.0.24] - 2026-01-29
 
 ### Build + Release
-- **Version bump**: update `rust_tui/Cargo.toml` to 1.0.24 and align `Codex Voice.app` Info.plist.
+- **Version bump**: update `rust_tui/Cargo.toml` to 1.0.24 and align `VoxTerm.app` Info.plist.
 
 ### Refactor
 - **Rust modularization**: split large modules (`ipc`, `pty_session`, `codex`, `audio`, `config`, `app`, and overlay helpers) into focused submodules with tests preserved.
@@ -93,7 +106,7 @@ Note: Some historical entries reference internal documents that are not publishe
 
 ### Docs
 - **README layout**: move macOS app (folder picker) section below UI modes.
-- **macOS app version**: align `Codex Voice.app` Info.plist to 1.0.23.
+- **macOS app version**: align `VoxTerm.app` Info.plist to 1.0.23.
 - **Auto-voice status copy**: clarify that "Auto-voice enabled" means auto-voice is on while idle.
 - **Usage guidance**: tighten wording for mode selection and long-dictation tips.
 - **Usage layout**: add a mode matrix table that shows how listening and send modes combine.
@@ -120,14 +133,14 @@ Note: Some historical entries reference internal documents that are not publishe
 
 ### Docs
 - **macOS app visibility**: restore the folder-picker app path in README/Quick Start/Install docs.
-- **macOS app version**: align `Codex Voice.app` Info.plist to 1.0.22.
+- **macOS app version**: align `VoxTerm.app` Info.plist to 1.0.22.
 
 ## [1.0.21] - 2026-01-29
 
 ### Build + Release
 - **Whisper crates compatibility**: align `whisper-rs` to the latest compatible 0.14.x release to avoid `links = "whisper"` conflicts.
 - **Status redraw refactor**: reduce argument fanout in the overlay status redraw helper (clippy clean).
-- **macOS app version**: align `Codex Voice.app` Info.plist to 1.0.21.
+- **macOS app version**: align `VoxTerm.app` Info.plist to 1.0.21.
 
 ## [1.0.20] - 2026-01-29
 
@@ -161,7 +174,7 @@ Note: Some historical entries reference internal documents that are not publishe
 ### Docs
 - **README refresh**: streamlined quick start and moved deep sections into focused docs.
 - **New guides**: added install, usage, CLI flags, troubleshooting, and development docs.
-- **CLI flags**: consolidated into a single doc with codex-voice and rust_tui sections, plus missing flags and log env vars.
+- **CLI flags**: consolidated into a single doc with voxterm and rust_tui sections, plus missing flags and log env vars.
 
 ## [1.0.19] - 2026-01-29
 
@@ -182,15 +195,15 @@ Note: Some historical entries reference internal documents that are not publishe
 ## [1.0.16] - 2026-01-29
 
 ### Changes
-- **Binary rename**: `codex-voice` is now the only user-facing command (no `codex-overlay`).
-- **Prompt log path**: configured via `--prompt-log` or `CODEX_VOICE_PROMPT_LOG` (no default unless set).
-- **Env cleanup**: `CODEX_OVERLAY_PROMPT_*` is no longer supported; use `CODEX_VOICE_PROMPT_*`.
-- **Docs/scripts**: update build/run instructions to use `codex-voice`.
+- **Binary rename**: `voxterm` is now the only user-facing command (no `codex-overlay`).
+- **Prompt log path**: configured via `--prompt-log` or `VOXTERM_PROMPT_LOG` (no default unless set).
+- **Env cleanup**: Legacy overlay prompt env vars are no longer supported; use `VOXTERM_PROMPT_*`.
+- **Docs/scripts**: update build/run instructions to use `voxterm`.
 
 ## [1.0.15] - 2026-01-29
 
 ### Fixes
-- **Overlay build fix**: remove stray duplicate block that broke compilation in `codex-voice` (source: `codex_overlay.rs`).
+- **Overlay build fix**: remove stray duplicate block that broke compilation in `voxterm` (source: `codex_overlay.rs`).
 
 ## [1.0.14] - 2026-01-29
 
@@ -226,7 +239,7 @@ Note: Some historical entries reference internal documents that are not publishe
 ## [1.0.9] - 2026-01-25
 
 ### Build Fixes
-- **Clippy cleanup in codex-voice**: resolve collapsible-if, map_or, clamp, and question-mark lints under `-D warnings` (source: `codex_overlay.rs`).
+- **Clippy cleanup in voxterm**: resolve collapsible-if, map_or, clamp, and question-mark lints under `-D warnings` (source: `codex_overlay.rs`).
 
 ## [1.0.8] - 2026-01-25
 
@@ -262,7 +275,7 @@ Note: Some historical entries reference internal documents that are not publishe
 ### Fast Local Transcription Feature
 - **Benchmarked STT latency**: ~250ms processing after speech ends (tested with real microphone input).
 - **Added feature to README**: "Fast local transcription - ~250ms processing after speech ends, no cloud API calls".
-- **Verified code path**: latency_measurement binary uses identical code path as codex-voice (same voice::start_voice_job → stt::Transcriber).
+- **Verified code path**: latency_measurement binary uses identical code path as voxterm (same voice::start_voice_job → stt::Transcriber).
 
 ### Bug Fixes
 - **Filter [BLANK_AUDIO]**: Whisper's `[BLANK_AUDIO]` token is now filtered from transcripts, preventing spam in auto-voice mode when user stops talking.
@@ -277,15 +290,15 @@ Note: Some historical entries reference internal documents that are not publishe
 - **README screenshot**: added startup screenshot to img/startup.png.
 
 ### Startup UX Polish (2026-01-24) - COMPLETE
-- **Codex Voice banner**: `start.sh` now uses the Rust launch banner from the legacy CLI.
+- **VoxTerm banner**: `start.sh` now uses the Rust launch banner from the legacy CLI.
 - **Compact quickstart tables**: launch output shows quick controls + common commands in green tables.
 - **Adaptive layout**: smaller banner + dual-color columns keep tables visible in shorter terminals.
 - **Startup output test**: `scripts/tests/startup_output_test.sh` guards line widths.
 
 ### Simplified Install Flow (2026-01-23) - COMPLETE
-- **New installer**: added `install.sh` plus `scripts/setup.sh install` to download the Whisper model, build the Rust overlay, and install a `codex-voice` wrapper.
+- **New installer**: added `install.sh` plus `scripts/setup.sh install` to download the Whisper model, build the Rust overlay, and install a `voxterm` wrapper.
 - **Overlay-first defaults**: `scripts/setup.sh` now defaults to `install` so it builds the Rust overlay by default.
-- **Docs updated**: README + QUICK_START now point to `./install.sh` and `codex-voice` for the simplest path.
+- **Docs updated**: README + QUICK_START now point to `./install.sh` and `voxterm` for the simplest path.
 
 ### Rust-Only Docs + Launchers (2026-01-23) - COMPLETE
 - **Docs sweep**: removed legacy CLI references from user-facing docs and the audit.
@@ -297,13 +310,13 @@ Note: Some historical entries reference internal documents that are not publishe
 - **Startup hints**: `start.sh` prints the key controls and common flag examples for non-programmers.
 
 ### Homebrew Runtime Fixes (2026-01-23) - COMPLETE
-- **Prebuilt overlay reuse**: `start.sh` now uses `codex-voice` from PATH when available, skipping builds in Homebrew installs.
-- **User-writable model storage**: model downloads fall back to `~/.local/share/codex-voice/models` when the repo/libexec is not writable.
+- **Prebuilt overlay reuse**: `start.sh` now uses `voxterm` from PATH when available, skipping builds in Homebrew installs.
+- **User-writable model storage**: model downloads fall back to `~/.local/share/voxterm/models` when the repo/libexec is not writable.
 - **Homebrew detection**: Homebrew installs always use the user model directory instead of libexec, even if libexec is writable.
-- **Install wrapper safety**: skip existing global `codex-voice` commands and prefer safe locations unless overridden.
+- **Install wrapper safety**: skip existing global `voxterm` commands and prefer safe locations unless overridden.
 
 ### Rust Overlay Mode + Packaging (2026-01-22) - COMPLETE
-- **Added Rust overlay mode**: new `codex-voice` binary runs Codex in a PTY, forwards raw ANSI output, and injects voice transcripts as keystrokes.
+- **Added Rust overlay mode**: new `voxterm` binary runs Codex in a PTY, forwards raw ANSI output, and injects voice transcripts as keystrokes.
 - **Prompt-aware auto-voice**: prompt detection with idle fallback plus configurable regex overrides for auto-voice triggering.
 - **Serialized output writer**: PTY output + status line rendering go through a single writer thread to avoid terminal corruption.
 - **PTY passthrough improvements**: new raw PTY session that answers DSR/DA queries without stripping ANSI.
@@ -313,14 +326,14 @@ Note: Some historical entries reference internal documents that are not publishe
 - **Repo hygiene**: internal architecture/archive/reference directories are now ignored by git and removed from the tracked set.
 
 ### Project Cleanup + macOS Launcher (2026-01-11) - COMPLETE
-- **Added macOS app launcher**: `Codex Voice.app` now in repo alongside `start.sh` and `start.bat` for cross-platform consistency.
+- **Added macOS app launcher**: `VoxTerm.app` now in repo alongside `start.sh` and `start.bat` for cross-platform consistency.
 - **Major project structure cleanup**:
   - Removed duplicate files from `rust_tui/` (CHANGELOG, docs/, screenshots, etc.)
   - Moved rust_tui test scripts to `rust_tui/scripts/`
   - Consolidated scripts: deleted redundant launchers (`run_tui.sh`, `launch_tui.py`, `run_in_pty.py`)
   - Moved benchmark scripts to `scripts/tests/`
   - Deleted legacy folders (`stubs/`, `tst/`)
-  - Kept `codex_voice.py` as legacy Python fallback
+  - Kept `voxterm.py` as legacy Python fallback
 - **Updated all README diagrams** to match actual project structure.
 - **Updated .gitignore** to exclude internal dev docs (`PROJECT_OVERVIEW.md`, `agents.md`, etc.)
 - **Fixed Cargo.toml** reference to deleted test file.
@@ -397,7 +410,7 @@ Note: Some historical entries reference internal documents that are not publishe
 - Relocated root-level guides (`ARCHITECTURE.md`, `MASTER_DOC.md`, `plan.md`) into the internal references set, corrected the historical architecture baseline to the internal archive (2025-11-11), and updated navigation pointers accordingly.
 - Updated the new references (`quick_start.md`, `testing.md`, `python_legacy.md`) to reflect the current Rust pipeline (Ctrl+R voice key, `cargo run` workflow, native audio tests) and annotated the legacy plan in `docs/archive/MVP_PLAN_2024.md`.
 - Added a concise root `README.md`, introduced the “You Are Here” section in `PROJECT_OVERVIEW.md`, renamed `docs/guides/` → `docs/references/` (`quick_start.md`, `testing.md`, `python_legacy.md`, `milestones.md`, `troubleshooting.md`), and archived superseded guides under `docs/archive/OBSOLETE_GUIDES_2025-11-12/`.
-- Updated helper scripts (`rust_tui/test_performance.sh`, `test_voice.sh`, `simple_test.sh`, `final_test.sh`) to rely on `cargo run`, Ctrl+R instructions, and the shared `${TMPDIR}/codex_voice_tui.log`.
+- Updated helper scripts (`rust_tui/test_performance.sh`, `test_voice.sh`, `simple_test.sh`, `final_test.sh`) to rely on `cargo run`, Ctrl+R instructions, and the shared `${TMPDIR}/voxterm_tui.log`.
 - Extended `agents.md` with an end-of-session checklist so every workday records architecture notes, changelog entries, and the “You Are Here” pointer.
 - Consolidated the CI/CD references into a single `docs/references/cicd_plan.md`, merging the previous implementation + dependency guides and archiving the superseded files under `docs/archive/OBSOLETE_REFERENCES_2025-11-12/`.
 - Expanded `docs/references/cicd_plan.md` with appendices covering phase-by-phase scripts, tooling/dependency matrices, rollback/cost controls, and troubleshooting so it fully supersedes the archived references.

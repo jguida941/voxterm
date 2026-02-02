@@ -1,5 +1,5 @@
 #!/bin/bash
-echo "Testing Codex Voice TUI..."
+echo "Testing VoxTerm TUI..."
 echo "Model found: ../../models/ggml-tiny.en.bin ✓"
 echo
 echo "Starting TUI in background..."

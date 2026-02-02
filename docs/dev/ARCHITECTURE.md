@@ -1,4 +1,4 @@
-# Codex Voice (Rust Overlay) Architecture
+# VoxTerm (Rust Overlay) Architecture
 
 This document describes the Rust-only overlay mode. It runs the Codex CLI (or another
 AI CLI selected via `--backend`) in a PTY and adds voice capture + a minimal status
@@ -45,7 +45,7 @@ We track key decisions in ADRs so the rationale stays visible over time. See
 ```mermaid
 graph LR
   Terminal["Terminal TTY"] <--> Input["Raw input reader"]
-  Input --> Overlay["codex-voice main loop"]
+  Input --> Overlay["voxterm main loop"]
   Overlay --> PTY["PtyOverlaySession"]
   PTY --> Codex["Codex CLI"]
   Codex --> PTY
@@ -71,13 +71,13 @@ What this means:
 | Rust Overlay | `rust_tui/src/bin/codex_overlay/main.rs` | PTY passthrough UI with voice overlay |
 | Voice Pipeline | `rust_tui/src/voice.rs` | Audio capture orchestration + STT |
 | PTY Session | `rust_tui/src/pty_session/` | Raw PTY passthrough and prompt-safe output |
-| Python fallback | `scripts/codex_voice.py` | Optional fallback STT pipeline |
+| Python fallback | `scripts/voxterm.py` | Optional fallback STT pipeline |
 
 ## Threads and Channels
 
 ```mermaid
 graph TD
-  Main["codex-voice main loop"]
+  Main["voxterm main loop"]
   InputThread["Input thread<br>reads stdin bytes"]
   PtyReader["PTY reader thread<br>raw ANSI output"]
   WriterThread["Writer thread<br>serializes output + status"]
@@ -102,13 +102,13 @@ Why this matters:
 sequenceDiagram
   participant User
   participant Start as start.sh
-  participant Overlay as codex-voice
+  participant Overlay as voxterm
   participant PTY as PTY Session
   participant Threads as Threads
 
   User->>Start: run start.sh
   Start->>Start: locate/download Whisper model
-  Start->>Overlay: launch codex-voice\n(+ --whisper-model-path)
+  Start->>Overlay: launch voxterm\n(+ --whisper-model-path)
   Overlay->>Overlay: parse & validate config
   Overlay->>PTY: spawn Codex in PTY
   Overlay->>Threads: start input/reader/writer
@@ -123,7 +123,7 @@ sequenceDiagram
 sequenceDiagram
   participant User
   participant Input as InputThread
-  participant Main as codex-voice
+  participant Main as voxterm
   participant PTY as PTY Session
   participant Codex
   participant Writer as WriterThread
@@ -144,7 +144,7 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
   participant User
-  participant Main as codex-voice
+  participant Main as voxterm
   participant Voice as VoiceThread
   participant Whisper as Whisper STT
   participant PTY as PTY Session
@@ -164,7 +164,7 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
   participant PTY as PTY Session
-  participant Main as codex-voice
+  participant Main as voxterm
   participant Prompt as PromptTracker
 
   PTY-->>Main: output chunk
@@ -191,11 +191,11 @@ stateDiagram-v2
   from `--whisper-model-path` or auto-discovered from `--whisper-model` (default `small`)
   in the repo `models/` directory.
 - **Fallback:** if native capture is unavailable or fails, the code falls back to Python
-  (`scripts/codex_voice.py`) unless `--no-python-fallback` is set.
+  (`scripts/voxterm.py`) unless `--no-python-fallback` is set.
 
 Common setup path:
 - `./scripts/setup.sh models --base` downloads `models/ggml-base.en.bin`.
-- `start.sh` passes `--whisper-model-path` into `codex-voice` when a model is found.
+- `start.sh` passes `--whisper-model-path` into `voxterm` when a model is found.
 
 ## Voice Error and Fallback Flow
 
@@ -229,7 +229,7 @@ Notes:
 
 - File logs are opt-in: `--logs` (add `--log-content` to include prompt/transcript snippets).
 - Debug logs rotate to avoid unbounded growth.
-- Prompt detection logs are opt-in via `--prompt-log` or `CODEX_VOICE_PROMPT_LOG` (disabled by `--no-logs`).
+- Prompt detection logs are opt-in via `--prompt-log` or `VOXTERM_PROMPT_LOG` (disabled by `--no-logs`).
 
 ## STT behavior (non-streaming)
 
@@ -259,7 +259,7 @@ Timing observability:
 
 ```mermaid
 graph TD
-  Overlay[codex-voice] --> Codex[Codex CLI]
+  Overlay[voxterm] --> Codex[Codex CLI]
   Overlay --> Whisper["Whisper native via whisper-rs"]
   Overlay --> Py[Python fallback]
   Py --> WhisperCli[whisper CLI]
@@ -276,7 +276,7 @@ Safety constraints in code:
 
 ```mermaid
 sequenceDiagram
-  participant Main as codex-voice
+  participant Main as voxterm
   participant PTY as PTY Session
   participant Threads as Input/Reader/Writer
 
@@ -323,7 +323,7 @@ Design details and audit notes live in `docs/active/UI_ENHANCEMENT_PLAN.md`.
 
 ## Key Files
 
-- `rust_tui/src/bin/codex_overlay/main.rs` - main loop, input handling, prompt detection (binary: `codex-voice`)
+- `rust_tui/src/bin/codex_overlay/main.rs` - main loop, input handling, prompt detection (binary: `voxterm`)
 - `rust_tui/src/bin/codex_overlay/writer.rs` - serialized output, status line, help overlay
 - `rust_tui/src/bin/codex_overlay/status_line.rs` - status line layout + formatting
 - `rust_tui/src/bin/codex_overlay/status_style.rs` - status message categorization + styling
@@ -346,11 +346,11 @@ Design details and audit notes live in `docs/active/UI_ENHANCEMENT_PLAN.md`.
 - `--mic-meter` - run mic calibration with visual meter output
 - `--mic-meter-ambient-ms` / `--mic-meter-speech-ms` - calibration sample durations
 - `--prompt-regex` - override prompt detection
-- `CODEX_VOICE_CWD` - run Codex in a chosen project directory
+- `VOXTERM_CWD` - run Codex in a chosen project directory
 
 ## Debugging and Logs
 
 - Logs are opt-in: enable with `--logs` (add `--log-content` for prompt/transcript snippets).
-- Debug log: `${TMPDIR}/codex_voice_tui.log` (created only when logs are enabled).
-- Prompt detection log: only when `--prompt-log` or `CODEX_VOICE_PROMPT_LOG` is set.
+- Debug log: `${TMPDIR}/voxterm_tui.log` (created only when logs are enabled).
+- Prompt detection log: only when `--prompt-log` or `VOXTERM_PROMPT_LOG` is set.
 - Use `--no-python-fallback` to force native Whisper and surface errors early.

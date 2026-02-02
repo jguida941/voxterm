@@ -12,12 +12,12 @@
 ## Project structure
 
 ```
-codex-voice/
+voxterm/
 ├── .github/
 │   ├── CONTRIBUTING.md   # Contribution guidelines
 │   ├── SECURITY.md       # Security policy
 │   └── workflows/        # CI workflows
-├── Codex Voice.app/      # macOS double-click launcher
+├── VoxTerm.app/      # macOS double-click launcher
 ├── agents.md             # SDLC policy and release checklist
 ├── QUICK_START.md        # Fast setup and commands
 ├── docs/
@@ -64,7 +64,7 @@ AI review notes (for example `claude_review.md`) are local-only, gitignored, and
 
 ```bash
 # Rust overlay
-cd rust_tui && cargo build --release --bin codex-voice
+cd rust_tui && cargo build --release --bin voxterm
 
 # Rust backend (optional dev binary)
 cd rust_tui && cargo build --release
@@ -77,7 +77,7 @@ cd rust_tui && cargo build --release
 cd rust_tui && cargo test
 
 # Overlay tests
-cd rust_tui && cargo test --bin codex-voice
+cd rust_tui && cargo test --bin voxterm
 
 # Perf smoke (voice metrics)
 cd rust_tui && cargo test --no-default-features app::tests::perf_smoke_emits_voice_metrics -- --nocapture

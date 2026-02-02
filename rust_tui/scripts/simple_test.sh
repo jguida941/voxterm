@@ -1,7 +1,7 @@
 #!/bin/bash
 clear
 echo "=========================================="
-echo "     CODEX VOICE TUI - QUICK TEST"
+echo "     VOXTERM TUI - QUICK TEST"
 echo "=========================================="
 echo
 echo "✓ Models available:"
@@ -32,4 +32,4 @@ echo "  • ggml-tiny.en.bin model ✓"
 echo "  • MacBook Pro Microphone ✓"
 echo "  • Release build compiled ✓"
 echo
-echo "If it's slow, check /tmp/codex_voice_tui.log"
+echo "If it's slow, check /tmp/voxterm_tui.log"

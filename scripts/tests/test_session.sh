@@ -12,5 +12,5 @@ echo ""
 echo "Starting in 3 seconds..."
 sleep 3
 
-cd /Users/jguida941/new_github_projects/codex_voice
+cd /Users/jguida941/new_github_projects/voxterm
 ./start.sh

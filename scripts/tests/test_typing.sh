@@ -18,7 +18,7 @@ echo ""
 echo "Starting TUI without voice..."
 echo ""
 
-cd /Users/jguida941/new_github_projects/codex_voice/rust_tui
+cd /Users/jguida941/new_github_projects/voxterm/rust_tui
 
 # Run with fake whisper so voice doesn't interfere
 cargo run -- \

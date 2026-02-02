@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Integration test for Codex Voice IPC protocol
+# Integration test for VoxTerm IPC protocol
 # Tests the end-to-end flow between IPC clients and the Rust backend
 #
 
@@ -44,7 +44,7 @@ skip() {
 
 echo ""
 echo -e "${BLUE}╔══════════════════════════════════════════════════════════════╗${NC}"
-echo -e "${BLUE}║${NC}           Codex Voice Integration Tests                      ${BLUE}║${NC}"
+echo -e "${BLUE}║${NC}           VoxTerm Integration Tests                      ${BLUE}║${NC}"
 echo -e "${BLUE}╚══════════════════════════════════════════════════════════════╝${NC}"
 echo ""
 

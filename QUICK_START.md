@@ -1,4 +1,4 @@
-# Codex Voice Quick Start (Overlay Mode)
+# VoxTerm Quick Start (Overlay Mode)
 
 This is the shortest path to run Codex (default backend) with voice in your terminal.
 Supported on macOS and Linux (use WSL2 if you are on Windows).
@@ -13,24 +13,24 @@ npm install -g @openai/codex
 
 - Install Rust (if you do not have it): https://rustup.rs
 
-## 2) Install Codex Voice
+## 2) Install VoxTerm
 
 ```bash
-git clone https://github.com/jguida941/codex-voice.git
-cd codex-voice
+git clone https://github.com/jguida941/voxterm.git
+cd voxterm
 ./install.sh
 ```
 
-If `codex-voice` is not found, see PATH and install notes in
+If `voxterm` is not found, see PATH and install notes in
 [docs/INSTALL.md](docs/INSTALL.md).
 
-macOS app alternative (folder picker): double-click **Codex Voice.app** and choose your project.
+macOS app alternative (folder picker): double-click **VoxTerm.app** and choose your project.
 
 ## 3) Run from any project
 
 ```bash
 cd ~/my-project
-codex-voice
+voxterm
 ```
 
 First run downloads a Whisper model if missing.
@@ -38,7 +38,7 @@ First run downloads a Whisper model if missing.
 To target another AI CLI instead of Codex, pass `--backend`:
 
 ```bash
-codex-voice --backend claude
+voxterm --backend claude
 ```
 
 ## 4) Essential controls
@@ -59,14 +59,14 @@ Full behavior notes and screenshots are in [docs/USAGE.md](docs/USAGE.md).
 ## 5) Common flags
 
 ```bash
-codex-voice --auto-voice
-codex-voice --voice-send-mode insert
-codex-voice --voice-vad-threshold-db -50
-codex-voice --mic-meter
-codex-voice --logs
-codex-voice --voice-max-capture-ms 60000 --voice-buffer-ms 60000
-codex-voice --transcript-idle-ms 250
-codex-voice --prompt-regex '^codex> $'
+voxterm --auto-voice
+voxterm --voice-send-mode insert
+voxterm --voice-vad-threshold-db -50
+voxterm --mic-meter
+voxterm --logs
+voxterm --voice-max-capture-ms 60000 --voice-buffer-ms 60000
+voxterm --transcript-idle-ms 250
+voxterm --prompt-regex '^codex> $'
 ```
 
 See [docs/CLI_FLAGS.md](docs/CLI_FLAGS.md) for the full CLI flag and env var list.

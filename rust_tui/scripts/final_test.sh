@@ -1,5 +1,5 @@
 #!/bin/bash
-echo "=== TESTING CODEX VOICE TUI ==="
+echo "=== TESTING VOXTERM TUI ==="
 echo
 echo "Available models:"
 ls -lh ../../models/*.bin 2>/dev/null | awk '{print "  ✓", $NF, "("$5")"}'
@@ -24,7 +24,7 @@ kill $PID 2>/dev/null || true
 # Check the debug log
 echo
 echo "=== CHECKING DEBUG LOG ==="
-LOG_FILE="${TMPDIR:-/tmp}/codex_voice_tui.log"
+LOG_FILE="${TMPDIR:-/tmp}/voxterm_tui.log"
 if [ -f "$LOG_FILE" ]; then
   echo "Recent log entries:"
   tail -20 "$LOG_FILE" | grep -E "(capture_voice|Recording|Transcr|pipeline|fallback)" | tail -10

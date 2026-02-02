@@ -38,7 +38,7 @@ where
     config.validate()?;
     init_logging(&config);
     let log_path = log_file_path();
-    log_debug("=== Codex Voice TUI Started ===");
+    log_debug("=== VoxTerm TUI Started ===");
     log_debug(&format!("Log file: {log_path:?}"));
 
     // Run in JSON IPC mode for external UI integration
@@ -51,7 +51,7 @@ where
     let mut app = App::new(config);
     let result = ui::run_app(&mut app);
 
-    log_debug("=== Codex Voice TUI Exiting ===");
+    log_debug("=== VoxTerm TUI Exiting ===");
     if let Err(ref e) = result {
         log_debug(&format!("Exit with error: {e:#}"));
     }
@@ -60,7 +60,7 @@ where
 }
 
 fn list_input_devices() -> Result<String> {
-    let devices = if let Ok(raw) = env::var("CODEX_VOICE_TEST_DEVICES") {
+    let devices = if let Ok(raw) = env::var("VOXTERM_TEST_DEVICES") {
         let trimmed = raw.trim();
         if trimmed.is_empty() {
             Vec::new()
@@ -93,19 +93,19 @@ mod tests {
     fn with_test_devices(value: Option<&str>, action: impl FnOnce() -> Result<String>) -> String {
         static ENV_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
         let _guard = ENV_LOCK.get_or_init(|| Mutex::new(())).lock().unwrap();
-        let previous = env::var("CODEX_VOICE_TEST_DEVICES").ok();
+        let previous = env::var("VOXTERM_TEST_DEVICES").ok();
         if let Some(value) = value {
-            env::set_var("CODEX_VOICE_TEST_DEVICES", value);
+            env::set_var("VOXTERM_TEST_DEVICES", value);
         } else {
-            env::remove_var("CODEX_VOICE_TEST_DEVICES");
+            env::remove_var("VOXTERM_TEST_DEVICES");
         }
 
         let output = action().expect("action should succeed");
 
         if let Some(previous) = previous {
-            env::set_var("CODEX_VOICE_TEST_DEVICES", previous);
+            env::set_var("VOXTERM_TEST_DEVICES", previous);
         } else {
-            env::remove_var("CODEX_VOICE_TEST_DEVICES");
+            env::remove_var("VOXTERM_TEST_DEVICES");
         }
 
         output

@@ -5,7 +5,7 @@ fn main_lists_input_devices() {
     let bin = env!("CARGO_BIN_EXE_rust_tui");
     let output = Command::new(bin)
         .arg("--list-input-devices")
-        .env("CODEX_VOICE_TEST_DEVICES", "Mic A,Mic B")
+        .env("VOXTERM_TEST_DEVICES", "Mic A,Mic B")
         .output()
         .expect("run rust_tui");
     assert!(output.status.success());
@@ -20,7 +20,7 @@ fn main_reports_no_input_devices() {
     let bin = env!("CARGO_BIN_EXE_rust_tui");
     let output = Command::new(bin)
         .arg("--list-input-devices")
-        .env("CODEX_VOICE_TEST_DEVICES", "")
+        .env("VOXTERM_TEST_DEVICES", "")
         .output()
         .expect("run rust_tui");
     assert!(output.status.success());

@@ -1,20 +1,20 @@
-# Codex Voice
+# VoxTerm
 
 ![Rust](https://img.shields.io/badge/Rust-000000?logo=rust&logoColor=white)
 ![Whisper STT](https://img.shields.io/badge/Whisper-Local%20STT-74aa9c)
 ![macOS | Linux](https://img.shields.io/badge/macOS%20%7C%20Linux-blue)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-[![Rust TUI CI](https://github.com/jguida941/codex-voice/actions/workflows/rust_tui.yml/badge.svg)](https://github.com/jguida941/codex-voice/actions/workflows/rust_tui.yml)
-[![Mutation Testing](https://github.com/jguida941/codex-voice/actions/workflows/mutation-testing.yml/badge.svg)](https://github.com/jguida941/codex-voice/actions/workflows/mutation-testing.yml)
+[![Rust TUI CI](https://github.com/jguida941/voxterm/actions/workflows/rust_tui.yml/badge.svg)](https://github.com/jguida941/voxterm/actions/workflows/rust_tui.yml)
+[![Mutation Testing](https://github.com/jguida941/voxterm/actions/workflows/mutation-testing.yml/badge.svg)](https://github.com/jguida941/voxterm/actions/workflows/mutation-testing.yml)
 
 Voice input for the Codex CLI by default, with optional backend selection for other AI CLIs. Written in Rust for speed. Talk instead of type and boost your productivity. Runs Whisper locally through Rust with ~250ms latency. No cloud, no API keys.
 
-![Codex Voice Startup](img/startup.png)
+![VoxTerm Startup](img/startup.png)
 
-## What Codex-Voice Does
+## What VoxTerm Does
 
-Wraps Codex (or another AI CLI via `--backend`) in a PTY and adds voice input. You talk → Whisper transcribes → text gets typed into the CLI. Codex-Voice runs over the native CLI, so you keep its features like file editing and code generation.
+Wraps Codex (or another AI CLI via `--backend`) in a PTY and adds voice input. You talk → Whisper transcribes → text gets typed into the CLI. VoxTerm runs over the native CLI, so you keep its features like file editing and code generation.
 
 - Written in Rust for speed
 - Local speech-to-text via whisper.cpp
@@ -36,18 +36,18 @@ Wraps Codex (or another AI CLI via `--backend`) in a PTY and adds voice input. Y
 npm install -g @openai/codex
 
 # Clone and build
-git clone https://github.com/jguida941/codex-voice.git
-cd codex-voice
+git clone https://github.com/jguida941/voxterm.git
+cd voxterm
 ./install.sh
 
 # Run it
 cd ~/your-project
-codex-voice
+voxterm
 ```
 
 First run downloads the Whisper model.
 
-To target another AI CLI instead of Codex, pass `--backend` (example: `codex-voice --backend claude`).
+To target another AI CLI instead of Codex, pass `--backend` (example: `voxterm --backend claude`).
 
 **Other options:** [Homebrew](docs/INSTALL.md#homebrew) | [macOS App](docs/INSTALL.md#macos-app) | [Build from source](docs/INSTALL.md#from-source)
 
@@ -78,7 +78,7 @@ More details: [Usage Guide](docs/USAGE.md)
 
 ## macOS App
 
-Double-click `Codex Voice.app`, pick a folder, it opens Terminal with codex-voice running.
+Double-click `VoxTerm.app`, pick a folder, it opens Terminal with voxterm running.
 
 ![Folder Picker](img/folder-picker.png)
 
@@ -112,7 +112,7 @@ The CLI runs in a PTY. Voice transcripts are sent as keystrokes. All CLI output 
 
 PRs welcome. See [CONTRIBUTING.md](.github/CONTRIBUTING.md).
 
-Issues: [github.com/jguida941/codex-voice/issues](https://github.com/jguida941/codex-voice/issues)
+Issues: [github.com/jguida941/voxterm/issues](https://github.com/jguida941/voxterm/issues)
 
 ## License
 

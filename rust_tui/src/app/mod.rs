@@ -1,4 +1,4 @@
-//! Terminal UI shell for the codex_voice pipeline. It mirrors the Python
+//! Terminal UI shell for the voxterm pipeline. It mirrors the Python
 //! prototype but wraps it in a full-screen experience driven by ratatui.
 
 mod logging;

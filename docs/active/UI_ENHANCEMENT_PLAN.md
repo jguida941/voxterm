@@ -2,7 +2,7 @@
 
 Comprehensive visual/UI design document for the Voice HUD project (working title). This consolidates all research, completed work, and future plans.
 
-> **Note**: This project is transitioning from "Codex Voice" to a universal voice HUD for AI CLI tools. See [Project Identity](#project-identity--positioning) for naming discussion.
+> **Note**: VoxTerm is now the official name for the universal voice HUD for AI CLI tools. See [Project Identity](#project-identity--positioning) for naming context.
 > **Scheduling note**: This document is a design/roadmap reference. Active priorities and execution live in `docs/active/MASTER_PLAN.md`.
 
 ## Contents
@@ -34,9 +34,9 @@ Comprehensive visual/UI design document for the Voice HUD project (working title
 
 ## Project Identity & Positioning
 
-### The Problem with "Codex Voice"
+### Name Decision: VoxTerm
 
-The current name ties the project to OpenAI's Codex CLI specifically. The AI CLI landscape has exploded:
+VoxTerm is vendor-agnostic while still feeling terminal-native. The AI CLI landscape has exploded:
 
 | Tool | Vendor | GitHub Stars |
 |------|--------|--------------|
@@ -48,7 +48,7 @@ The current name ties the project to OpenAI's Codex CLI specifically. The AI CLI
 
 **The project should be AI-agnostic from Day 1.**
 
-### Name Candidates
+### Name Candidates (Archived)
 
 | Name | Rationale | Domain/Availability |
 |------|-----------|---------------------|
@@ -61,13 +61,13 @@ The current name ties the project to OpenAI's Codex CLI specifically. The AI CLI
 | **DevWhisper** | Plays on Whisper STT | TBD |
 | **Speakr** | Modern, short | TBD |
 
-**Decision**: TBD (requires team input)
+**Decision**: VoxTerm
 
-**Working convention**: Until a rename is finalized, CLI/config examples use the current `codex-voice` binary and `~/.config/codex-voice/` paths. Update after the naming decision.
+**Working convention**: CLI/config examples use the `voxterm` binary and `~/.config/voxterm/` paths.
 
 ### Core Value Proposition
 
-> **[Project Name]**: The open-source voice HUD for AI coding assistants.
+> **VoxTerm**: The open-source voice HUD for AI coding assistants.
 >
 > Talk to Claude Code, Gemini CLI, Aider, or any AI CLI. See your tokens, costs, and transcript queue in a beautiful terminal overlay. 100% local Whisper STT — your voice never leaves your machine.
 
@@ -114,10 +114,10 @@ impl AiBackend {
 
 **CLI Flag**:
 ```bash
-codex-voice --backend codex          # Default
-codex-voice --backend gemini
-codex-voice --backend aider
-codex-voice --backend "my-custom-tool --flag"
+voxterm --backend codex          # Default
+voxterm --backend gemini
+voxterm --backend aider
+voxterm --backend "my-custom-tool --flag"
 ```
 
 ---
@@ -372,7 +372,7 @@ pub trait HudModule {
 ### Module Configuration
 
 ```toml
-# ~/.config/codex-voice/preferences.toml
+# ~/.config/voxterm/preferences.toml
 
 [hud.modules]
 # Core modules (on by default)
@@ -496,11 +496,11 @@ The [Model Context Protocol (MCP)](https://www.anthropic.com/news/model-context-
 
 ### UI Architecture
 
-Codex Voice has **two UI modes**:
+VoxTerm has **two UI modes**:
 
 | Mode | Framework | Visual Style |
 |------|-----------|--------------|
-| **Overlay** (`codex-voice`) | Raw ANSI + Crossterm | Multi-row status banner at bottom, themed colors |
+| **Overlay** (`voxterm`) | Raw ANSI + Crossterm | Multi-row status banner at bottom, themed colors |
 | **Full TUI** (`rust_tui`) | Ratatui + Crossterm | 3-panel layout, red theme, rounded borders |
 
 ### Current Visual Components
@@ -538,7 +538,7 @@ Codex Voice has **two UI modes**:
 #### 4. Help Overlay (`help.rs`)
 ```
 ┌─────────────────────────────────────┐
-│  Codex Voice - Keyboard Shortcuts   │
+│  VoxTerm - Keyboard Shortcuts   │
 ├─────────────────────────────────────┤
 │  Ctrl+R   Start voice capture       │
 │  Ctrl+V   Toggle auto-voice         │
@@ -556,7 +556,7 @@ Codex Voice has **two UI modes**:
 - Press 1-6 to select (numbers only, no arrow keys yet)
 
 #### 6. Startup Banner (`banner.rs`)
-- Simple text line: `Codex Voice v1.0.29 │ Rust │ theme: coral │ auto-voice: on │ -35dB`
+- Simple text line: `VoxTerm v1.0.30 │ Rust │ theme: coral │ auto-voice: on │ -35dB`
 - Minimal version for narrow terminals
 
 ---
@@ -793,7 +793,7 @@ Make the banner feel like a HUD by anchoring information so the eye always knows
 
 Conceptual structure:
 ```
-╭─ Codex Voice ──────────────────────────────────────────────────╮
+╭─ VoxTerm ──────────────────────────────────────────────────╮
 │ ● REC  AUTO  |  [2/4] Transcribing…        |  02.5s  -40dB ▁▂▃▅ │
 │ : commands  ^R rec  ^V auto  ^S settings  ? help               │
 ╰───────────────────────────────────────────────────────────────╯
@@ -840,13 +840,13 @@ Apply focus styling everywhere, including overlay mode:
 
 **Goal**: Establish universal identity and abstract backend support before feature work.
 
-**Why First**: The name "Codex Voice" limits market positioning. Multi-backend support should be architectural, not bolted on.
+**Why First**: Identity is now VoxTerm and is vendor-agnostic; keep multi-backend support architectural, not bolted on.
 
 #### A. Finalize Project Name
 
-- [ ] Evaluate name candidates (see [Project Identity](#project-identity--positioning))
+- [x] Evaluate name candidates (see [Project Identity](#project-identity--positioning))
 - [ ] Check domain/trademark availability
-- [ ] Update all references (binary name, docs, configs)
+- [x] Update all references (binary name, docs, configs)
 - [ ] Design minimal logo/wordmark (ASCII art for banner)
 
 #### B. Abstract AI Backend
@@ -871,10 +871,10 @@ pub struct Custom { command: String }
 #### C. CLI Flag for Backend Selection
 
 ```bash
-codex-voice                           # Default: codex
-codex-voice --backend gemini
-codex-voice --backend aider
-codex-voice --backend "custom-tool --flag"
+voxterm                           # Default: codex
+voxterm --backend gemini
+voxterm --backend aider
+voxterm --backend "custom-tool --flag"
 ```
 
 #### D. Backend-Specific Prompt Detection
@@ -889,7 +889,7 @@ Each backend has different prompt patterns:
 #### E. Update Config Schema
 
 ```toml
-# ~/.config/codex-voice/preferences.toml
+# ~/.config/voxterm/preferences.toml
 [backend]
 default = "codex"  # codex | claude | gemini | aider | opencode | custom
 custom_command = "" # Used when default = "custom"
@@ -927,7 +927,7 @@ prompt_pattern = "" # Optional override
 - [ ] Optional `--log-file` for structured logs
 - [ ] On crash, write last N events + state summary to a crash log
 
-#### C. `codex-voice --doctor` Flag (Completed 2026-02-01)
+#### C. `voxterm --doctor` Flag (Completed 2026-02-01)
 
 Prints detected capabilities and system info:
 - Terminal: color depth, unicode support, mouse, graphics protocol
@@ -987,7 +987,7 @@ pub const HIGH_CONTRAST: ThemeColors = ThemeColors {
 #### B. Reduced Motion Flag
 
 ```bash
-codex-voice --reduced-motion   # or --no-anim
+voxterm --reduced-motion   # or --no-anim
 ```
 
 When enabled:
@@ -1233,7 +1233,7 @@ Small modal showing recent pipeline steps + timings:
 
 **Goal**: Save preferences across sessions
 
-**Config Location**: `~/.config/codex-voice/preferences.toml`
+**Config Location**: `~/.config/voxterm/preferences.toml`
 
 **Format**:
 ```toml
@@ -1268,7 +1268,7 @@ send_mode = "auto"  # auto | manual | confirm
 - Preferences file versioning (schema version field)
 - Validation with friendly warnings + safe defaults
 - Automatic migration for older configs
-- `codex-voice --check-config` optional validator
+- `voxterm --check-config` optional validator
 
 **Files**: NEW `rust_tui/src/config_migrate.rs`, `rust_tui/src/preferences.rs`
 
@@ -1330,7 +1330,7 @@ pub struct ThemeColors {
 
 **Goal**: Allow users to remap keyboard shortcuts
 
-**Config Location**: `~/.config/codex-voice/keybindings.toml`
+**Config Location**: `~/.config/voxterm/keybindings.toml`
 
 **Format**:
 ```toml
@@ -1377,7 +1377,7 @@ impl Keybindings {
 
 **Conflict Detection**:
 - Warn on startup if two actions map to same key
-- Provide `codex-voice --check-keybindings` to validate config
+- Provide `voxterm --check-keybindings` to validate config
 
 **Files**: NEW `rust_tui/src/keybindings.rs`, `rust_tui/src/bin/codex_overlay/config.rs`, `rust_tui/src/bin/codex_overlay/input.rs`
 
@@ -1573,7 +1573,7 @@ pub struct HistoryEntry {
 │    ██║     ██║   ██║██║  ██║█████╗   ╚███╔╝                                  │
 │    ██║     ██║   ██║██║  ██║██╔══╝   ██╔██╗                                  │
 │    ╚██████╗╚██████╔╝██████╔╝███████╗██╔╝ ██╗                                 │
-│     ╚═════╝ ╚═════╝ ╚═════╝ ╚══════╝╚═╝  ╚═╝   VOICE v1.0.29                 │
+│     ╚═════╝ ╚═════╝ ╚═════╝ ╚══════╝╚═╝  ╚═╝   VOICE v1.0.30                 │
 │                                                                              │
 │    ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐             │
 │    │   ^R  Record    │  │   ^V  Auto      │  │   :  Commands   │             │
@@ -2021,7 +2021,7 @@ This complements the "Definition of Done (Per Phase)" in Testing Strategy.
 - [ ] Snapshot tests across widths (120/80/60/40/25) + flags (no-color/no-unicode/reduced-motion)
 - [ ] Property-based tests for menus/focus when touched
 - [ ] Concurrency/PTY tests if threading/terminal lifecycle changed
-- [ ] `cd rust_tui && cargo build --release --bin codex-voice`
+- [ ] `cd rust_tui && cargo build --release --bin voxterm`
 
 ### Docs & Tracking
 - [ ] Doc updates per checklist (USAGE/CLI_FLAGS/README/etc)
@@ -2038,7 +2038,7 @@ This complements the "Definition of Done (Per Phase)" in Testing Strategy.
 
 ## Future Vision: Beyond Whisper
 
-This section explores features beyond the current roadmap, inspired by industry tools and emerging AI capabilities. These represent potential directions for Codex Voice to evolve into a comprehensive developer HUD.
+This section explores features beyond the current roadmap, inspired by industry tools and emerging AI capabilities. These represent potential directions for VoxTerm to evolve into a comprehensive developer HUD.
 
 ### Bridge Milestones (Near-Term)
 
@@ -2169,9 +2169,9 @@ Inspired by [Lazygit](https://jesseduffield.com/Lazygit-5-Years-On/) and [Lazydo
 
 The [Model Context Protocol](https://www.anthropic.com/news/model-context-protocol) is the emerging standard for AI tool integration, adopted by Anthropic, OpenAI, Google, Microsoft.
 
-**Codex Voice as MCP Client**:
+**VoxTerm as MCP Client**:
 ```toml
-# ~/.config/codex-voice/mcp.toml
+# ~/.config/voxterm/mcp.toml
 [servers]
 github = { command = "npx", args = ["-y", "@modelcontextprotocol/server-github"] }
 filesystem = { command = "npx", args = ["-y", "@modelcontextprotocol/server-filesystem"] }
@@ -2182,7 +2182,7 @@ postgres = { command = "uvx", args = ["mcp-server-postgres", "postgresql://..."]
 ```
 You: "Check my open PRs on the auth repo"
      ↓
-Codex Voice → MCP GitHub Server → Response
+VoxTerm → MCP GitHub Server → Response
      ↓
 HUD: "3 open PRs: #142 (review requested), #138 (approved), #135 (draft)"
 ```
@@ -2328,7 +2328,7 @@ Inspired by [Warp terminal](https://www.warp.dev/) and [CC Statusline](https://c
 **Solution**: Voice-triggered macros.
 
 ```toml
-# ~/.config/codex-voice/macros.toml
+# ~/.config/voxterm/macros.toml
 [macros]
 "fix it" = "Please fix the bug in the code I just showed you"
 "add tests" = "Add comprehensive unit tests for this function with edge cases"
@@ -2387,17 +2387,17 @@ speed = 1.2
 #### K. IDE Integrations (VS Code, Neovim)
 
 **VS Code Extension**:
-- Codex Voice status in VS Code status bar
+- VoxTerm status in VS Code status bar
 - Voice commands routed to active editor
 - Transcript appears in VS Code panel
 
 **Neovim Plugin**:
 ```lua
--- ~/.config/nvim/lua/plugins/codex-voice.lua
+-- ~/.config/nvim/lua/plugins/voxterm.lua
 return {
-  "codex-voice/nvim",
+  "voxterm/nvim",
   config = function()
-    require("codex-voice").setup({
+    require("voxterm").setup({
       auto_start = true,
       status_line = true,  -- Show in lualine
     })
@@ -2553,7 +2553,7 @@ Bounce (classic):  [=   ] [==  ] [=== ]
 |------|---------|-------|
 | `rust_tui/src/terminal_restore.rs` | Terminal state guard + panic restore | -1 |
 | `rust_tui/src/crash_log.rs` | Crash log + event ring buffer | -1 |
-| `rust_tui/src/doctor.rs` | `codex-voice --doctor` diagnostics | -1 |
+| `rust_tui/src/doctor.rs` | `voxterm --doctor` diagnostics | -1 |
 | `rust_tui/src/privacy.rs` | Redaction policy + retention settings | -1 |
 | `rust_tui/src/sanitize.rs` | Control-char stripping + safe render helpers | -1 |
 | `rust_tui/src/accessibility.rs` | Announcements, contrast validation, reduced motion | 0 |
@@ -2615,7 +2615,7 @@ Bounce (classic):  [=   ] [==  ] [=== ]
 2. **Phase -1**: Terminal Safety Foundation
    - Panic-safe terminal restore + Drop guard
    - Structured logging + crash log
-   - `codex-voice --doctor` diagnostics
+   - `voxterm --doctor` diagnostics
 
 3. **Phase 0 + 0.5**: Accessibility + Performance Architecture
    - Accessibility flags + announcements

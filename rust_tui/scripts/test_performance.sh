@@ -1,7 +1,7 @@
 #!/bin/bash
 # Test performance of voice capture
 
-echo "=== Codex Voice TUI Performance Test ==="
+echo "=== VoxTerm TUI Performance Test ==="
 echo
 
 # Check if model exists (default tiny)
@@ -19,7 +19,7 @@ echo "Building release binary..."
 cargo build --release --features high-quality-audio
 
 echo
-LOG_FILE="${TMPDIR:-/tmp}/codex_voice_tui.log"
+LOG_FILE="${TMPDIR:-/tmp}/voxterm_tui.log"
 
 echo "Running TUI with performance logging..."
 echo "Press Ctrl+R to test voice capture, Ctrl+C to quit"

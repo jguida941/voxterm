@@ -15,7 +15,7 @@
 - `cd rust_tui && cargo fmt --all -- --check`
 - `cd rust_tui && cargo clippy --workspace --all-features -- -D warnings`
 - `cd rust_tui && cargo test`
-- `cd rust_tui && cargo build --release --bin codex-voice`
+- `cd rust_tui && cargo build --release --bin voxterm`
 
 ## Notes / risks
 - `?` opens the help overlay and cannot be sent through while the overlay is active (documented in user docs).

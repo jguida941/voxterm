@@ -16,9 +16,9 @@ run_case() {
     local length
 
     output=$(
-        CODEX_VOICE_STARTUP_ONLY=1 \
-        CODEX_VOICE_FORCE_COLUMNS="$width" \
-        CODEX_VOICE_FORCE_LINES="$lines" \
+        VOXTERM_STARTUP_ONLY=1 \
+        VOXTERM_FORCE_COLUMNS="$width" \
+        VOXTERM_FORCE_LINES="$lines" \
         "$ROOT_DIR/start.sh" --help
     )
 

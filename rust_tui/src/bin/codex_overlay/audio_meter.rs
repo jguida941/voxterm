@@ -157,7 +157,7 @@ pub(crate) fn run_mic_meter(config: &AppConfig, theme: Theme) -> Result<()> {
         format_mic_meter_display(ambient, Some(speech), suggested, theme)
     );
     println!("\nSuggested --voice-vad-threshold-db: {suggested:.1}");
-    println!("Example: codex-voice --voice-vad-threshold-db {suggested:.1}");
+    println!("Example: voxterm --voice-vad-threshold-db {suggested:.1}");
     if let Some(message) = warning {
         println!("Note: {message}");
     }

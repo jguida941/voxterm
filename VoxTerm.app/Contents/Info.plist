@@ -5,14 +5,14 @@
 	<key>CFBundleExecutable</key>
 	<string>launch</string>
 	<key>CFBundleIdentifier</key>
-	<string>com.codex-voice.app</string>
+	<string>com.voxterm.app</string>
 	<key>CFBundleName</key>
-	<string>Codex Voice</string>
+	<string>VoxTerm</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>1.0.29</string>
+	<string>1.0.30</string>
 	<key>CFBundleVersion</key>
-	<string>1.0.29</string>
+	<string>1.0.30</string>
 </dict>
 </plist>

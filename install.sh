@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Codex Voice Installer (overlay mode)
+# VoxTerm Installer (overlay mode)
 # Run: ./install.sh
 #
 

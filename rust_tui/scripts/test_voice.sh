@@ -4,7 +4,7 @@
 export RUST_LOG=debug
 export CODEX_LOG=1
 
-LOG_FILE="${TMPDIR:-/tmp}/codex_voice_tui.log"
+LOG_FILE="${TMPDIR:-/tmp}/voxterm_tui.log"
 MODEL_PATH=${MODEL_PATH:-../../models/ggml-base.en.bin}
 
 echo "Starting TUI with debug logging..."

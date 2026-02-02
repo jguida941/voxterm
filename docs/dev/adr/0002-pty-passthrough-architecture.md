@@ -5,7 +5,7 @@ Date: 2026-01-29
 
 ## Context
 
-Codex Voice needs to add voice input to the Codex CLI while preserving its full TUI
+VoxTerm needs to add voice input to the Codex CLI while preserving its full TUI
 experience. Two main approaches exist:
 
 1. **TUI replacement**: Build a custom terminal UI that renders Codex output and adds

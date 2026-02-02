@@ -2,7 +2,7 @@
 # Quick test script to reproduce the Enter key issue
 
 echo "======================================"
-echo "Codex Voice TUI - Quick Issue Test"
+echo "VoxTerm TUI - Quick Issue Test"
 echo "======================================"
 echo ""
 echo "This test will help debug why the Enter key"
@@ -10,7 +10,7 @@ echo "doesn't work after the second voice capture."
 echo ""
 
 # Clear log
-LOG_FILE="$TMPDIR/codex_voice_tui.log"
+LOG_FILE="$TMPDIR/voxterm_tui.log"
 echo "Clearing log at: $LOG_FILE"
 > "$LOG_FILE"
 
@@ -27,7 +27,7 @@ echo ""
 read -p "Press Enter to launch TUI..."
 
 # Launch TUI
-cd /Users/jguida941/new_github_projects/codex_voice
+cd /Users/jguida941/new_github_projects/voxterm
 ./start.sh
 
 echo ""

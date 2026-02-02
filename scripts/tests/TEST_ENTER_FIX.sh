@@ -12,7 +12,7 @@ echo "3. Multiple captures work consistently"
 echo ""
 
 # Clear the log
-LOG_FILE="$TMPDIR/codex_voice_tui.log"
+LOG_FILE="$TMPDIR/voxterm_tui.log"
 echo "Clearing log at: $LOG_FILE"
 > "$LOG_FILE"
 
@@ -29,7 +29,7 @@ echo ""
 read -p "Press Enter to start the test..."
 
 # Launch the fixed TUI
-cd /Users/jguida941/new_github_projects/codex_voice
+cd /Users/jguida941/new_github_projects/voxterm
 ./start.sh
 
 echo ""

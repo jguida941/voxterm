@@ -35,13 +35,13 @@ fn with_log_lock(action: impl FnOnce()) {
 }
 
 fn clear_log_env() {
-    env::remove_var("CODEX_VOICE_LOGS");
-    env::remove_var("CODEX_VOICE_NO_LOGS");
-    env::remove_var("CODEX_VOICE_LOG_CONTENT");
+    env::remove_var("VOXTERM_LOGS");
+    env::remove_var("VOXTERM_NO_LOGS");
+    env::remove_var("VOXTERM_LOG_CONTENT");
 }
 
 fn test_config() -> AppConfig {
-    let mut config = AppConfig::parse_from(["codex-voice-tests"]);
+    let mut config = AppConfig::parse_from(["voxterm-tests"]);
     config.persistent_codex = false; // Disable PTY in tests
     config
 }
@@ -180,7 +180,7 @@ fn logging_disabled_by_default() {
         clear_log_env();
         let log_path = log_file_path();
         let _ = std::fs::remove_file(&log_path);
-        let config = AppConfig::parse_from(["codex-voice-tests"]);
+        let config = AppConfig::parse_from(["voxterm-tests"]);
         init_logging(&config);
         log_debug("should-not-write");
         assert!(std::fs::metadata(&log_path).is_err());
@@ -193,7 +193,7 @@ fn logging_enabled_writes_log() {
         clear_log_env();
         let log_path = log_file_path();
         let _ = std::fs::remove_file(&log_path);
-        let mut config = AppConfig::parse_from(["codex-voice-tests"]);
+        let mut config = AppConfig::parse_from(["voxterm-tests"]);
         config.logs = true;
         init_logging(&config);
         log_debug("log-enabled");
@@ -208,7 +208,7 @@ fn log_content_requires_flag() {
         clear_log_env();
         let log_path = log_file_path();
         let _ = std::fs::remove_file(&log_path);
-        let mut config = AppConfig::parse_from(["codex-voice-tests"]);
+        let mut config = AppConfig::parse_from(["voxterm-tests"]);
         config.logs = true;
         config.log_content = false;
         init_logging(&config);

@@ -13,7 +13,7 @@ pub(crate) enum VoiceSendMode {
 }
 
 #[derive(Debug, Parser, Clone)]
-#[command(about = "Codex Voice", author, version)]
+#[command(about = "VoxTerm", author, version)]
 pub(crate) struct OverlayConfig {
     #[command(flatten)]
     pub(crate) app: AppConfig,

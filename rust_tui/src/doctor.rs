@@ -32,7 +32,7 @@ impl DoctorReport {
 }
 
 pub fn base_doctor_report(config: &AppConfig, binary_name: &str) -> DoctorReport {
-    let mut report = DoctorReport::new("Codex Voice Doctor");
+    let mut report = DoctorReport::new("VoxTerm Doctor");
     report.push_kv("version", env!("CARGO_PKG_VERSION"));
     report.push_kv("binary", binary_name);
     report.push_kv(

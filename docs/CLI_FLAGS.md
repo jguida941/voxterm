@@ -2,7 +2,7 @@
 
 Primary user-facing binaries built from this repo:
 
-- `codex-voice` (overlay, normal user path)
+- `voxterm` (overlay, normal user path)
 - `rust_tui` (standalone TUI, JSON IPC; mostly for dev or integrations)
 
 Additional debug/test binaries live under `rust_tui/src/bin/`.
@@ -11,15 +11,15 @@ Everything is grouped by binary so you don't have to cross-reference.
 
 ## Index
 
-- [codex-voice](#codex-voice)
+- [voxterm](#voxterm)
 - [rust_tui](#rust_tui)
 - [See Also](#see-also)
 
-Tip: run `codex-voice --help` or `rust_tui --help` for the live CLI output.
+Tip: run `voxterm --help` or `rust_tui --help` for the live CLI output.
 
-## codex-voice
+## voxterm
 
-### Overlay behavior (codex-voice only)
+### Overlay behavior (voxterm only)
 
 | Flag | Purpose | Default |
 |------|---------|---------|
@@ -102,24 +102,24 @@ Backend notes:
 | `--ffmpeg-cmd <PATH>` | FFmpeg binary location | ffmpeg |
 | `--ffmpeg-device <NAME>` | FFmpeg audio device override | - |
 | `--python-cmd <PATH>` | Python interpreter for helper scripts | python3 |
-| `--pipeline-script <PATH>` | Pipeline script location | `scripts/codex_voice.py` |
+| `--pipeline-script <PATH>` | Pipeline script location | `scripts/voxterm.py` |
 | `--seconds <N>` | Recording duration for pipeline scripts (seconds) | 5 |
 
-### Environment variables (codex-voice)
+### Environment variables (voxterm)
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `CODEX_VOICE_MODEL_DIR` | Override model storage directory | auto (`models/` or `~/.local/share/codex-voice/models`) |
-| `CODEX_VOICE_CWD` | Run Codex in a chosen project directory | current directory |
-| `CODEX_VOICE_INSTALL_DIR` | Override install location for `./install.sh` | unset |
-| `CODEX_VOICE_PROMPT_REGEX` | Override prompt detection regex | unset |
-| `CODEX_VOICE_PROMPT_LOG` | Prompt detection log path | unset |
-| `CODEX_VOICE_LOGS` | Enable debug logging | unset |
-| `CODEX_VOICE_NO_LOGS` | Disable debug logging | unset |
-| `CODEX_VOICE_LOG_CONTENT` | Allow prompt/transcript snippets in logs | unset |
-| `CODEX_VOICE_FORCE_COLUMNS` | Force terminal columns for `start.sh` (banner/testing) | unset |
-| `CODEX_VOICE_FORCE_LINES` | Force terminal rows for `start.sh` (banner/testing) | unset |
-| `CODEX_VOICE_STARTUP_ONLY` | Print startup banner/controls then exit (`start.sh` only) | unset |
+| `VOXTERM_MODEL_DIR` | Override model storage directory | auto (`models/` or `~/.local/share/voxterm/models`) |
+| `VOXTERM_CWD` | Run Codex in a chosen project directory | current directory |
+| `VOXTERM_INSTALL_DIR` | Override install location for `./install.sh` | unset |
+| `VOXTERM_PROMPT_REGEX` | Override prompt detection regex | unset |
+| `VOXTERM_PROMPT_LOG` | Prompt detection log path | unset |
+| `VOXTERM_LOGS` | Enable debug logging | unset |
+| `VOXTERM_NO_LOGS` | Disable debug logging | unset |
+| `VOXTERM_LOG_CONTENT` | Allow prompt/transcript snippets in logs | unset |
+| `VOXTERM_FORCE_COLUMNS` | Force terminal columns for `start.sh` (banner/testing) | unset |
+| `VOXTERM_FORCE_LINES` | Force terminal rows for `start.sh` (banner/testing) | unset |
+| `VOXTERM_STARTUP_ONLY` | Print startup banner/controls then exit (`start.sh` only) | unset |
 | `NO_COLOR` | Disable ANSI colors (standard) | unset |
 
 ## rust_tui
@@ -200,21 +200,21 @@ Backend notes:
 | `--ffmpeg-cmd <PATH>` | FFmpeg binary location | ffmpeg |
 | `--ffmpeg-device <NAME>` | FFmpeg audio device override | - |
 | `--python-cmd <PATH>` | Python interpreter for helper scripts | python3 |
-| `--pipeline-script <PATH>` | Pipeline script location | `scripts/codex_voice.py` |
+| `--pipeline-script <PATH>` | Pipeline script location | `scripts/voxterm.py` |
 | `--seconds <N>` | Recording duration for pipeline scripts (seconds) | 5 |
 
 ### Environment variables (rust_tui)
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `CODEX_VOICE_MODEL_DIR` | Override model storage directory | auto (`models/` or `~/.local/share/codex-voice/models`) |
-| `CODEX_VOICE_CWD` | Run Codex in a chosen project directory | current directory |
-| `CODEX_VOICE_LOGS` | Enable debug logging | unset |
-| `CODEX_VOICE_NO_LOGS` | Disable debug logging | unset |
-| `CODEX_VOICE_LOG_CONTENT` | Allow prompt/transcript snippets in logs | unset |
-| `CODEX_VOICE_PROVIDER` | Default provider for IPC mode | codex |
+| `VOXTERM_MODEL_DIR` | Override model storage directory | auto (`models/` or `~/.local/share/voxterm/models`) |
+| `VOXTERM_CWD` | Run Codex in a chosen project directory | current directory |
+| `VOXTERM_LOGS` | Enable debug logging | unset |
+| `VOXTERM_NO_LOGS` | Disable debug logging | unset |
+| `VOXTERM_LOG_CONTENT` | Allow prompt/transcript snippets in logs | unset |
+| `VOXTERM_PROVIDER` | Default provider for IPC mode | codex |
 | `CLAUDE_CMD` | Path to Claude CLI for IPC mode | claude |
-| `CODEX_VOICE_TEST_DEVICES` | Test-only override for device listing (comma-separated) | unset |
+| `VOXTERM_TEST_DEVICES` | Test-only override for device listing (comma-separated) | unset |
 
 ## See Also
 

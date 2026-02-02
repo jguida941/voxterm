@@ -14,7 +14,7 @@ Thanks for taking the time to contribute.
 - Install prerequisites in `docs/INSTALL.md`.
 - Build the overlay:
   ```bash
-  cd rust_tui && cargo build --release --bin codex-voice
+  cd rust_tui && cargo build --release --bin voxterm
   ```
 
 ## Code style
@@ -33,7 +33,7 @@ cd rust_tui && cargo test
 For overlay-only changes:
 
 ```bash
-cd rust_tui && cargo test --bin codex-voice
+cd rust_tui && cargo test --bin voxterm
 ```
 
 Targeted checks mirrored in CI (run when relevant):

@@ -1,11 +1,11 @@
 #!/bin/bash
 #
-# Codex Voice - Quick Start
+# VoxTerm - Quick Start
 # Double-click this file or run: ./start.sh
 #
 
-# Save the user's current directory so codex-voice works on their project
-export CODEX_VOICE_CWD="$(pwd)"
+# Save the user's current directory so voxterm works on their project
+export VOXTERM_CWD="$(pwd)"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
@@ -33,17 +33,17 @@ if [ -n "${NO_COLOR:-}" ]; then
     NC=''
 fi
 
-TERM_COLS="${CODEX_VOICE_FORCE_COLUMNS:-${COLUMNS:-$(tput cols 2>/dev/null || true)}}"
+TERM_COLS="${VOXTERM_FORCE_COLUMNS:-${COLUMNS:-$(tput cols 2>/dev/null || true)}}"
 if ! [ "$TERM_COLS" -gt 0 ] 2>/dev/null; then
     TERM_COLS=80
 fi
-TERM_LINES="${CODEX_VOICE_FORCE_LINES:-${LINES:-$(tput lines 2>/dev/null || true)}}"
+TERM_LINES="${VOXTERM_FORCE_LINES:-${LINES:-$(tput lines 2>/dev/null || true)}}"
 if ! [ "$TERM_LINES" -gt 0 ] 2>/dev/null; then
     TERM_LINES=24
 fi
 
 # Get version from Cargo.toml
-VERSION="1.0.29"
+VERSION="1.0.30"
 if [ -f "$SCRIPT_DIR/rust_tui/Cargo.toml" ]; then
     VERSION=$(grep '^version' "$SCRIPT_DIR/rust_tui/Cargo.toml" | head -1 | sed 's/.*"\(.*\)".*/\1/')
 fi
@@ -153,32 +153,32 @@ print_header() {
 print_header
 
 # Startup output-only mode for tests
-if [ "${CODEX_VOICE_STARTUP_ONLY:-0}" = "1" ]; then
+if [ "${VOXTERM_STARTUP_ONLY:-0}" = "1" ]; then
     exit 0
 fi
 
 # Resolve binary (prefer local build; avoid wrapper recursion)
 OVERLAY_BIN=""
-if [ -x "$SCRIPT_DIR/rust_tui/target/release/codex-voice" ]; then
-    OVERLAY_BIN="$SCRIPT_DIR/rust_tui/target/release/codex-voice"
+if [ -x "$SCRIPT_DIR/rust_tui/target/release/voxterm" ]; then
+    OVERLAY_BIN="$SCRIPT_DIR/rust_tui/target/release/voxterm"
 fi
 
 # Check if Rust overlay exists
 if [ -z "$OVERLAY_BIN" ]; then
-    echo -e "${YELLOW}Building Codex Voice (first time setup)...${NC}"
-    cd rust_tui && cargo build --release --bin codex-voice
+    echo -e "${YELLOW}Building VoxTerm (first time setup)...${NC}"
+    cd rust_tui && cargo build --release --bin voxterm
     if [ $? -ne 0 ]; then
         echo -e "${RED}Build failed. Please check the error above.${NC}"
         exit 1
     fi
     cd ..
-    OVERLAY_BIN="$SCRIPT_DIR/rust_tui/target/release/codex-voice"
+    OVERLAY_BIN="$SCRIPT_DIR/rust_tui/target/release/voxterm"
 fi
 
 # Check if whisper model exists
 MODEL_PATH=""
 DEFAULT_MODELS_DIR="$SCRIPT_DIR/models"
-FALLBACK_MODELS_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/codex-voice/models"
+FALLBACK_MODELS_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/voxterm/models"
 MODEL_DIR=""
 
 IS_HOMEBREW=0
@@ -186,8 +186,8 @@ case "$SCRIPT_DIR" in
     /opt/homebrew/Cellar/*|/usr/local/Cellar/*) IS_HOMEBREW=1 ;;
 esac
 
-if [ -n "${CODEX_VOICE_MODEL_DIR:-}" ]; then
-    MODEL_DIR="$CODEX_VOICE_MODEL_DIR"
+if [ -n "${VOXTERM_MODEL_DIR:-}" ]; then
+    MODEL_DIR="$VOXTERM_MODEL_DIR"
 elif [ "$IS_HOMEBREW" -eq 1 ]; then
     MODEL_DIR="$FALLBACK_MODELS_DIR"
 else
@@ -230,7 +230,7 @@ if [ -z "$MODEL_PATH" ] && [ "$MODEL_DIR" != "$DEFAULT_MODELS_DIR" ]; then
 fi
 if [ -z "$MODEL_PATH" ]; then
     echo -e "${YELLOW}Downloading Whisper model (first time setup)...${NC}"
-    CODEX_VOICE_MODEL_DIR="$MODEL_DIR" ./scripts/setup.sh models --base
+    VOXTERM_MODEL_DIR="$MODEL_DIR" ./scripts/setup.sh models --base
     if [ $? -ne 0 ]; then
         echo -e "${RED}Model download failed. Please check the error above.${NC}"
         exit 1

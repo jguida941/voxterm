@@ -24,40 +24,40 @@ This doc covers all install and run options, plus model setup.
 ## Option A: Install from source (recommended)
 
 ```bash
-git clone https://github.com/jguida941/codex-voice.git
-cd codex-voice
+git clone https://github.com/jguida941/voxterm.git
+cd voxterm
 ./install.sh
 ```
 
-The installer builds the overlay, installs the `codex-voice` wrapper, and downloads a Whisper
+The installer builds the overlay, installs the `voxterm` wrapper, and downloads a Whisper
 model to the correct path for the CLI.
 
 Run from any project:
 
 ```bash
 cd ~/my-project
-codex-voice
+voxterm
 ```
 
 To target another AI CLI, pass `--backend` (example):
 
 ```bash
-codex-voice --backend claude
+voxterm --backend claude
 ```
 
 ### PATH notes
 
-If `codex-voice` is not found, the installer used the first writable directory in this order:
-`/opt/homebrew/bin`, `/usr/local/bin`, `~/.local/bin`, or `/path/to/codex-voice/bin`.
-Add that directory to PATH or set `CODEX_VOICE_INSTALL_DIR` before running `./install.sh`.
-If a `codex-voice` command already exists in `/opt/homebrew/bin` or `/usr/local/bin`, the
+If `voxterm` is not found, the installer used the first writable directory in this order:
+`/opt/homebrew/bin`, `/usr/local/bin`, `~/.local/bin`, or `/path/to/voxterm/bin`.
+Add that directory to PATH or set `VOXTERM_INSTALL_DIR` before running `./install.sh`.
+If a `voxterm` command already exists in `/opt/homebrew/bin` or `/usr/local/bin`, the
 installer skips that location to avoid clobbering system/Homebrew installs. In `~/.local/bin`
 or the repo `bin/` directory it will overwrite. Remove the conflicting binary or set
-`CODEX_VOICE_INSTALL_DIR` to override.
+`VOXTERM_INSTALL_DIR` to override.
 
 ## Option B: macOS App (folder picker)
 
-1. Double-click **Codex Voice.app**.
+1. Double-click **VoxTerm.app**.
 2. Pick your project folder.
 3. A Terminal window opens and runs the overlay inside that folder.
 
@@ -74,77 +74,77 @@ Install Homebrew (if needed):
 Tap and install:
 
 ```bash
-brew tap jguida941/homebrew-codex-voice
-brew install codex-voice
+brew tap jguida941/homebrew-voxterm
+brew install voxterm
 ```
 
 Run from any project (first run downloads the model if missing):
 
 ```bash
 cd ~/my-project
-codex-voice
+voxterm
 ```
 
-Model storage defaults to `~/.local/share/codex-voice/models` for Homebrew installs (or when the
-repo directory is not writable). Override with `CODEX_VOICE_MODEL_DIR` for a custom path.
+Model storage defaults to `~/.local/share/voxterm/models` for Homebrew installs (or when the
+repo directory is not writable). Override with `VOXTERM_MODEL_DIR` for a custom path.
 
 Optional pre-download:
 
 ```bash
-$(brew --prefix)/opt/codex-voice/libexec/scripts/setup.sh models --base
+$(brew --prefix)/opt/voxterm/libexec/scripts/setup.sh models --base
 ```
 
 ### Homebrew update
 
 ```bash
 brew update
-brew upgrade codex-voice
+brew upgrade voxterm
 ```
 
 If Homebrew still shows an older version (stale tap cache), force refresh:
 
 ```bash
-brew untap jguida941/codex-voice 2>/dev/null || true
-brew untap jguida941/homebrew-codex-voice 2>/dev/null || true
-brew tap jguida941/homebrew-codex-voice
+brew untap jguida941/voxterm 2>/dev/null || true
+brew untap jguida941/homebrew-voxterm 2>/dev/null || true
+brew tap jguida941/homebrew-voxterm
 brew update
-brew info codex-voice
+brew info voxterm
 ```
 
 If it still will not update:
 
 ```bash
-rm -f "$(brew --cache)"/codex-voice--*
-brew reinstall codex-voice
+rm -f "$(brew --cache)"/voxterm--*
+brew reinstall voxterm
 ```
 
-If you still see an older version when running `codex-voice`, you likely have another
-install earlier in PATH (commonly `~/.local/bin/codex-voice` from `./install.sh`). Check and
+If you still see an older version when running `voxterm`, you likely have another
+install earlier in PATH (commonly `~/.local/bin/voxterm` from `./install.sh`). Check and
 remove/rename the old one:
 
 ```bash
-which -a codex-voice
-mv ~/.local/bin/codex-voice ~/.local/bin/codex-voice.bak  # or delete it
+which -a voxterm
+mv ~/.local/bin/voxterm ~/.local/bin/voxterm.bak  # or delete it
 hash -r
 ```
 
 If you used a local install previously, also check for:
 
 ```bash
-ls -l ~/codex-voice/bin/codex-voice 2>/dev/null
+ls -l ~/voxterm/bin/voxterm 2>/dev/null
 ```
 
 Then relink Homebrew and clear shell caches:
 
 ```bash
-brew unlink codex-voice && brew link --overwrite codex-voice
+brew unlink voxterm && brew link --overwrite voxterm
 hash -r
 ```
 
 To verify the Homebrew binary directly (bypasses the wrapper):
 
 ```bash
-$(brew --prefix)/opt/codex-voice/libexec/rust_tui/target/release/codex-voice --version
+$(brew --prefix)/opt/voxterm/libexec/rust_tui/target/release/voxterm --version
 ```
 
 ## Option D: Manual run (no install)
@@ -152,14 +152,14 @@ $(brew --prefix)/opt/codex-voice/libexec/rust_tui/target/release/codex-voice --v
 Run from any project folder:
 
 ```bash
-CODEX_VOICE_CWD="$(pwd)" /path/to/codex-voice/start.sh
+VOXTERM_CWD="$(pwd)" /path/to/voxterm/start.sh
 ```
 
 `start.sh` handles model download and setup when needed.
 
 ## Using with your own projects
 
-Codex Voice works with any codebase. Run from your project directory or set `CODEX_VOICE_CWD` to
+VoxTerm works with any codebase. Run from your project directory or set `VOXTERM_CWD` to
 force the working directory.
 
 ## Windows

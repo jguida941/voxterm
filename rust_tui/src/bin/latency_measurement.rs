@@ -391,7 +391,7 @@ fn extract_voice_timings(total_ms: u64) -> (u64, u64) {
 
     // Try to parse actual timings from log file
     if let Ok(log_path) = std::env::var("TMPDIR") {
-        let log_file = std::path::Path::new(&log_path).join("codex_voice_tui.log");
+        let log_file = std::path::Path::new(&log_path).join("voxterm_tui.log");
         if let Ok(file) = File::open(log_file) {
             let reader = BufReader::new(file);
             // Collect last 100 lines and search in reverse

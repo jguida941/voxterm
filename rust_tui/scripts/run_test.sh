@@ -1,5 +1,5 @@
 #!/bin/bash
-echo "=== CODEX VOICE TUI TEST ==="
+echo "=== VOXTERM TUI TEST ==="
 echo
 echo "✓ Model found: ggml-tiny.en.bin (77MB)"
 echo "✓ Audio devices detected"

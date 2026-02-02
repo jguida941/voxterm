@@ -1,6 +1,6 @@
-# Codex Voice Backend
+# VoxTerm Backend
 
-Rust backend for Codex Voice - handles audio capture, speech-to-text, and provider communication.
+Rust backend for VoxTerm - handles audio capture, speech-to-text, and provider communication.
 
 ## Role
 
@@ -23,7 +23,7 @@ Overlay binary (Codex PTY passthrough):
 
 ```bash
 cd rust_tui
-cargo build --release --bin codex-voice
+cargo build --release --bin voxterm
 ```
 
 ## Usage
@@ -49,7 +49,7 @@ cargo run --release -- --seconds 5 --whisper-model-path ../models/ggml-base.en.b
 Runs Codex in a PTY and overlays voice status in your terminal:
 
 ```bash
-./target/release/codex-voice
+./target/release/voxterm
 ```
 
 ## CLI Options
@@ -136,4 +136,4 @@ cargo doc --open
 - **Provider not responding**: Verify CLI is installed and authenticated
 - **PTY issues**: Try without `--persistent-codex`
 
-Logs are written to `$TMPDIR/codex_voice_tui.log`.
+Logs are written to `$TMPDIR/voxterm_tui.log`.

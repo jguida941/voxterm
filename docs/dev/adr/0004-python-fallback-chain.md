@@ -18,7 +18,7 @@ Users need a working voice experience even when the native pipeline fails.
 Implement a fallback chain:
 
 1. **Try native pipeline first**: CPAL capture + whisper-rs transcription
-2. **On failure, try Python fallback**: `scripts/codex_voice.py` using ffmpeg + whisper CLI
+2. **On failure, try Python fallback**: `scripts/voxterm.py` using ffmpeg + whisper CLI
 3. **Allow disabling fallback**: `--no-python-fallback` forces native-only mode
 
 The Python fallback:
@@ -56,4 +56,4 @@ The Python fallback:
 
 - [Architecture docs](../ARCHITECTURE.md#voice-error-and-fallback-flow)
 - `rust_tui/src/voice.rs` - Fallback logic
-- `scripts/codex_voice.py` - Python pipeline
+- `scripts/voxterm.py` - Python pipeline

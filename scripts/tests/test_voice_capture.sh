@@ -4,7 +4,7 @@
 set -euo pipefail
 
 echo "========================================="
-echo "Codex Voice TUI - Voice Capture Test"
+echo "VoxTerm TUI - Voice Capture Test"
 echo "========================================="
 echo ""
 
@@ -17,9 +17,9 @@ NC='\033[0m' # No Color
 
 # Determine log file location
 if [[ "$OSTYPE" == "darwin"* ]]; then
-    LOG_FILE="$TMPDIR/codex_voice_tui.log"
+    LOG_FILE="$TMPDIR/voxterm_tui.log"
 else
-    LOG_FILE="/tmp/codex_voice_tui.log"
+    LOG_FILE="/tmp/voxterm_tui.log"
 fi
 
 echo -e "${BLUE}Debug Log Location:${NC} $LOG_FILE"

@@ -29,7 +29,7 @@ pub fn format_theme_picker(current_theme: Theme, width: usize) -> String {
     ));
 
     // Title
-    lines.push(format_title_line(&colors, borders, "Codex Voice - Themes", content_width));
+    lines.push(format_title_line(&colors, borders, "VoxTerm - Themes", content_width));
 
     // Separator
     let sep_inner: String = std::iter::repeat_n(borders.horizontal, content_width + 2).collect();

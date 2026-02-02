@@ -13,7 +13,7 @@ echo "4. Streaming output works"
 echo ""
 
 # Clear the log
-LOG_FILE="$TMPDIR/codex_voice_tui.log"
+LOG_FILE="$TMPDIR/voxterm_tui.log"
 echo "Clearing log at: $LOG_FILE"
 > "$LOG_FILE"
 
@@ -31,7 +31,7 @@ echo ""
 read -p "Press Enter to start the test..."
 
 # Launch the TUI with fake whisper to avoid audio issues
-cd /Users/jguida941/new_github_projects/codex_voice/rust_tui
+cd /Users/jguida941/new_github_projects/voxterm/rust_tui
 cargo run -- \
   --seconds 3 \
   --ffmpeg-device ":0" \
