@@ -9,106 +9,136 @@
 [![Rust TUI CI](https://img.shields.io/github/actions/workflow/status/jguida941/voxterm/rust_tui.yml?branch=master&style=for-the-badge)](https://github.com/jguida941/voxterm/actions/workflows/rust_tui.yml)
 [![Mutation Testing](https://img.shields.io/github/actions/workflow/status/jguida941/voxterm/mutation-testing.yml?branch=master&style=for-the-badge)](https://github.com/jguida941/voxterm/actions/workflows/mutation-testing.yml)
 
-Voice input for the Codex CLI by default, with optional backend selection for other AI CLIs. Written in Rust for speed. Talk instead of type and boost your productivity. Runs Whisper locally through Rust with ~250ms latency. No cloud, no API keys.
+Voice input for AI CLIs. Talk instead of type. Runs Whisper locally with ~250ms latency. No cloud, no API keys.
 
 ![VoxTerm Startup](https://raw.githubusercontent.com/jguida941/voxterm/master/img/startup.png)
 
-## What VoxTerm Does
-
-Wraps Codex (or another AI CLI via `--backend`) in a PTY and adds voice input. You talk → Whisper transcribes → text gets typed into the CLI. VoxTerm runs over the native CLI, so you keep its features like file editing and code generation.
-
-- Written in Rust for speed
-- Local speech-to-text via whisper.cpp
-- ~250ms transcription time
-- No network calls
-- PTY overlay - CLI UI unchanged
-
-## Requirements
-
-- macOS or Linux (Windows needs WSL2)
-- Node.js (for Codex CLI) or another supported AI CLI if using `--backend`
-- Microphone access
-- ~1.5 GB disk for Whisper model
-
-## Install
+## Quick Start
 
 ```bash
-# Install Codex CLI first (default backend)
+# Install Codex CLI (default backend)
 npm install -g @openai/codex
 
-# Clone and build
-git clone https://github.com/jguida941/voxterm.git
-cd voxterm
-./install.sh
+# Install VoxTerm via Homebrew
+brew tap jguida941/voxterm
+brew install voxterm
 
 # Run it
 cd ~/your-project
 voxterm
 ```
 
-First run downloads the Whisper model.
-
-To target another AI CLI instead of Codex, pass `--backend` (example: `voxterm --backend claude`).
-
-**Other options:** [Homebrew](docs/INSTALL.md#homebrew) | [macOS App](docs/INSTALL.md#macos-app) | [Build from source](docs/INSTALL.md#from-source)
-
-## Controls
-
-| Key | What it does |
-|-----|--------------|
-| `Ctrl+R` | Record voice |
-| `Ctrl+V` | Toggle auto-voice (hands-free mode) |
-| `Ctrl+T` | Toggle auto-send vs manual send |
-| `Ctrl+Y` | Theme picker |
-| `Ctrl+O` | Settings menu |
-| `Ctrl+]` | Mic sensitivity up |
-| `Ctrl+\` | Mic sensitivity down (also `Ctrl+/`) |
-| `?` | Show shortcut help |
-| `Enter` | Stop recording early (insert mode) / send prompt |
-| `Ctrl+Q` | Quit |
-| `Ctrl+C` | Send interrupt to CLI |
-
-More details: [Usage Guide](docs/USAGE.md)
-
-## Features
-
-- **Local STT:** Whisper runs on your local machine
-- **PTY passthrough:** Integrates with the selected CLI seamlessly
-- **Auto-voice:** Code hands-free, no typing needed
-- **Transcript queue:** Speak while the CLI is busy, transcripts send when ready
-- **No logging by default:** Enable with `--logs` if you need it
-
-## macOS App
-
-Double-click `VoxTerm.app`, pick a folder, it opens Terminal with voxterm running.
-
-![Folder Picker](img/folder-picker.png)
+First run downloads the Whisper model (~1.5 GB).
 
 ## How It Works
 
+```mermaid
+graph LR
+    A["🎤 Microphone"] --> B["Whisper STT"]
+    B --> C["Transcript"]
+    C --> D["PTY"]
+    D --> E["AI CLI"]
+    E --> F["Terminal Output"]
 ```
-Mic → Whisper → Text → PTY → CLI
-                         ↓
-                     Terminal (raw output)
+
+VoxTerm wraps your AI CLI in a PTY and adds voice input. You talk → Whisper transcribes locally → text gets typed into the CLI. All CLI output passes through unchanged.
+
+## Features
+
+| Feature | Description |
+|---------|-------------|
+| **Local STT** | Whisper runs on your machine - no cloud calls |
+| **~250ms latency** | Fast transcription through whisper.cpp |
+| **PTY passthrough** | CLI UI stays unchanged |
+| **Auto-voice** | Hands-free mode - no typing needed |
+| **Transcript queue** | Speak while CLI is busy, sends when ready |
+| **Multiple backends** | Codex, Claude, Gemini, Aider, or custom |
+| **Themes** | 6 built-in themes including Catppuccin, Dracula, Nord |
+
+### Theme Picker (Ctrl+Y)
+
+![Theme Picker](https://raw.githubusercontent.com/jguida941/voxterm/master/img/theme-picker.png)
+
+### Settings Menu (Ctrl+O)
+
+![Settings](https://raw.githubusercontent.com/jguida941/voxterm/master/img/settings.png)
+
+### Voice Recording
+
+![Recording](https://raw.githubusercontent.com/jguida941/voxterm/master/img/recording.png)
+
+## Controls
+
+| Key | Action |
+|-----|--------|
+| `Ctrl+R` | Start voice recording |
+| `Ctrl+V` | Toggle auto-voice (hands-free) |
+| `Ctrl+T` | Toggle send mode (auto/insert) |
+| `Ctrl+Y` | Theme picker |
+| `Ctrl+O` | Settings menu |
+| `Ctrl+]` | Mic sensitivity up |
+| `Ctrl+\` | Mic sensitivity down |
+| `?` | Show help |
+| `Enter` | Stop recording / send prompt |
+| `Ctrl+Q` | Quit |
+| `Ctrl+C` | Send interrupt to CLI |
+
+## Install Options
+
+<details>
+<summary><strong>Homebrew (recommended)</strong></summary>
+
+```bash
+brew tap jguida941/voxterm
+brew install voxterm
+```
+</details>
+
+<details>
+<summary><strong>From source</strong></summary>
+
+```bash
+git clone https://github.com/jguida941/voxterm.git
+cd voxterm
+./install.sh
+```
+</details>
+
+<details>
+<summary><strong>macOS App</strong></summary>
+
+Double-click `VoxTerm.app`, pick a folder, it opens Terminal with VoxTerm running.
+
+![Folder Picker](https://raw.githubusercontent.com/jguida941/voxterm/master/img/folder-picker.png)
+</details>
+
+**Requirements:** macOS or Linux (Windows needs WSL2) • Microphone access • ~1.5 GB disk for Whisper model
+
+## Using Other AI CLIs
+
+```bash
+# Claude Code
+voxterm --backend claude
+
+# Gemini CLI
+voxterm --backend gemini
+
+# Aider
+voxterm --backend aider
+
+# Custom command
+voxterm --backend "my-cli --flag"
 ```
 
-The CLI runs in a PTY. Voice transcripts are sent as keystrokes. All CLI output passes through unchanged.
+## Documentation
 
-## Docs
-
-**Users**
-- [Quick Start](QUICK_START.md)
-- [Install](docs/INSTALL.md)
-- [Usage](docs/USAGE.md)
-- [CLI Flags](docs/CLI_FLAGS.md)
-- [Troubleshooting](docs/TROUBLESHOOTING.md)
-
-**Developers**
-- [Development](docs/dev/DEVELOPMENT.md)
-- [Architecture](docs/dev/ARCHITECTURE.md)
-- [ADRs](docs/dev/adr/README.md)
-- [Contributing](.github/CONTRIBUTING.md)
-- [Changelog](docs/CHANGELOG.md)
+| Users | Developers |
+|-------|------------|
+| [Quick Start](QUICK_START.md) | [Development](docs/dev/DEVELOPMENT.md) |
+| [Install Guide](docs/INSTALL.md) | [Architecture](docs/dev/ARCHITECTURE.md) |
+| [Usage Guide](docs/USAGE.md) | [ADRs](docs/dev/adr/README.md) |
+| [CLI Flags](docs/CLI_FLAGS.md) | [Contributing](.github/CONTRIBUTING.md) |
+| [Troubleshooting](docs/TROUBLESHOOTING.md) | [Changelog](docs/CHANGELOG.md) |
 
 ## Contributing
 
