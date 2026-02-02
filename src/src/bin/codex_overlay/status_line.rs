@@ -381,8 +381,16 @@ fn format_button_row(state: &StatusLineState, colors: &ThemeColors, inner_width:
     items.push(format_shortcut(colors, "^R", "rec", rec_color));
 
     // ^V auto/manual (highlight if auto enabled)
-    let auto_color = if state.auto_voice_enabled { colors.info } else { "" };
-    let auto_label = if state.auto_voice_enabled { "auto" } else { "manual" };
+    let auto_color = if state.auto_voice_enabled {
+        colors.info
+    } else {
+        ""
+    };
+    let auto_label = if state.auto_voice_enabled {
+        "auto"
+    } else {
+        "manual"
+    };
     items.push(format_shortcut(colors, "^V", auto_label, auto_color));
 
     // ^T send mode indicator
@@ -413,14 +421,30 @@ fn format_button_row(state: &StatusLineState, colors: &ThemeColors, inner_width:
     // Compact version for narrow terminals
     let mut compact = Vec::new();
     compact.push(format_shortcut(colors, "^R", "rec", rec_color));
-    let auto_compact = if state.auto_voice_enabled { "auto" } else { "man" };
+    let auto_compact = if state.auto_voice_enabled {
+        "auto"
+    } else {
+        "man"
+    };
     compact.push(format_shortcut(colors, "^V", auto_compact, auto_color));
-    compact.push(format_shortcut(colors, "^T", if state.send_mode == VoiceSendMode::Auto { "A" } else { "I" }, send_color));
+    compact.push(format_shortcut(
+        colors,
+        "^T",
+        if state.send_mode == VoiceSendMode::Auto {
+            "A"
+        } else {
+            "I"
+        },
+        send_color,
+    ));
     compact.push(format_shortcut(colors, "^O", "set", ""));
     compact.push(format_shortcut(colors, "?", "help", ""));
 
     if state.queue_depth > 0 {
-        compact.push(format!("{}Q:{}{}",colors.warning, state.queue_depth, colors.reset));
+        compact.push(format!(
+            "{}Q:{}{}",
+            colors.warning, state.queue_depth, colors.reset
+        ));
     }
 
     let compact_row = compact.join(" ");
@@ -432,7 +456,10 @@ fn format_shortcut(colors: &ThemeColors, key: &str, label: &str, highlight: &str
     if highlight.is_empty() {
         format!("{}{}{} {}", colors.info, key, colors.reset, label)
     } else {
-        format!("{}{}{} {}{}{}", colors.info, key, colors.reset, highlight, label, colors.reset)
+        format!(
+            "{}{}{} {}{}{}",
+            colors.info, key, colors.reset, highlight, label, colors.reset
+        )
     }
 }
 
