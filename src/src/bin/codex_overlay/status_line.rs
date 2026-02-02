@@ -451,16 +451,17 @@ fn format_button_row(state: &StatusLineState, colors: &ThemeColors, inner_width:
     truncate_display(&compact_row, inner_width)
 }
 
-/// Format a single shortcut as "^K label" with optional highlight color.
+/// Format a single shortcut as "[^K label]" with optional highlight color.
 fn format_shortcut(colors: &ThemeColors, key: &str, label: &str, highlight: &str) -> String {
-    if highlight.is_empty() {
-        format!("{}{}{} {}", colors.info, key, colors.reset, label)
+    let label_str = if highlight.is_empty() {
+        label.to_string()
     } else {
-        format!(
-            "{}{}{} {}{}{}",
-            colors.info, key, colors.reset, highlight, label, colors.reset
-        )
-    }
+        format!("{}{}{}", highlight, label, colors.reset)
+    };
+    format!(
+        "{}[{}{}{} {}]{}",
+        colors.dim, colors.info, key, colors.reset, label_str, colors.reset
+    )
 }
 
 /// Format the bottom border.
