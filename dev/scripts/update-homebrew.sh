@@ -77,7 +77,7 @@ sed -i '' "s|sha256 \"[a-f0-9]*\"|sha256 \"$SHA256\"|" "$FORMULA"
 # Update README version + model path if present
 if [[ -f "$README" ]]; then
     sed -i '' "s/^Current: v[0-9.]*$/Current: v$VERSION/" "$README"
-    sed -i '' "s|ls \\$\\(brew --prefix\\).*models/|ls ~/.local/share/voxterm/models/|g" "$README"
+    sed -i '' 's|ls \$(brew --prefix).*models/|ls ~/.local/share/voxterm/models/|g' "$README"
     sed -i '' "s|/opt/voxterm/libexec/models/|~/.local/share/voxterm/models/|g" "$README"
 fi
 
