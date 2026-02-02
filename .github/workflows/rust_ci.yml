@@ -1,12 +1,17 @@
-name: Mutation Testing
+name: Rust TUI CI
 
 on:
-  workflow_dispatch:
-  schedule:
-    - cron: "0 3 * * *"
+  push:
+    paths:
+      - "src/**"
+      - ".github/workflows/rust_ci.yml"
+  pull_request:
+    paths:
+      - "src/**"
+      - ".github/workflows/rust_ci.yml"
 
 jobs:
-  mutants:
+  rust:
     runs-on: ubuntu-latest
 
     defaults:
@@ -34,11 +39,11 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-
 
-      - name: Install cargo-mutants
-        run: cargo install cargo-mutants --locked
+      - name: cargo fmt
+        run: cargo fmt --all -- --check
 
-      - name: Run mutation tests
-        run: cargo mutants --timeout 300 -o mutants.out
+      - name: cargo clippy
+        run: cargo clippy --workspace --all-features -- -D warnings
 
-      - name: Enforce mutation score threshold
-        run: python3 ../dev/scripts/check_mutation_score.py --path mutants.out/outcomes.json --threshold 0.80
+      - name: cargo test
+        run: cargo test --workspace --all-features -- --nocapture

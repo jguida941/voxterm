@@ -14,7 +14,7 @@ Or use another AI CLI: `voxterm --claude` or `voxterm --gemini`.
 
 **Homebrew (recommended):**
 ```bash
-brew tap jguida941/voxterm
+brew tap jguida941/homebrew-voxterm
 brew install voxterm
 ```
 
@@ -22,12 +22,12 @@ brew install voxterm
 ```bash
 git clone https://github.com/jguida941/voxterm.git
 cd voxterm
-./install.sh
+./scripts/install.sh
 ```
 
-**macOS App:** Double-click **VoxTerm.app** and choose your project folder.
+**macOS App:** Double-click **app/macos/VoxTerm.app** and choose your project folder.
 
-If `voxterm` is not found after install, see [docs/INSTALL.md](docs/INSTALL.md) for PATH notes.
+If `voxterm` is not found after install, see [guides/INSTALL.md](guides/INSTALL.md) for PATH notes.
 
 ## 3) Run from any project
 
@@ -58,7 +58,7 @@ voxterm --backend claude
 - `Ctrl+C` - forwarded to the CLI
 - `Enter` - in insert mode, stop capture early and transcribe what was captured
 
-Full behavior notes and screenshots are in [docs/USAGE.md](docs/USAGE.md).
+Full behavior notes and screenshots are in [guides/USAGE.md](guides/USAGE.md).
 
 ## 5) Common flags
 
@@ -73,9 +73,9 @@ voxterm --transcript-idle-ms 250
 voxterm --prompt-regex '^codex> $'
 ```
 
-See [docs/CLI_FLAGS.md](docs/CLI_FLAGS.md) for the full CLI flag and env var list.
+See [guides/CLI_FLAGS.md](guides/CLI_FLAGS.md) for the full CLI flag and env var list.
 
 ## 6) Need help?
 
-- Install options: [docs/INSTALL.md](docs/INSTALL.md)
-- Troubleshooting: [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)
+- Install options: [guides/INSTALL.md](guides/INSTALL.md)
+- Troubleshooting: [guides/TROUBLESHOOTING.md](guides/TROUBLESHOOTING.md)

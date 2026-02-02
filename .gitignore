@@ -13,7 +13,7 @@ dist/
 build/
 
 # Rust
-/rust_tui/target/
+/src/target/
 **/*.rs.bk
 *.pdb
 Cargo.lock
@@ -30,9 +30,9 @@ node_modules/
 *.m4a
 
 # Whisper models (too large for GitHub)
-models/*.bin
-models/*.ggml
-models/*.onnx
+whisper_models/*.bin
+whisper_models/*.ggml
+whisper_models/*.onnx
 
 # Whisper output
 *.txt
@@ -88,14 +88,12 @@ PROJECT_OVERVIEW.md
 master_index.md
 agents.md
 project.md
-docs/audits/
-docs/architecture/
-docs/archive/
-docs/references/
+# Old docs paths (removed)
+# dev/archive/ is tracked
 **/PROJECT_OVERVIEW.md
 **/master_index.md
 **/agents.md
-rust_tui/mutants.out*
+src/mutants.out*
 claudeaudit.md
 
 # AI tooling (local only)

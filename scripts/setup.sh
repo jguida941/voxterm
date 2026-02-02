@@ -3,12 +3,30 @@
 # VoxTerm Setup Script
 # Downloads Whisper models and verifies dependencies
 #
+# Supported platforms: macOS (Intel/Apple Silicon), Linux (x86_64/arm64)
+#
 
 set -e
 
+# Detect platform
+OS="$(uname -s)"
+ARCH="$(uname -m)"
+case "$OS" in
+    Darwin) PLATFORM="macos" ;;
+    Linux)  PLATFORM="linux" ;;
+    MINGW*|MSYS*|CYGWIN*)
+        echo "Windows is not yet supported. Try WSL2 with Linux instructions."
+        exit 1
+        ;;
+    *)
+        echo "Unsupported operating system: $OS"
+        exit 1
+        ;;
+esac
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-DEFAULT_MODELS_DIR="$PROJECT_ROOT/models"
+DEFAULT_MODELS_DIR="$PROJECT_ROOT/whisper_models"
 FALLBACK_MODELS_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/voxterm/models"
 
 IS_HOMEBREW=0
@@ -153,7 +171,7 @@ check_codex() {
 build_rust_overlay() {
     print_step "Building Rust overlay..."
 
-    cd "$PROJECT_ROOT/rust_tui"
+    cd "$PROJECT_ROOT/src"
 
     if cargo build --release --bin voxterm; then
         print_success "Rust overlay built successfully"
@@ -217,7 +235,7 @@ cat > "$wrapper_path" <<EOF
 #!/bin/bash
 export VOXTERM_CWD="\$(pwd)"
 export VOXTERM_WRAPPER=1
-exec "$PROJECT_ROOT/start.sh" "\$@"
+exec "$PROJECT_ROOT/scripts/start.sh" "\$@"
 EOF
     chmod 0755 "$wrapper_path"
 
@@ -308,7 +326,7 @@ main() {
             echo -e "${GREEN}╚══════════════════════════════════════════════════════════════╝${NC}"
             echo ""
             echo "To start VoxTerm:"
-            echo "  ./start.sh"
+            echo "  ./scripts/start.sh"
             echo ""
             ;;
 

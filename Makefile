@@ -1,0 +1,181 @@
+# VoxTerm Developer Makefile
+# Run `make help` to see available commands
+
+.PHONY: help build release fmt lint test check ci clean run doctor
+
+# Default target
+help:
+	@echo "VoxTerm Developer Commands"
+	@echo ""
+	@echo "Building:"
+	@echo "  make build        Build release binary"
+	@echo "  make run          Build and run voxterm"
+	@echo "  make doctor       Run voxterm --doctor diagnostics"
+	@echo ""
+	@echo "Code Quality:"
+	@echo "  make fmt          Format code"
+	@echo "  make lint         Run clippy linter"
+	@echo "  make test         Run all tests"
+	@echo "  make check        Format + lint (no tests)"
+	@echo "  make ci           Full CI check (fmt + lint + test)"
+	@echo ""
+	@echo "Mutation Testing:"
+	@echo "  make mutants           Interactive module selection"
+	@echo "  make mutants-all       Test all modules (slow)"
+	@echo "  make mutants-audio     Test audio module only"
+	@echo "  make mutants-results   Show last results"
+	@echo ""
+	@echo "Testing:"
+	@echo "  make test-bin     Test overlay binary only"
+	@echo "  make test-perf    Run perf smoke test"
+	@echo "  make test-mem     Run memory guard test"
+	@echo "  make bench        Run voice benchmark"
+	@echo ""
+	@echo "Release:"
+	@echo "  make release V=1.0.33   Create release tag"
+	@echo "  make homebrew V=1.0.33  Update Homebrew formula"
+	@echo ""
+	@echo "Models:"
+	@echo "  make model-base   Download base.en model (recommended)"
+	@echo "  make model-small  Download small.en model"
+	@echo "  make model-tiny   Download tiny.en model (fastest)"
+	@echo ""
+	@echo "Cleanup:"
+	@echo "  make clean        Remove build artifacts"
+	@echo ""
+
+# =============================================================================
+# Building
+# =============================================================================
+
+build:
+	cd src && cargo build --release --bin voxterm
+
+run: build
+	./src/target/release/voxterm
+
+doctor: build
+	./src/target/release/voxterm --doctor
+
+# =============================================================================
+# Code Quality
+# =============================================================================
+
+fmt:
+	cd src && cargo fmt --all
+
+fmt-check:
+	cd src && cargo fmt --all -- --check
+
+lint:
+	cd src && cargo clippy --workspace --all-features -- -D warnings
+
+check: fmt-check lint
+
+# =============================================================================
+# Testing
+# =============================================================================
+
+test:
+	cd src && cargo test --workspace --all-features
+
+test-bin:
+	cd src && cargo test --bin voxterm
+
+test-perf:
+	cd src && cargo test --no-default-features app::tests::perf_smoke_emits_voice_metrics -- --nocapture
+
+test-mem:
+	cd src && cargo test --no-default-features app::tests::memory_guard_backend_threads_drop -- --nocapture
+
+# Voice benchmark
+bench:
+	./dev/scripts/tests/benchmark_voice.sh
+
+# Full CI check (matches GitHub Actions)
+ci: fmt-check lint test
+	@echo ""
+	@echo "✓ CI checks passed!"
+
+# =============================================================================
+# Mutation Testing
+# =============================================================================
+
+# Interactive module selection
+mutants:
+	python3 dev/scripts/mutants.py
+
+# Test all modules (slow)
+mutants-all:
+	python3 dev/scripts/mutants.py --all
+
+# Test specific modules
+mutants-audio:
+	python3 dev/scripts/mutants.py --module audio
+
+mutants-config:
+	python3 dev/scripts/mutants.py --module config
+
+mutants-voice:
+	python3 dev/scripts/mutants.py --module voice
+
+mutants-pty:
+	python3 dev/scripts/mutants.py --module pty
+
+# Show last mutation test results
+mutants-results:
+	python3 dev/scripts/mutants.py --results-only
+
+# Legacy: run cargo mutants directly
+mutants-raw:
+	cd src && cargo mutants --timeout 300 -o mutants.out
+	python3 dev/scripts/check_mutation_score.py --path src/mutants.out/outcomes.json --threshold 0.80
+
+# =============================================================================
+# Release
+# =============================================================================
+
+# Usage: make release V=1.0.33
+release:
+ifndef V
+	$(error Version required. Usage: make release V=1.0.33)
+endif
+	./dev/scripts/release.sh $(V)
+
+# Usage: make homebrew V=1.0.33
+homebrew:
+ifndef V
+	$(error Version required. Usage: make homebrew V=1.0.33)
+endif
+	./dev/scripts/update-homebrew.sh $(V)
+
+# =============================================================================
+# Model Management
+# =============================================================================
+
+model-base:
+	./scripts/setup.sh models --base
+
+model-small:
+	./scripts/setup.sh models --small
+
+model-tiny:
+	./scripts/setup.sh models --tiny
+
+# =============================================================================
+# Cleanup
+# =============================================================================
+
+clean:
+	cd src && cargo clean
+	rm -rf src/mutants.out
+
+# Remove test scripts clutter
+clean-tests:
+	@echo "Removing one-off test scripts..."
+	find dev/scripts/tests -maxdepth 1 -type f \
+		! -name 'benchmark_voice.sh' \
+		! -name 'integration_test.sh' \
+		! -name 'measure_latency.sh' \
+		-exec rm -f {} +
+	@echo "Done. Kept: benchmark_voice.sh, measure_latency.sh, integration_test.sh"

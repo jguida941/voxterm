@@ -6,7 +6,7 @@
 ![Linux](https://img.shields.io/badge/Linux-FCC624?style=for-the-badge&logo=linux&logoColor=black)
 [![License](https://img.shields.io/github/license/jguida941/voxterm?style=for-the-badge)](LICENSE)
 
-[![Rust TUI CI](https://img.shields.io/github/actions/workflow/status/jguida941/voxterm/rust_tui.yml?branch=master&style=for-the-badge)](https://github.com/jguida941/voxterm/actions/workflows/rust_tui.yml)
+[![Rust CI](https://img.shields.io/github/actions/workflow/status/jguida941/voxterm/rust_ci.yml?branch=master&style=for-the-badge)](https://github.com/jguida941/voxterm/actions/workflows/rust_ci.yml)
 [![Mutation Testing](https://img.shields.io/github/actions/workflow/status/jguida941/voxterm/mutation-testing.yml?branch=master&style=for-the-badge)](https://github.com/jguida941/voxterm/actions/workflows/mutation-testing.yml)
 
 Voice input for AI CLIs. Talk instead of type. Runs Whisper locally with ~250ms latency. No cloud, no API keys.
@@ -20,7 +20,7 @@ Voice input for AI CLIs. Talk instead of type. Runs Whisper locally with ~250ms 
 npm install -g @openai/codex
 
 # Install VoxTerm via Homebrew
-brew tap jguida941/voxterm
+brew tap jguida941/homebrew-voxterm
 brew install voxterm
 
 # Run it
@@ -28,7 +28,7 @@ cd ~/your-project
 voxterm
 ```
 
-First run downloads the Whisper model (~1.5 GB).
+First run downloads a Whisper model (~142 MB for base). See [Whisper docs](guides/WHISPER.md) for model options.
 
 ## How It Works
 
@@ -89,7 +89,7 @@ VoxTerm wraps your AI CLI in a PTY and adds voice input. You talk → Whisper tr
 <summary><strong>Homebrew (recommended)</strong></summary>
 
 ```bash
-brew tap jguida941/voxterm
+brew tap jguida941/homebrew-voxterm
 brew install voxterm
 ```
 </details>
@@ -100,14 +100,14 @@ brew install voxterm
 ```bash
 git clone https://github.com/jguida941/voxterm.git
 cd voxterm
-./install.sh
+./scripts/install.sh
 ```
 </details>
 
 <details>
 <summary><strong>macOS App</strong></summary>
 
-Double-click `VoxTerm.app`, pick a folder, it opens Terminal with VoxTerm running.
+Double-click `app/macos/VoxTerm.app`, pick a folder, it opens Terminal with VoxTerm running.
 
 ![Folder Picker](https://raw.githubusercontent.com/jguida941/voxterm/master/img/folder-picker.png)
 </details>
@@ -156,11 +156,12 @@ voxterm --backend "my-cli --flag"
 
 | Users | Developers |
 |-------|------------|
-| [Quick Start](QUICK_START.md) | [Development](docs/dev/DEVELOPMENT.md) |
-| [Install Guide](docs/INSTALL.md) | [Architecture](docs/dev/ARCHITECTURE.md) |
-| [Usage Guide](docs/USAGE.md) | [ADRs](docs/dev/adr/README.md) |
-| [CLI Flags](docs/CLI_FLAGS.md) | [Contributing](.github/CONTRIBUTING.md) |
-| [Troubleshooting](docs/TROUBLESHOOTING.md) | [Changelog](docs/CHANGELOG.md) |
+| [Quick Start](QUICK_START.md) | [Development](dev/DEVELOPMENT.md) |
+| [Install Guide](guides/INSTALL.md) | [Architecture](dev/ARCHITECTURE.md) |
+| [Usage Guide](guides/USAGE.md) | [ADRs](dev/adr/README.md) |
+| [CLI Flags](guides/CLI_FLAGS.md) | [Contributing](.github/CONTRIBUTING.md) |
+| [Whisper & Languages](guides/WHISPER.md) | [Changelog](dev/CHANGELOG.md) |
+| [Troubleshooting](guides/TROUBLESHOOTING.md) | |
 
 ## Contributing
 
