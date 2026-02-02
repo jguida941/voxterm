@@ -394,18 +394,18 @@ fn format_button_row(state: &StatusLineState, colors: &ThemeColors, inner_width:
     };
     items.push(format_shortcut(colors, "^R", "rec", rec_color));
 
-    // [^V on/off] - show auto-voice state
+    // [^V auto/manual] - show auto-voice state
     let (voice_label, voice_color) = if state.auto_voice_enabled {
-        ("on", colors.info)
+        ("auto", colors.info)
     } else {
-        ("off", "")
+        ("manual", colors.dim)
     };
     items.push(format_shortcut(colors, "^V", voice_label, voice_color));
 
-    // [^T auto/ins] - show current send mode
+    // [^T send:auto/insert] - show current send mode
     let (send_label, send_color) = match state.send_mode {
-        VoiceSendMode::Auto => ("auto", colors.success),
-        VoiceSendMode::Insert => ("ins", colors.warning),
+        VoiceSendMode::Auto => ("send:auto", colors.success),
+        VoiceSendMode::Insert => ("send:insert", colors.warning),
     };
     items.push(format_shortcut(colors, "^T", send_label, send_color));
 
