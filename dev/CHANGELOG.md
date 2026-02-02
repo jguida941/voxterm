@@ -18,13 +18,22 @@ Note: Some historical entries reference internal documents that are not publishe
 - Fix status banner background color bleeding outside the box on themed overlays (Nord, etc.).
 - Fix top border width calculation in status banner.
 
-## [Unreleased] - 2026-02-02
+## [1.0.33] - 2026-02-02
 
-- Rename Rust crate from `rust_tui` to `voxterm` to match project name.
-- Fix macOS app launcher breaking on paths containing apostrophes.
-- Add explicit platform detection to setup and start scripts (macOS, Linux, Windows WSL2).
-- Add platform support table to installation docs.
-- Fix Homebrew formula paths after repo reorganization (`rust_tui/` → `src/`).
+### Reorganization
+- Major codebase reorganization: `rust_tui/` → `src/`, `docs/` → `guides/` + `dev/`
+- Rename Rust crate from `rust_tui` to `voxterm` to match project name
+- Add Makefile for common developer commands
+- Add `dev/scripts/mutants.py` for interactive mutation testing
+
+### Bug Fixes
+- Fix macOS app launcher breaking on paths containing apostrophes
+- Fix Homebrew formula paths after repo reorganization
+- Add explicit platform detection to setup and start scripts (macOS, Linux, Windows WSL2)
+
+### Documentation
+- Add `guides/WHISPER.md` for model selection guidance
+- Add platform support table to installation docs
 - Fix manual hotkeys in terminals that emit CSI-u key sequences (Ctrl+R/Ctrl+V/etc).
 - Retry PTY writes on would-block errors so transcript injection is reliable under load.
 - In manual mode, send transcripts immediately instead of waiting on prompt detection.
