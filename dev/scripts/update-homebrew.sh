@@ -14,7 +14,32 @@ if [[ -z "$VERSION" ]]; then
 fi
 
 TAG="v$VERSION"
-HOMEBREW_REPO="${HOMEBREW_VOXTERM_PATH:-$HOME/testing_upgrade/homebrew-voxterm}"
+
+resolve_homebrew_repo() {
+    if [[ -n "${HOMEBREW_VOXTERM_PATH:-}" ]]; then
+        echo "$HOMEBREW_VOXTERM_PATH"
+        return 0
+    fi
+
+    if command -v brew >/dev/null 2>&1; then
+        local repo
+        repo="$(brew --repo jguida941/voxterm 2>/dev/null || true)"
+        if [[ -n "$repo" && -d "$repo" ]]; then
+            echo "$repo"
+            return 0
+        fi
+
+        repo="$(brew --repo jguida941/homebrew-voxterm 2>/dev/null || true)"
+        if [[ -n "$repo" && -d "$repo" ]]; then
+            echo "$repo"
+            return 0
+        fi
+    fi
+
+    echo "$HOME/testing_upgrade/homebrew-voxterm"
+}
+
+HOMEBREW_REPO="$(resolve_homebrew_repo)"
 FORMULA="$HOMEBREW_REPO/Formula/voxterm.rb"
 
 echo "=== Updating Homebrew tap for $TAG ==="
