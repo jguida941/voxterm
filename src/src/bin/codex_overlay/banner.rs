@@ -3,22 +3,20 @@
 //! Displays version and configuration info on startup.
 
 use crate::theme::Theme;
+use unicode_width::UnicodeWidthStr;
 
 /// Version from Cargo.toml
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-/// ASCII art logo for VoxTerm - displayed on startup (52 chars wide)
+/// ASCII art logo for VoxTerm - displayed on startup.
 const ASCII_LOGO: &[&str] = &[
-    "██╗   ██╗ ██████╗ ██╗  ██╗████████╗███████╗██████╗ ███╗   ███╗",
-    "██║   ██║██╔═══██╗╚██╗██╔╝╚══██╔══╝██╔════╝██╔══██╗████╗ ████║",
-    "██║   ██║██║   ██║ ╚███╔╝    ██║   █████╗  ██████╔╝██╔████╔██║",
-    "╚██╗ ██╔╝██║   ██║ ██╔██╗    ██║   ██╔══╝  ██╔══██╗██║╚██╔╝██║",
-    " ╚████╔╝ ╚██████╔╝██╔╝ ██╗   ██║   ███████╗██║  ██║██║ ╚═╝ ██║",
-    "  ╚═══╝   ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝",
+    r"██╗   ██╗ ██████╗ ██╗  ██╗████████╗███████╗██████╗ ███╗   ███╗",
+    r"██║   ██║██╔═══██╗╚██╗██╔╝╚══██╔══╝██╔════╝██╔══██╗████╗ ████║",
+    r"██║   ██║██║   ██║ ╚███╔╝    ██║   █████╗  ██████╔╝██╔████╔██║",
+    r"╚██╗ ██╔╝██║   ██║ ██╔██╗    ██║   ██╔══╝  ██╔══██╗██║╚██╔╝██║",
+    r" ╚████╔╝ ╚██████╔╝██╔╝ ██╗   ██║   ███████╗██║  ██║██║ ╚═╝ ██║",
+    r"  ╚═══╝   ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝",
 ];
-
-/// Logo width in display columns
-const LOGO_WIDTH: usize = 64;
 
 /// Purple gradient colors for shiny effect (light to deep purple)
 const PURPLE_GRADIENT: &[(u8, u8, u8)] = &[
@@ -35,21 +33,27 @@ fn rgb_fg(r: u8, g: u8, b: u8) -> String {
     format!("\x1b[38;2;{};{};{}m", r, g, b)
 }
 
-/// Format the shiny purple ASCII art banner with tagline
+/// Format the shiny purple ASCII art banner with tagline underneath.
 pub fn format_ascii_banner(use_color: bool, terminal_width: u16) -> String {
     let reset = "\x1b[0m";
     let dim = "\x1b[90m";
     let mut output = String::new();
     output.push('\n');
 
+    let logo_width = ASCII_LOGO
+        .iter()
+        .map(|line| UnicodeWidthStr::width(*line))
+        .max()
+        .unwrap_or(0);
     // Calculate padding to center the logo
-    let padding = if (terminal_width as usize) > LOGO_WIDTH {
-        (terminal_width as usize - LOGO_WIDTH) / 2
+    let padding = if (terminal_width as usize) > logo_width {
+        (terminal_width as usize - logo_width) / 2
     } else {
         0
     };
     let pad_str: String = " ".repeat(padding);
 
+    // Print the ASCII art logo with purple gradient
     for (i, line) in ASCII_LOGO.iter().enumerate() {
         output.push_str(&pad_str);
         if use_color {
@@ -63,7 +67,7 @@ pub fn format_ascii_banner(use_color: bool, terminal_width: u16) -> String {
         output.push('\n');
     }
 
-    // Add tagline with version and shortcuts
+    // Add tagline underneath with shortcuts
     let tagline = format!(
         "v{} │ Ctrl+R record │ Ctrl+V auto-voice │ Ctrl+Q quit",
         VERSION
@@ -82,6 +86,24 @@ pub fn format_ascii_banner(use_color: bool, terminal_width: u16) -> String {
         output.push_str(reset);
     } else {
         output.push_str(&tagline);
+    }
+    output.push_str("\n\n");
+
+    // Add "Initializing..." in golden yellow
+    let init_text = "Initializing...";
+    let init_padding = if (terminal_width as usize) > init_text.len() {
+        (terminal_width as usize - init_text.len()) / 2
+    } else {
+        0
+    };
+    output.push_str(&" ".repeat(init_padding));
+    if use_color {
+        // Golden yellow color
+        output.push_str(&rgb_fg(255, 200, 50));
+        output.push_str(init_text);
+        output.push_str(reset);
+    } else {
+        output.push_str(init_text);
     }
     output.push_str("\n\n");
 
@@ -124,8 +146,13 @@ pub fn format_startup_banner(config: &BannerConfig, theme: Theme) -> String {
         format!("{}off{}", colors.warning, colors.reset)
     };
 
+    let shortcuts = format!(
+        "{}Ctrl+R record │ Ctrl+V auto-voice │ Ctrl+Q quit{}",
+        colors.dim, colors.reset
+    );
+
     format!(
-        "{}VoxTerm{} v{} │ {} │ {} │ theme: {} │ auto-voice: {} │ {:.0}dB\n",
+        "{}VoxTerm{} v{} │ {} │ {} │ theme: {} │ auto-voice: {} │ {:.0}dB\n{}\n",
         colors.info,
         colors.reset,
         VERSION,
@@ -133,7 +160,8 @@ pub fn format_startup_banner(config: &BannerConfig, theme: Theme) -> String {
         config.pipeline,
         config.theme,
         auto_voice_status,
-        config.sensitivity_db
+        config.sensitivity_db,
+        shortcuts
     )
 }
 

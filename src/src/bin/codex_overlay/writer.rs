@@ -280,9 +280,8 @@ impl WriterState {
 pub(crate) enum WriterMessage {
     PtyOutput(Vec<u8>),
     /// Simple status message (legacy format with auto-styled prefix)
-    Status {
-        text: String,
-    },
+    #[allow(dead_code)]
+    Status { text: String },
     /// Enhanced status line with full state
     EnhancedStatus(StatusLineState),
     /// Overlay panel content (multi-line box)

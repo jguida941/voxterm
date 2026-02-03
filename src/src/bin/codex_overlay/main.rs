@@ -100,6 +100,7 @@ const EVENT_LOOP_IDLE_MS: u64 = 50;
 const THEME_PICKER_NUMERIC_TIMEOUT_MS: u64 = 350;
 const RECORDING_DURATION_UPDATE_MS: u64 = 200;
 const PROCESSING_SPINNER_TICK_MS: u64 = 120;
+const STARTUP_SPLASH_CLEAR_MS: u64 = 10_000;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum OverlayMode {
@@ -207,26 +208,13 @@ fn main() -> Result<()> {
         .unwrap_or(false);
     let no_startup_banner = env::var("VOXTERM_NO_STARTUP_BANNER").is_ok();
     let skip_banner = should_skip_banner(is_wrapper, no_startup_banner);
+
     if !skip_banner {
-        let use_color = theme != Theme::None;
-        match terminal_size() {
-            Ok((cols, _)) if cols >= 66 => {
-                // Wide terminal: show centered ASCII art with tagline
-                print!("{}", format_ascii_banner(use_color, cols));
-                let _ = io::stdout().flush();
-            }
-            Ok((cols, _)) if use_minimal_banner(cols) => {
-                // Narrow terminal: minimal one-line banner
-                print!("{}", format_minimal_banner(theme));
-                let _ = io::stdout().flush();
-            }
-            _ => {
-                // Medium terminal: show config banner
-                print!("{}", format_startup_banner(&banner_config, theme));
-                let _ = io::stdout().flush();
-            }
-        }
+        show_startup_splash(&banner_config, theme)?;
     }
+
+    let terminal_guard = TerminalRestoreGuard::new();
+    terminal_guard.enable_raw_mode()?;
 
     let mut session = PtyOverlaySession::new(
         &backend.command,
@@ -234,9 +222,6 @@ fn main() -> Result<()> {
         &backend.args,
         &config.app.term_value,
     )?;
-
-    let terminal_guard = TerminalRestoreGuard::new();
-    terminal_guard.enable_raw_mode()?;
 
     let (writer_tx, writer_rx) = bounded(WRITER_CHANNEL_CAPACITY);
     let _writer_handle = spawn_writer_thread(writer_rx);
@@ -1558,7 +1543,13 @@ fn main() -> Result<()> {
                     if let Ok((cols, rows)) = terminal_size() {
                         terminal_cols = cols;
                         terminal_rows = rows;
-                        apply_pty_winsize(&mut session, rows, cols, overlay_mode, status_state.hud_style);
+                        apply_pty_winsize(
+                            &mut session,
+                            rows,
+                            cols,
+                            overlay_mode,
+                            status_state.hud_style,
+                        );
                         let _ = writer_tx.send(WriterMessage::Resize { rows, cols });
                         if status_state.mouse_enabled {
                             update_button_registry(
@@ -1850,7 +1841,11 @@ fn resolved_rows(cached: u16) -> u16 {
     }
 }
 
-fn reserved_rows_for_mode(mode: OverlayMode, cols: u16, hud_style: HudStyle) -> usize {
+fn reserved_rows_for_mode(
+    mode: OverlayMode,
+    cols: u16,
+    hud_style: HudStyle,
+) -> usize {
     match mode {
         OverlayMode::None => status_banner_height(cols as usize, hud_style),
         OverlayMode::Help => help_overlay_height(),
@@ -2167,6 +2162,26 @@ fn should_skip_banner(is_wrapper: bool, no_startup_banner: bool) -> bool {
 
 fn use_minimal_banner(cols: u16) -> bool {
     cols < 60
+}
+
+fn build_startup_banner(config: &BannerConfig, theme: Theme) -> String {
+    let use_color = theme != Theme::None;
+    match terminal_size() {
+        Ok((cols, _)) if cols >= 66 => format_ascii_banner(use_color, cols),
+        Ok((cols, _)) if use_minimal_banner(cols) => format_minimal_banner(theme),
+        _ => format_startup_banner(config, theme),
+    }
+}
+
+fn show_startup_splash(config: &BannerConfig, theme: Theme) -> io::Result<()> {
+    let banner = build_startup_banner(config, theme).replace('\n', "\r\n");
+    let mut stdout = io::stdout();
+    write!(stdout, "\x1b[2J\x1b[H")?;
+    write!(stdout, "{banner}")?;
+    stdout.flush()?;
+    std::thread::sleep(Duration::from_millis(STARTUP_SPLASH_CLEAR_MS));
+    write!(stdout, "\x1b[2J\x1b[H")?;
+    stdout.flush()
 }
 
 fn should_print_stats(stats_output: &str) -> bool {
@@ -2983,6 +2998,11 @@ mod tests {
     fn should_print_stats_requires_non_empty() {
         assert!(!should_print_stats(""));
         assert!(should_print_stats("stats"));
+    }
+
+    #[test]
+    fn startup_splash_min_duration_is_at_least_10s() {
+        assert!(STARTUP_SPLASH_CLEAR_MS >= 10_000);
     }
 
     #[test]

@@ -142,6 +142,8 @@ voxterm
 voxterm --codex   # explicit (optional)
 ```
 
+![Codex Backend](https://raw.githubusercontent.com/jguida941/voxterm/master/img/codex-backend.png)
+
 ### Claude Code
 
 ```bash

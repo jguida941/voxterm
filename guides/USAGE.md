@@ -246,6 +246,10 @@ Minimal HUD (recording example):
 
 ![Minimal HUD](https://raw.githubusercontent.com/jguida941/voxterm/master/img/minimal-hud.png)
 
+Hidden HUD (idle example):
+
+![Hidden HUD](https://raw.githubusercontent.com/jguida941/voxterm/master/img/hidden-hud.png)
+
 ```bash
 # Minimal HUD - just a colored mode indicator
 voxterm --minimal-hud

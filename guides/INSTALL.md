@@ -93,6 +93,10 @@ cd voxterm
 The installer builds the overlay, installs the `voxterm` wrapper, and downloads
 a Whisper model to the correct path for the CLI.
 
+Example output:
+
+![Installer Output](../img/install.png)
+
 To choose a model size during install:
 
 ```bash

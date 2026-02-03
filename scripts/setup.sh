@@ -53,12 +53,21 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+print_banner() {
+    local text="$1"
+    local width=50
+    local text_len=${#text}
+    local padding=$(( (width - text_len) / 2 ))
+    local line=$(printf '━%.0s' $(seq 1 $width))
+    echo ""
+    echo -e "${GREEN}${line}${NC}"
+    printf "${GREEN}%*s%s%*s${NC}\n" $padding "" "$text" $((width - padding - text_len)) ""
+    echo -e "${GREEN}${line}${NC}"
+    echo ""
+}
+
 print_header() {
-    echo ""
-    echo -e "${BLUE}╔══════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${BLUE}║${NC}              ${GREEN}VoxTerm Setup${NC}                               ${BLUE}║${NC}"
-    echo -e "${BLUE}╚══════════════════════════════════════════════════════════════╝${NC}"
-    echo ""
+    print_banner "VoxTerm Setup"
 }
 
 print_step() {
@@ -297,10 +306,7 @@ main() {
             echo ""
             install_wrapper
 
-            echo ""
-            echo -e "${GREEN}╔══════════════════════════════════════════════════════════════╗${NC}"
-            echo -e "${GREEN}║${NC}                    Install Complete!                         ${GREEN}║${NC}"
-            echo -e "${GREEN}╚══════════════════════════════════════════════════════════════╝${NC}"
+            print_banner "✓ Install Complete!"
             echo ""
             echo "Run from any project:"
             echo "  voxterm"
@@ -320,10 +326,7 @@ main() {
             echo ""
             build_rust_overlay || exit 1
 
-            echo ""
-            echo -e "${GREEN}╔══════════════════════════════════════════════════════════════╗${NC}"
-            echo -e "${GREEN}║${NC}                    Overlay Ready!                            ${GREEN}║${NC}"
-            echo -e "${GREEN}╚══════════════════════════════════════════════════════════════╝${NC}"
+            print_banner "✓ Overlay Ready!"
             echo ""
             echo "To start VoxTerm:"
             echo "  ./scripts/start.sh"

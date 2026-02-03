@@ -5,6 +5,17 @@ Note: Some historical entries reference internal documents that are not publishe
 
 ## [Unreleased]
 
+## [1.0.42] - 2026-02-03
+
+### UX
+- Render the startup splash before raw mode and normalize line endings so the logo lines don't drift.
+- Show the startup splash before launching the CLI, keep it visible for 10s, then clear before Codex starts.
+
+### Documentation
+- Add a Codex backend screenshot to the README.
+- Add a Hidden HUD screenshot to the Usage guide.
+- Add installer output screenshot to the Install guide.
+
 ## [1.0.40] - 2026-02-03
 
 ### UX
@@ -22,6 +33,9 @@ Note: Some historical entries reference internal documents that are not publishe
 - Move Homebrew update troubleshooting steps into the troubleshooting guide and link from install.
 - Remove Gemini references from user-facing docs (README, Quick Start, Usage, CLI Flags, Install, Troubleshooting).
 - Reflow user guides for readability (Quick Start, Usage, CLI Flags, Troubleshooting, Whisper).
+
+### UX
+- Show the startup logo as a temporary overlay after initial CLI output (visible for at least 10s) so it does not conflict with the Codex intro panel.
 
 ## [1.0.38] - 2026-02-03
 
