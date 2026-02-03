@@ -5,6 +5,9 @@ Note: Some historical entries reference internal documents that are not publishe
 
 ## [Unreleased]
 
+### Documentation
+- Reorder README sections for readability with a Quick Nav, early Requirements, and a grouped UI Tour.
+
 ## [1.0.42] - 2026-02-03
 
 ### UX

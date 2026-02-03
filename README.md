@@ -1,4 +1,6 @@
-# VoxTerm
+<p align="center">
+  <img src="img/logo.svg" alt="VoxTerm">
+</p>
 
 ![Rust](https://img.shields.io/badge/Rust-000000?style=for-the-badge&logo=rust&logoColor=white)
 ![Whisper STT](https://img.shields.io/badge/Whisper-Local%20STT-74aa9c?style=for-the-badge)
@@ -12,7 +14,15 @@
 Voice input for AI CLIs. Talk instead of type.
 Runs Whisper locally with ~250ms latency. No cloud, no API keys.
 
-![VoxTerm](https://raw.githubusercontent.com/jguida941/voxterm/master/img/hero.png)
+## Quick Nav
+
+- [Quick Start](#quick-start)
+- [How It Works](#how-it-works)
+- [Requirements](#requirements)
+- [Supported AI CLIs](#supported-ai-clis)
+- [UI Tour](#ui-tour)
+- [Install Options](#install-options)
+- [Documentation](#documentation)
 
 ## Quick Start
 
@@ -50,6 +60,12 @@ VoxTerm wraps your AI CLI in a PTY and adds voice input.
 You talk → Whisper transcribes locally → text gets typed into the CLI.
 All CLI output passes through unchanged.
 
+## Requirements
+
+- macOS or Linux (Windows needs WSL2)
+- Microphone access
+- ~1.5 GB disk for Whisper model
+
 ## Features
 
 | Feature | Description |
@@ -61,6 +77,31 @@ All CLI output passes through unchanged.
 | **Transcript queue** | Speak while CLI is busy, sends when ready |
 | **Backends** | Codex + Claude supported |
 | **Themes** | 11 built-in themes including ChatGPT, Catppuccin, Dracula, Nord, Tokyo Night, Gruvbox |
+
+## Supported AI CLIs
+
+VoxTerm is optimized for Codex and Claude Code.
+
+### Codex (default)
+
+```bash
+npm install -g @openai/codex
+voxterm
+voxterm --codex   # explicit (optional)
+```
+
+![Codex Backend](https://raw.githubusercontent.com/jguida941/voxterm/master/img/codex-backend.png)
+
+### Claude Code
+
+```bash
+curl -fsSL https://claude.ai/install.sh | bash
+voxterm --claude
+```
+
+![Claude Backend](https://raw.githubusercontent.com/jguida941/voxterm/master/img/claude-backend.png)
+
+## UI Tour
 
 ### Theme Picker (Ctrl+Y)
 
@@ -124,34 +165,6 @@ Double-click `app/macos/VoxTerm.app`, pick a folder, it opens Terminal with VoxT
 
 ![Folder Picker](https://raw.githubusercontent.com/jguida941/voxterm/master/img/folder-picker.png)
 </details>
-
-**Requirements:**
-- macOS or Linux (Windows needs WSL2)
-- Microphone access
-- ~1.5 GB disk for Whisper model
-
-## Supported AI CLIs
-
-VoxTerm is optimized for Codex and Claude Code.
-
-### Codex (default)
-
-```bash
-npm install -g @openai/codex
-voxterm
-voxterm --codex   # explicit (optional)
-```
-
-![Codex Backend](https://raw.githubusercontent.com/jguida941/voxterm/master/img/codex-backend.png)
-
-### Claude Code
-
-```bash
-curl -fsSL https://claude.ai/install.sh | bash
-voxterm --claude
-```
-
-![Claude Backend](https://raw.githubusercontent.com/jguida941/voxterm/master/img/claude-backend.png)
 
 ## Documentation
 
