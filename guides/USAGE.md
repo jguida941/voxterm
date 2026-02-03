@@ -206,8 +206,6 @@ Use ↑/↓ to move and Enter to select, or type the theme number.
 With Mouse enabled (on by default), click a theme row to select it and click [×]
 close to exit.
 
-Note: Theme picker screenshot is outdated (missing tokyonight, gruvbox).
-
 Available themes:
 - `chatgpt`
 - `claude`

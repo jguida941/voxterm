@@ -7,6 +7,8 @@ Note: Some historical entries reference internal documents that are not publishe
 
 ### Documentation
 - Reorder README sections for readability with a Quick Nav, early Requirements, and a grouped UI Tour.
+- Add the README logo asset and restore the overlay-running screenshot in the Usage guide.
+- Remove outdated theme picker screenshot notes.
 
 ## [1.0.42] - 2026-02-03
 

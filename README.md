@@ -106,7 +106,6 @@ voxterm --claude
 ### Theme Picker (Ctrl+Y)
 
 ![Theme Picker](https://raw.githubusercontent.com/jguida941/voxterm/master/img/theme-picker.png)
-Note: Theme picker screenshot is outdated (missing tokyonight, gruvbox).
 Use ↑/↓ to move and Enter to select, or type the theme number.
 
 ### Settings Menu (Ctrl+O)
