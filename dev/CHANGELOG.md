@@ -5,6 +5,9 @@ Note: Some historical entries reference internal documents that are not publishe
 
 ## [Unreleased]
 
+### Documentation
+- Document `VOXTERM_NO_STARTUP_BANNER` in install and troubleshooting guides.
+
 ## [1.0.44] - 2026-02-06
 
 ### UX

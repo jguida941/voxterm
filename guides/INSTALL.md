@@ -99,6 +99,8 @@ cd voxterm
 The installer builds the overlay, installs the `voxterm` wrapper, and downloads
 a Whisper model to the correct path for the CLI.
 
+To suppress the startup splash screen, set `VOXTERM_NO_STARTUP_BANNER=1`.
+
 Example output:
 
 ![Installer Output](../img/install.png)

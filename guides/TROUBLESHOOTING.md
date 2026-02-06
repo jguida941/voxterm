@@ -273,6 +273,23 @@ $(brew --prefix)/opt/voxterm/libexec/src/target/release/voxterm --version
 
 ---
 
+## Startup Banner Missing
+
+The startup splash is shown by default. If it does not appear, confirm the
+environment variable below is not set:
+
+```bash
+env | rg VOXTERM_NO_STARTUP_BANNER
+```
+
+To explicitly hide it (useful in scripts), set:
+
+```bash
+VOXTERM_NO_STARTUP_BANNER=1 voxterm
+```
+
+---
+
 ## Enabling Logs
 
 Logs are disabled by default for privacy.
