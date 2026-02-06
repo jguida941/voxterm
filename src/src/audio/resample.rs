@@ -1,13 +1,15 @@
 use super::TARGET_RATE;
+#[cfg(feature = "high-quality-audio")]
 use crate::log_debug;
+#[cfg(feature = "high-quality-audio")]
 use anyhow::{anyhow, Result};
 #[cfg(feature = "high-quality-audio")]
 use rubato::{InterpolationParameters, InterpolationType, Resampler, SincFixedIn, WindowFunction};
 use std::cmp::Ordering as CmpOrdering;
 use std::f32::consts::PI;
-#[cfg(test)]
+#[cfg(all(test, feature = "high-quality-audio"))]
 use std::sync::atomic::AtomicUsize;
-#[cfg(any(test, feature = "high-quality-audio"))]
+#[cfg(feature = "high-quality-audio")]
 use std::sync::atomic::{AtomicBool, Ordering};
 
 // Derived from 16 kHz target and practical ratio bounds (~0.01x .. 8x).
@@ -19,11 +21,11 @@ const MAX_DOWNSAMPLING_TAPS: usize = 129;
 
 #[cfg(feature = "high-quality-audio")]
 pub(super) static RESAMPLER_WARNING_SHOWN: AtomicBool = AtomicBool::new(false);
-#[cfg(test)]
+#[cfg(all(test, feature = "high-quality-audio"))]
 pub(super) static RESAMPLE_FALLBACK_COUNT: AtomicUsize = AtomicUsize::new(0);
-#[cfg(test)]
+#[cfg(all(test, feature = "high-quality-audio"))]
 pub(super) static RESAMPLE_WARN_COUNT: AtomicUsize = AtomicUsize::new(0);
-#[cfg(test)]
+#[cfg(all(test, feature = "high-quality-audio"))]
 pub(super) static FORCE_RUBATO_ERROR: AtomicBool = AtomicBool::new(false);
 
 pub(super) fn resample_to_target_rate(input: &[f32], device_rate: u32) -> Vec<f32> {
@@ -43,11 +45,11 @@ pub(super) fn resample_to_target_rate(input: &[f32], device_rate: u32) -> Vec<f3
         match resample_with_rubato(input, device_rate) {
             Ok(output) => output,
             Err(err) => {
-                #[cfg(test)]
+                #[cfg(all(test, feature = "high-quality-audio"))]
                 RESAMPLE_FALLBACK_COUNT.fetch_add(1, Ordering::Relaxed);
                 // CRITICAL: Use AcqRel ordering to prevent data race
                 if !RESAMPLER_WARNING_SHOWN.swap(true, Ordering::AcqRel) {
-                    #[cfg(test)]
+                    #[cfg(all(test, feature = "high-quality-audio"))]
                     RESAMPLE_WARN_COUNT.fetch_add(1, Ordering::Relaxed);
                     log_debug(&format!(
                         "high-quality resampler failed ({err}); falling back to basic path"
@@ -87,7 +89,7 @@ pub(super) fn resample_with_rubato(input: &[f32], device_rate: u32) -> Result<Ve
         return Err(anyhow!("invalid resample ratio {ratio}"));
     }
 
-    #[cfg(test)]
+    #[cfg(all(test, feature = "high-quality-audio"))]
     if FORCE_RUBATO_ERROR.swap(false, Ordering::Relaxed) {
         return Err(anyhow!("forced rubato error"));
     }

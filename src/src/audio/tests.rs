@@ -12,7 +12,9 @@ use super::{
 use crossbeam_channel::bounded;
 use std::f32::consts::PI;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+#[cfg(all(test, feature = "high-quality-audio"))]
+use std::sync::Mutex;
 
 #[cfg(feature = "high-quality-audio")]
 use super::resample::{
@@ -22,6 +24,7 @@ use super::resample::{
 
 const SAMPLE_RATE: u32 = TARGET_RATE;
 
+#[cfg(all(test, feature = "high-quality-audio"))]
 static RESAMPLE_TEST_LOCK: Mutex<()> = Mutex::new(());
 
 #[test]
