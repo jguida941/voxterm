@@ -60,7 +60,7 @@ Transcription is taking too long.
 
 The CLI is still streaming output, so VoxTerm queued your transcript.
 It will inject into the terminal when the next prompt appears (or after output
-is idle for the transcript timeout). In auto-send mode VoxTerm also presses Enter.
+is idle for the transcript timeout). Auto-send submits immediately.
 
 **Fixes:**
 1. Wait for the CLI to finish and return to a prompt

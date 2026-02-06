@@ -42,7 +42,7 @@ voxterm --logs                    # Enable debug logging
 | `--auto-voice` | Start in auto-voice mode (hands-free) | off |
 | `--auto-voice-idle-ms <MS>` | Idle time before auto-voice triggers when prompt not detected | 1200 |
 | `--transcript-idle-ms <MS>` | Idle time before queued transcripts are injected into the terminal | 250 |
-| `--voice-send-mode <auto\|insert>` | `auto` appends Enter to terminal input, `insert` types only (press Enter to submit) | auto |
+| `--voice-send-mode <auto\|insert>` | `auto` submits immediately, `insert` waits for Enter | auto |
 
 ---
 

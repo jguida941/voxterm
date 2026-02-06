@@ -21,8 +21,8 @@ or Claude Code.
 **Already installed?** Here's how to start talking to the CLI:
 
 1. **Launch**: Run `voxterm` in your project folder
-2. **Speak**: Press `Ctrl+R`, say your request, then pause. VoxTerm types your words into the CLI; in auto-send mode it also presses Enter.
-3. **Done**: Your words appear as text. If auto-send is on and the CLI accepts Enter, it responds; otherwise press `Enter` to submit.
+2. **Speak**: Press `Ctrl+R`, say your request, then pause. VoxTerm types your words into the CLI. Auto-send submits immediately; insert waits for you to press `Enter`.
+3. **Done**: Your words appear as text and the CLI responds. In insert mode, press `Enter` to submit.
 
 That's it! Read on for more control over how voice input works.
 
@@ -41,10 +41,10 @@ If you have not logged in yet:
 When you speak, VoxTerm:
 1. Records your voice until you stop talking (silence detection)
 2. Transcribes it to text using Whisper (runs locally, nothing sent to the cloud)
-3. Types that text into the active CLI terminal (Codex by default). In auto-send mode it also presses Enter (newline).
+3. Types that text into the active CLI terminal (Codex by default). Auto-send submits immediately; insert waits for you.
 
 **Important**: VoxTerm only writes to the terminal (PTY). It does not call Codex/Claude APIs directly.
-"Send" in this guide means "type into the terminal and, in auto-send mode, append Enter."
+"Submit" in this guide means "type into the terminal; insert waits for your Enter."
 
 ![Recording Mode](https://raw.githubusercontent.com/jguida941/voxterm/master/img/recording.png)
 
@@ -106,16 +106,17 @@ send mode. If auto-voice is off, press `Ctrl+R` to start recording.
 
 | Auto-voice (`Ctrl+V`) | Send mode (`Ctrl+T`) | How you start | After you stop talking | Best for |
 |-----------------------|----------------------|---------------|------------------------|----------|
-| Off | Auto | Press `Ctrl+R` | Transcribes, types into terminal, and presses Enter | Quick commands, precise timing |
+| Off | Auto | Press `Ctrl+R` | Transcribes, types into terminal, and submits immediately | Quick commands, precise timing |
 | Off | Insert | Press `Ctrl+R` | Transcribes and types into terminal; press `Enter` to submit | Edit before submitting |
-| On | Auto | Just speak | Transcribes, types into terminal, and presses Enter | Hands-free if the CLI uses Enter |
+| On | Auto | Just speak | Transcribes, types into terminal, and submits immediately | Hands-free |
 | On | Insert | Just speak | Transcribes and types into terminal; press `Enter` to submit | Hands-free + review |
 
 **Notes**
 - **Auto-voice**: ON keeps listening after each transcript. OFF means you press `Ctrl+R` each time.
 - **Insert mode**: transcript is typed into the terminal; you press `Enter` when you want to submit (immediately or after edits).
-- **Auto send**: VoxTerm submits for you (presses `Enter`). It never calls Codex/Claude directly.
+- **Auto send**: submits immediately after transcription.
 - **Enter while recording (insert mode)**: stops the recording early so it transcribes sooner. Press `Enter` again to submit.
+- **Terminal only**: VoxTerm only types into the terminal; it does not call Codex/Claude directly.
 - **Prompt detection fallback**: if auto-voice does not start after the CLI
   finishes, it falls back to an idle timer. Set `--prompt-regex` if your prompt
   is unusual (especially with Claude).
@@ -195,7 +196,7 @@ When recording or processing, the mode label includes a pipeline tag
 | `Auto-voice enabled` | Listening will start when the CLI is ready |
 | `Listening Manual Mode (Rust)` | Recording now (you pressed Ctrl+R) |
 | `Processing …` | Transcribing your speech (spinner updates) |
-| `Transcript ready (Rust)` | Text injected into the terminal (Enter added in auto-send) |
+| `Transcript ready (Rust)` | Text injected into the terminal (auto mode submits immediately) |
 | `No speech detected` | Recording finished but no voice was heard |
 | `Transcript queued (2)` | 2 transcripts waiting for the CLI to be ready |
 | `Mic sensitivity: -35 dB` | Threshold changed |
@@ -278,7 +279,7 @@ Common startup configurations:
 # Use Claude Code
 voxterm --claude
 
-# Hands-free capture + auto-submit (sends Enter to terminal)
+# Hands-free capture + auto-submit
 voxterm --auto-voice
 
 # Hands-free with review before submitting

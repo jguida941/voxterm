@@ -72,7 +72,7 @@ voxterm --claude
 
 Full behavior notes and screenshots are in [guides/USAGE.md](guides/USAGE.md).
 
-Send mode note: "auto" means VoxTerm appends Enter after transcription; "insert" types without Enter.
+Send mode note: "auto" submits immediately; "insert" waits for you to press `Enter`.
 VoxTerm only writes to the terminal (PTY) and does not call Codex/Claude directly.
 
 ## 5) Common flags
