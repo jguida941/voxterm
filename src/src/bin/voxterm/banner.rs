@@ -179,8 +179,8 @@ pub fn format_minimal_banner(theme: Theme) -> String {
     )
 }
 
-pub(crate) fn should_skip_banner(is_wrapper: bool, no_startup_banner: bool) -> bool {
-    is_wrapper || no_startup_banner
+pub(crate) fn should_skip_banner(no_startup_banner: bool) -> bool {
+    no_startup_banner
 }
 
 fn use_minimal_banner(cols: u16) -> bool {
@@ -250,10 +250,8 @@ mod tests {
 
     #[test]
     fn should_skip_banner_matches_flags() {
-        assert!(!should_skip_banner(false, false));
-        assert!(should_skip_banner(true, false));
-        assert!(should_skip_banner(false, true));
-        assert!(should_skip_banner(true, true));
+        assert!(!should_skip_banner(false));
+        assert!(should_skip_banner(true));
     }
 
     #[test]

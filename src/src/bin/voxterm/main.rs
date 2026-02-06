@@ -174,11 +174,8 @@ fn main() -> Result<()> {
         sensitivity_db: config.app.voice_vad_threshold_db,
         backend: backend.label.clone(),
     };
-    let is_wrapper = env::var("VOXTERM_WRAPPER")
-        .map(|v| v == "1")
-        .unwrap_or(false);
     let no_startup_banner = env::var("VOXTERM_NO_STARTUP_BANNER").is_ok();
-    let skip_banner = should_skip_banner(is_wrapper, no_startup_banner);
+    let skip_banner = should_skip_banner(no_startup_banner);
 
     if !skip_banner {
         show_startup_splash(&banner_config, theme)?;

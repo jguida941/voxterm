@@ -5,6 +5,14 @@ Note: Some historical entries reference internal documents that are not publishe
 
 ## [Unreleased]
 
+## [1.0.44] - 2026-02-06
+
+### UX
+- Show the startup banner when launching via wrapper scripts; set `VOXTERM_NO_STARTUP_BANNER` to suppress it.
+
+### Documentation
+- Document `VOXTERM_NO_STARTUP_BANNER` in CLI environment variables.
+
 ## [1.0.43] - 2026-02-06
 
 ### UX

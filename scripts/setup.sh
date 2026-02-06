@@ -243,7 +243,6 @@ install_wrapper() {
 cat > "$wrapper_path" <<EOF
 #!/bin/bash
 export VOXTERM_CWD="\$(pwd)"
-export VOXTERM_WRAPPER=1
 exec "$PROJECT_ROOT/scripts/start.sh" "\$@"
 EOF
     chmod 0755 "$wrapper_path"

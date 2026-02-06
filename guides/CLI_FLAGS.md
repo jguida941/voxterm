@@ -175,6 +175,7 @@ appropriate default. Claude → `claude`, Codex → `codex`, others → `coral`.
 | `VOXTERM_CWD` | Run CLI in this directory | current directory |
 | `VOXTERM_MODEL_DIR` | Whisper model storage path | `whisper_models/` or `~/.local/share/voxterm/models` |
 | `VOXTERM_INSTALL_DIR` | Override install location | unset |
+| `VOXTERM_NO_STARTUP_BANNER` | Skip the startup splash screen | unset |
 | `VOXTERM_PROMPT_REGEX` | Override prompt detection | unset |
 | `VOXTERM_PROMPT_LOG` | Prompt detection log path | unset |
 | `VOXTERM_LOGS` | Enable logging (same as `--logs`) | unset |

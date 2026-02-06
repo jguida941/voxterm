@@ -20,8 +20,6 @@ fi
 
 # Save the user's current directory so voxterm works on their project
 export VOXTERM_CWD="$(pwd)"
-# Mark wrapper so the binary can skip duplicate startup banners
-export VOXTERM_WRAPPER=1
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$SCRIPT_DIR"
