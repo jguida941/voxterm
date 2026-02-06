@@ -24,7 +24,7 @@ Implement a modular visual styling system with these components:
    - Auto-detection from message content via `from_message()`
    - Unicode prefixes: `● REC`, `◐`, `✓`, `⚠`, `✗`, `ℹ`
 
-2. **`theme.rs`** - Color theme system
+2. **`theme/`** - Color theme system
    - `Theme` enum: ChatGpt, Claude, Codex, Coral, Catppuccin, Dracula, Nord, Ansi, None
    - Backend-default themes: Claude backend → `claude`, Codex backend → `codex`, others → `coral`
    - `ThemeColors` struct with semantic colors (recording, success, error, etc.)
@@ -76,13 +76,13 @@ Implement a modular visual styling system with these components:
 | Module | Purpose | Lines |
 |--------|---------|-------|
 | `status_style.rs` | Status categorization and prefixes | ~180 |
-| `theme.rs` | Color themes (Coral, Catppuccin, Dracula, Nord) | ~170 |
+| `theme/` | Color themes (Coral, Catppuccin, Dracula, Nord) | ~170 |
 | `color_mode.rs` | Terminal capability detection | ~165 |
 | `status_line.rs` | Enhanced status line layout | ~250 |
 | `help.rs` | Help overlay with shortcuts | ~175 |
 | `banner.rs` | Startup banner | ~95 |
 | `session_stats.rs` | Exit statistics | ~175 |
-| `audio_meter.rs` | Visual audio level meters | ~270 |
+| `audio_meter/` | Visual audio level meters | ~270 |
 | `progress.rs` | Progress bars and spinners | ~250 |
 
 ## Alternatives Considered
@@ -96,4 +96,4 @@ Implement a modular visual styling system with these components:
 
 - [NO_COLOR Standard](https://no-color.org/)
 - [Catppuccin Theme](https://github.com/catppuccin/catppuccin)
-- `src/src/bin/codex_overlay/` - Implementation location
+- `src/src/bin/voxterm/` - Implementation location

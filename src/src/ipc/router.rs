@@ -1,4 +1,4 @@
-use crate::codex::{BackendError, CodexBackend, CodexRequest};
+use crate::codex::{CodexBackendError, CodexJobRunner, CodexRequest};
 use crate::voice;
 use std::sync::mpsc;
 use std::thread;
@@ -87,9 +87,9 @@ pub(super) fn handle_send_prompt(
     // Cancel any existing job
     if let Some(job) = state.current_job.take() {
         match job {
-            ActiveJob::Codex(j) => state.codex_backend.cancel(j.id),
+            ActiveJob::Codex(j) => state.codex_cli_backend.cancel(j.id),
             ActiveJob::Claude(mut j) => {
-                let _ = j.child.kill();
+                j.cancel();
             }
         }
     }
@@ -186,14 +186,14 @@ pub(super) fn start_provider_job(state: &mut IpcState, provider: Provider, promp
     match provider {
         Provider::Codex => {
             let request = CodexRequest::chat(prompt.to_string());
-            match state.codex_backend.start(request) {
+            match state.codex_cli_backend.start(request) {
                 Ok(job) => {
                     state.current_job = Some(ActiveJob::Codex(job));
                 }
                 Err(e) => {
                     let msg = match e {
-                        BackendError::InvalidRequest(s) => s.to_string(),
-                        BackendError::BackendDisabled(s) => s,
+                        CodexBackendError::InvalidRequest(s) => s.to_string(),
+                        CodexBackendError::BackendDisabled(s) => s,
                     };
                     send_event(&IpcEvent::JobEnd {
                         provider: "codex".to_string(),
@@ -207,6 +207,7 @@ pub(super) fn start_provider_job(state: &mut IpcState, provider: Provider, promp
             &state.claude_cmd,
             prompt,
             state.config.claude_skip_permissions,
+            &state.config.term_value,
         ) {
             Ok(job) => {
                 state.current_job = Some(ActiveJob::Claude(job));
@@ -272,7 +273,7 @@ pub(super) fn handle_cancel(state: &mut IpcState) {
     if let Some(job) = state.current_job.take() {
         match job {
             ActiveJob::Codex(j) => {
-                state.codex_backend.cancel(j.id);
+                state.codex_cli_backend.cancel(j.id);
                 send_event(&IpcEvent::JobEnd {
                     provider: "codex".to_string(),
                     success: false,
@@ -280,7 +281,7 @@ pub(super) fn handle_cancel(state: &mut IpcState) {
                 });
             }
             ActiveJob::Claude(mut j) => {
-                let _ = j.child.kill();
+                j.cancel();
                 send_event(&IpcEvent::JobEnd {
                     provider: "claude".to_string(),
                     success: false,

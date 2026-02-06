@@ -1,6 +1,6 @@
 //! Pseudo-terminal (PTY) session management.
 //!
-//! Spawns child processes (like Codex CLI) in a PTY so they behave as if
+//! Spawns backend CLIs in a PTY so they behave as if
 //! running in an interactive terminal. Handles I/O forwarding, window resize
 //! signals, and graceful process termination.
 
@@ -11,6 +11,7 @@ use std::ffi::CString;
 use std::io::{self};
 use std::mem;
 use std::os::unix::io::RawFd;
+use std::os::unix::process::ExitStatusExt;
 use std::ptr;
 use std::thread;
 use std::time::{Duration, Instant};
@@ -23,8 +24,8 @@ use super::counters::{
 use super::counters::{read_output_elapsed, read_output_grace_elapsed, wait_for_exit_elapsed};
 use super::io::{spawn_passthrough_reader_thread, spawn_reader_thread, write_all};
 
-/// Uses PTY to run Codex in a proper terminal environment
-pub struct PtyCodexSession {
+/// Uses PTY to run a backend CLI in a proper terminal environment.
+pub struct PtyCliSession {
     pub(super) master_fd: RawFd,
     pub(super) child_pid: i32,
     /// Stream of raw PTY output chunks from the child process.
@@ -32,10 +33,10 @@ pub struct PtyCodexSession {
     pub(super) _output_thread: thread::JoinHandle<()>,
 }
 
-impl PtyCodexSession {
-    /// Start Codex under a pseudo-terminal so it behaves like an interactive shell.
+impl PtyCliSession {
+    /// Start a backend CLI under a pseudo-terminal so it behaves like an interactive shell.
     pub fn new(
-        codex_cmd: &str,
+        cli_cmd: &str,
         working_dir: &str,
         args: &[String],
         term_value: &str,
@@ -47,20 +48,20 @@ impl PtyCodexSession {
         });
         let mut argv: Vec<CString> = Vec::with_capacity(args.len() + 1);
         argv.push(
-            CString::new(codex_cmd)
-                .with_context(|| format!("codex_cmd contains NUL byte: {codex_cmd}"))?,
+            CString::new(cli_cmd)
+                .with_context(|| format!("cli_cmd contains NUL byte: {cli_cmd}"))?,
         );
         for arg in args {
             argv.push(
                 CString::new(arg.as_str())
-                    .with_context(|| format!("codex arg contains NUL byte: {arg}"))?,
+                    .with_context(|| format!("cli arg contains NUL byte: {arg}"))?,
             );
         }
 
-        // SAFETY: argv/cwd/TERM are valid CStrings; spawn_codex_child returns a valid master fd.
+        // SAFETY: argv/cwd/TERM are valid CStrings; spawn_pty_child returns a valid master fd.
         // set_nonblocking only touches the returned master fd.
         unsafe {
-            let (master_fd, child_pid) = spawn_codex_child(&argv, &cwd, &term_value_cstr)?;
+            let (master_fd, child_pid) = spawn_pty_child(&argv, &cwd, &term_value_cstr)?;
             set_nonblocking(master_fd)?;
 
             let (tx, rx) = bounded(100);
@@ -129,8 +130,8 @@ impl PtyCodexSession {
     }
 
     /// Check if the PTY session is responsive by verifying the process is alive.
-    /// Note: Codex doesn't output anything until you send a prompt, so we can't
-    /// require output for health check - just verify the process started.
+    /// Note: some backends don't output anything until you send a prompt, so we
+    /// can't require output for the health check - just verify the process started.
     pub fn is_responsive(&mut self, _timeout: Duration) -> bool {
         // Drain any startup output (banner, prompts, etc.) without blocking
         let _ = self.read_output();
@@ -156,6 +157,9 @@ impl PtyCodexSession {
 
     /// Peek whether the child is still running (without reaping it).
     pub fn is_alive(&self) -> bool {
+        if self.child_pid < 0 {
+            return false;
+        }
         unsafe {
             // SAFETY: child_pid is owned by this session; waitpid with WNOHANG only inspects state.
             let mut status = 0;
@@ -163,12 +167,35 @@ impl PtyCodexSession {
             ret == 0 // 0 means still running
         }
     }
+
+    /// Non-blocking check for child exit; reaps the child on completion.
+    pub fn try_wait(&mut self) -> Option<std::process::ExitStatus> {
+        if self.child_pid < 0 {
+            return None;
+        }
+        unsafe {
+            let mut status = 0;
+            let ret = libc::waitpid(self.child_pid, &mut status, libc::WNOHANG);
+            if ret == 0 {
+                None
+            } else if ret < 0 {
+                None
+            } else {
+                self.child_pid = -1;
+                Some(std::process::ExitStatus::from_raw(status))
+            }
+        }
+    }
 }
 
-impl Drop for PtyCodexSession {
+impl Drop for PtyCliSession {
     fn drop(&mut self) {
         unsafe {
-            // SAFETY: child_pid/master_fd come from spawn_codex_child; cleanup uses best-effort signals
+            if self.child_pid < 0 {
+                close_fd(self.master_fd);
+                return;
+            }
+            // SAFETY: child_pid/master_fd come from spawn_pty_child; cleanup uses best-effort signals
             // and closes the fd if still open.
             if let Err(err) = self.send("exit\n") {
                 log_debug(&format!("failed to send PTY exit command: {err:#}"));
@@ -176,14 +203,14 @@ impl Drop for PtyCodexSession {
             if !wait_for_exit(self.child_pid, Duration::from_millis(500)) {
                 if libc::kill(self.child_pid, libc::SIGTERM) != 0 {
                     log_debug(&format!(
-                        "SIGTERM to Codex session failed: {}",
+                        "SIGTERM to PTY session failed: {}",
                         io::Error::last_os_error()
                     ));
                 }
                 if !wait_for_exit(self.child_pid, Duration::from_millis(500)) {
                     if libc::kill(self.child_pid, libc::SIGKILL) != 0 {
                         log_debug(&format!(
-                            "SIGKILL to Codex session failed: {}",
+                            "SIGKILL to PTY session failed: {}",
                             io::Error::last_os_error()
                         ));
                     }
@@ -220,9 +247,9 @@ pub struct PtyOverlaySession {
 }
 
 impl PtyOverlaySession {
-    /// Start Codex under a pseudo-terminal but keep output raw for overlay rendering.
+    /// Start a backend CLI under a pseudo-terminal but keep output raw for overlay rendering.
     pub fn new(
-        codex_cmd: &str,
+        cli_cmd: &str,
         working_dir: &str,
         args: &[String],
         term_value: &str,
@@ -234,20 +261,20 @@ impl PtyOverlaySession {
         });
         let mut argv: Vec<CString> = Vec::with_capacity(args.len() + 1);
         argv.push(
-            CString::new(codex_cmd)
-                .with_context(|| format!("codex_cmd contains NUL byte: {codex_cmd}"))?,
+            CString::new(cli_cmd)
+                .with_context(|| format!("cli_cmd contains NUL byte: {cli_cmd}"))?,
         );
         for arg in args {
             argv.push(
                 CString::new(arg.as_str())
-                    .with_context(|| format!("codex arg contains NUL byte: {arg}"))?,
+                    .with_context(|| format!("cli arg contains NUL byte: {arg}"))?,
             );
         }
 
-        // SAFETY: argv/cwd/TERM are valid CStrings; spawn_codex_child returns a valid master fd.
+        // SAFETY: argv/cwd/TERM are valid CStrings; spawn_pty_child returns a valid master fd.
         // set_nonblocking only touches the returned master fd.
         unsafe {
-            let (master_fd, child_pid) = spawn_codex_child(&argv, &cwd, &term_value_cstr)?;
+            let (master_fd, child_pid) = spawn_pty_child(&argv, &cwd, &term_value_cstr)?;
             set_nonblocking(master_fd)?;
 
             let (tx, rx) = bounded(100);
@@ -320,7 +347,7 @@ impl PtyOverlaySession {
 impl Drop for PtyOverlaySession {
     fn drop(&mut self) {
         unsafe {
-            // SAFETY: child_pid/master_fd come from spawn_codex_child; cleanup uses best-effort signals
+            // SAFETY: child_pid/master_fd come from spawn_pty_child; cleanup uses best-effort signals
             // and closes the fd if still open.
             if let Err(err) = self.send_text_with_newline("exit") {
                 log_debug(&format!("failed to send PTY exit command: {err:#}"));
@@ -328,14 +355,14 @@ impl Drop for PtyOverlaySession {
             if !wait_for_exit(self.child_pid, Duration::from_millis(500)) {
                 if libc::kill(self.child_pid, libc::SIGTERM) != 0 {
                     log_debug(&format!(
-                        "SIGTERM to Codex session failed: {}",
+                        "SIGTERM to PTY session failed: {}",
                         io::Error::last_os_error()
                     ));
                 }
                 if !wait_for_exit(self.child_pid, Duration::from_millis(500)) {
                     if libc::kill(self.child_pid, libc::SIGKILL) != 0 {
                         log_debug(&format!(
-                            "SIGKILL to Codex session failed: {}",
+                            "SIGKILL to PTY session failed: {}",
                             io::Error::last_os_error()
                         ));
                     }
@@ -374,7 +401,7 @@ impl Drop for PtyOverlaySession {
 ///
 /// The child process calls `_exit(1)` on any setup failure to avoid
 /// undefined behavior from returning after `fork()`.
-pub(super) unsafe fn spawn_codex_child(
+pub(super) unsafe fn spawn_pty_child(
     argv: &[CString],
     working_dir: &CString,
     term_value: &CString,
@@ -382,7 +409,7 @@ pub(super) unsafe fn spawn_codex_child(
     let mut master_fd: RawFd = -1;
     let mut slave_fd: RawFd = -1;
 
-    // Set a proper terminal size - codex checks this for terminal detection
+    // Set a proper terminal size - some backends check this for terminal detection
     // SAFETY: libc::winsize is a plain C struct; zeroed is a valid baseline.
     let mut winsize: libc::winsize = mem::zeroed();
     winsize.ws_row = 24;

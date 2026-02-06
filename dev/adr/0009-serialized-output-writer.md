@@ -47,5 +47,5 @@ Serialize all terminal output through a dedicated writer thread:
 
 ## Links
 
-- `src/src/bin/codex_overlay/main.rs:50` - Channel capacity constant
-- `src/src/bin/codex_overlay/writer.rs` - Writer thread implementation
+- `src/src/bin/voxterm/main.rs:50` - Channel capacity constant
+- `src/src/bin/voxterm/writer.rs` - Writer thread implementation

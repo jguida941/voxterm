@@ -24,6 +24,8 @@ Most common flags:
 ```bash
 voxterm --codex                   # Use Codex (default)
 voxterm --claude                  # Use Claude Code
+voxterm --login --codex           # Run Codex login before starting
+voxterm --login --claude          # Run Claude login before starting
 voxterm --auto-voice              # Hands-free mode
 voxterm --theme dracula           # Change theme
 voxterm --voice-vad-threshold-db -50  # Adjust mic sensitivity
@@ -51,6 +53,7 @@ voxterm --logs                    # Enable debug logging
 | `--codex` | Use Codex CLI (shorthand) | - |
 | `--claude` | Use Claude Code (shorthand) | - |
 | `--backend <NAME>` | Backend preset: `codex` or `claude` | codex |
+| `--login` | Run backend login before starting the overlay | off |
 | `--prompt-regex <REGEX>` | Override prompt detection pattern | auto-learned |
 | `--prompt-log <PATH>` | Log detected prompts to file (debugging) | disabled |
 | `--codex-cmd <PATH>` | Path to Codex binary | codex |
@@ -60,6 +63,8 @@ voxterm --logs                    # Enable debug logging
 ```bash
 voxterm --codex               # Use Codex (default)
 voxterm --claude              # Use Claude Code
+voxterm --login --codex       # Login to Codex CLI
+voxterm --login --claude      # Login to Claude CLI
 ```
 
 ---
@@ -148,6 +153,9 @@ appropriate default. Claude → `claude`, Codex → `codex`, others → `coral`.
 **Log location:** `$TMPDIR/voxterm_tui.log` (macOS) or
 `/tmp/voxterm_tui.log` (Linux)
 
+**Trace log (JSON):** `$TMPDIR/voxterm_trace.jsonl` (macOS) or
+`/tmp/voxterm_trace.jsonl` (Linux). Override with `VOXTERM_TRACE_LOG`.
+
 ---
 
 ## Sounds
@@ -172,6 +180,7 @@ appropriate default. Claude → `claude`, Codex → `codex`, others → `coral`.
 | `VOXTERM_LOGS` | Enable logging (same as `--logs`) | unset |
 | `VOXTERM_NO_LOGS` | Disable logging | unset |
 | `VOXTERM_LOG_CONTENT` | Allow content in logs | unset |
+| `VOXTERM_TRACE_LOG` | Structured trace log path | unset |
 | `NO_COLOR` | Disable colors (standard) | unset |
 
 ---

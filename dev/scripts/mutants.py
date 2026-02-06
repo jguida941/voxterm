@@ -63,7 +63,7 @@ MODULES = {
     },
     "overlay": {
         "desc": "Overlay binary (main, writer, status)",
-        "files": ["src/bin/codex_overlay/**"],
+        "files": ["src/bin/voxterm/**"],
         "timeout": 180,
     },
 }

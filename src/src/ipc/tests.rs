@@ -2,10 +2,11 @@ use super::protocol::*;
 use super::router::*;
 use super::session::*;
 use crate::codex::{
-    build_test_backend_job, reset_session_count, reset_session_count_reset, BackendEvent,
-    BackendEventKind, BackendStats, CliBackend, RequestMode, TestSignal,
+    build_test_backend_job, reset_session_count, reset_session_count_reset, CodexEvent,
+    CodexEventKind, CodexJobStats, CodexCliBackend, RequestMode, TestSignal,
 };
 use crate::config::AppConfig;
+use crate::audio;
 use crate::voice;
 use crate::{PipelineJsonResult, PipelineMetrics, VoiceJob, VoiceJobMessage};
 use clap::Parser;
@@ -20,7 +21,7 @@ fn new_test_state(mut config: AppConfig) -> IpcState {
     IpcState {
         config: config.clone(),
         active_provider: Provider::Codex,
-        codex_backend: Arc::new(CliBackend::new(config)),
+        codex_cli_backend: Arc::new(CodexCliBackend::new(config)),
         claude_cmd: "claude".to_string(),
         recorder: None,
         transcriber: None,
@@ -434,7 +435,7 @@ fn run_ipc_loop_processes_active_jobs() {
     let mut state = new_test_state(AppConfig::parse_from(["test-app"]));
 
     let now = Instant::now();
-    let stats = BackendStats {
+    let stats = CodexJobStats {
         backend_type: "cli",
         started_at: now,
         first_token_at: None,
@@ -445,9 +446,9 @@ fn run_ipc_loop_processes_active_jobs() {
         cli_fallback_used: false,
         disable_pty: false,
     };
-    let events = vec![BackendEvent {
+    let events = vec![CodexEvent {
         job_id: 1,
-        kind: BackendEventKind::Finished {
+        kind: CodexEventKind::Finished {
             lines: vec!["ok".to_string()],
             status: "ok".to_string(),
             stats,
@@ -569,9 +570,12 @@ fn process_claude_events_emits_tokens_and_end() {
         .spawn()
         .expect("spawned child");
     let mut job = ClaudeJob {
-        child,
-        stdout_rx: rx,
+        output: ClaudeJobOutput::Piped {
+            child,
+            stdout_rx: rx,
+        },
         started_at: Instant::now(),
+        pending_exit: None,
     };
 
     assert!(!process_claude_events(&mut job, false));
@@ -606,7 +610,10 @@ fn process_voice_events_handles_transcript() {
     tx.send(VoiceJobMessage::Transcript {
         text: "hello".to_string(),
         source: voice::VoiceCaptureSource::Native,
-        metrics: None,
+        metrics: Some(audio::CaptureMetrics {
+            capture_ms: 123,
+            ..Default::default()
+        }),
     })
     .unwrap();
 
@@ -616,9 +623,9 @@ fn process_voice_events_handles_transcript() {
     assert!(events
         .iter()
         .any(|event| { matches!(event, IpcEvent::VoiceEnd { error } if error.is_none()) }));
-    assert!(events
-        .iter()
-        .any(|event| { matches!(event, IpcEvent::Transcript { text, .. } if text == "hello") }));
+    assert!(events.iter().any(|event| {
+        matches!(event, IpcEvent::Transcript { text, duration_ms } if text == "hello" && *duration_ms == 123)
+    }));
 }
 
 #[test]
@@ -990,7 +997,8 @@ fn start_claude_job_emits_stdout_and_stderr() {
 
     let snapshot = event_snapshot();
     let script = write_stub_script("#!/bin/sh\necho out-line\necho '' 1>&2\necho err-line 1>&2\n");
-    let mut job = start_claude_job(script.to_str().unwrap(), "prompt", false).unwrap();
+    let mut job =
+        start_claude_job(script.to_str().unwrap(), "prompt", false, "xterm-256color").unwrap();
 
     let start = Instant::now();
     while start.elapsed() < Duration::from_secs(2) {
@@ -999,11 +1007,44 @@ fn start_claude_job_emits_stdout_and_stderr() {
     }
 
     let events = events_since(snapshot);
-    assert!(events
-        .iter()
-        .any(|event| { matches!(event, IpcEvent::Token { text } if text.contains("out-line")) }));
     assert!(events.iter().any(|event| {
-        matches!(event, IpcEvent::Token { text } if text.contains("[info] err-line"))
+        matches!(event, IpcEvent::Token { text } if text.contains("out-line"))
+    }));
+    assert!(events.iter().any(|event| {
+        matches!(event, IpcEvent::Token { text } if text.contains("err-line"))
+    }));
+
+    let _ = fs::remove_file(script);
+}
+
+#[cfg(unix)]
+#[test]
+fn start_claude_job_with_pty_emits_output() {
+    use std::fs;
+
+    let snapshot = event_snapshot();
+    let script = write_stub_script("#!/bin/sh\necho out-line\necho err-line 1>&2\n");
+    let mut job =
+        start_claude_job_with_pty(script.to_str().unwrap(), "prompt", false, "xterm-256color")
+            .unwrap();
+
+    let start = Instant::now();
+    let mut finished = false;
+    while start.elapsed() < Duration::from_secs(2) {
+        if process_claude_events(&mut job, false) {
+            finished = true;
+            break;
+        }
+        thread::sleep(Duration::from_millis(10));
+    }
+
+    assert!(finished, "PTY job did not finish");
+    let events = events_since(snapshot);
+    assert!(events.iter().any(|event| {
+        matches!(event, IpcEvent::Token { text } if text.contains("out-line"))
+    }));
+    assert!(events.iter().any(|event| {
+        matches!(event, IpcEvent::Token { text } if text.contains("err-line"))
     }));
 
     let _ = fs::remove_file(script);
@@ -1019,9 +1060,12 @@ fn process_claude_events_handles_cancel() {
         .expect("spawned child");
     let (_tx, rx) = mpsc::channel();
     let mut job = ClaudeJob {
-        child,
-        stdout_rx: rx,
+        output: ClaudeJobOutput::Piped {
+            child,
+            stdout_rx: rx,
+        },
         started_at: Instant::now(),
+        pending_exit: None,
     };
 
     assert!(process_claude_events(&mut job, true));
@@ -1033,21 +1077,21 @@ fn process_codex_events_emits_tokens_and_status() {
     let snapshot = event_snapshot();
     let job_id = 42;
     let events = vec![
-        BackendEvent {
+        CodexEvent {
             job_id,
-            kind: BackendEventKind::Started {
+            kind: CodexEventKind::Started {
                 mode: RequestMode::Chat,
             },
         },
-        BackendEvent {
+        CodexEvent {
             job_id,
-            kind: BackendEventKind::Status {
+            kind: CodexEventKind::Status {
                 message: "hello".to_string(),
             },
         },
-        BackendEvent {
+        CodexEvent {
             job_id,
-            kind: BackendEventKind::Token {
+            kind: CodexEventKind::Token {
                 text: "token".to_string(),
             },
         },
@@ -1071,7 +1115,7 @@ fn process_codex_events_emits_tokens_and_status() {
 fn process_codex_events_finishes_job() {
     let snapshot = event_snapshot();
     let now = Instant::now();
-    let stats = BackendStats {
+    let stats = CodexJobStats {
         backend_type: "cli",
         started_at: now,
         first_token_at: None,
@@ -1082,9 +1126,9 @@ fn process_codex_events_finishes_job() {
         cli_fallback_used: false,
         disable_pty: false,
     };
-    let events = vec![BackendEvent {
+    let events = vec![CodexEvent {
         job_id: 1,
-        kind: BackendEventKind::Finished {
+        kind: CodexEventKind::Finished {
             lines: vec!["done".to_string()],
             status: "ok".to_string(),
             stats,

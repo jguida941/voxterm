@@ -1,4 +1,5 @@
 use anyhow::{Error, Result};
+use crate::lock_or_recover;
 use std::{
     collections::VecDeque,
     path::{Path, PathBuf},
@@ -49,7 +50,7 @@ impl CodexRequest {
 
 /// Telemetry produced for every Codex job so latency regressions can be audited.
 #[derive(Debug, Clone)]
-pub struct BackendStats {
+pub struct CodexJobStats {
     pub backend_type: &'static str,
     pub started_at: Instant,
     pub first_token_at: Option<Instant>,
@@ -61,7 +62,7 @@ pub struct BackendStats {
     pub disable_pty: bool,
 }
 
-impl BackendStats {
+impl CodexJobStats {
     pub(super) fn new(now: Instant) -> Self {
         Self {
             backend_type: "cli",
@@ -79,14 +80,14 @@ impl BackendStats {
 
 /// Event emitted by the backend describing job progress.
 #[derive(Debug, Clone)]
-pub struct BackendEvent {
+pub struct CodexEvent {
     pub job_id: JobId,
-    pub kind: BackendEventKind,
+    pub kind: CodexEventKind,
 }
 
 /// Classified event payload.
 #[derive(Debug, Clone)]
-pub enum BackendEventKind {
+pub enum CodexEventKind {
     Started {
         mode: RequestMode,
     },
@@ -109,7 +110,7 @@ pub enum BackendEventKind {
     Finished {
         lines: Vec<String>,
         status: String,
-        stats: BackendStats,
+        stats: CodexJobStats,
     },
     Canceled {
         disable_pty: bool,
@@ -118,20 +119,20 @@ pub enum BackendEventKind {
 
 /// Errors surfaced synchronously when a backend cannot start a job.
 #[derive(Debug)]
-pub enum BackendError {
+pub enum CodexBackendError {
     InvalidRequest(&'static str),
     BackendDisabled(String),
 }
 
 /// Runtime implementation of the Codex backend interface.
-pub trait CodexBackend: Send + Sync {
-    fn start(&self, request: CodexRequest) -> Result<BackendJob, BackendError>;
+pub trait CodexJobRunner: Send + Sync {
+    fn start(&self, request: CodexRequest) -> Result<CodexJob, CodexBackendError>;
     fn cancel(&self, job_id: JobId);
     fn working_dir(&self) -> &Path;
 }
 
 /// Handle to an asynchronous Codex invocation routed through the backend.
-pub struct BackendJob {
+pub struct CodexJob {
     pub id: JobId,
     events: Arc<BoundedEventQueue>,
     signal_rx: Receiver<()>,
@@ -139,7 +140,7 @@ pub struct BackendJob {
     cancel_token: CancelToken,
 }
 
-impl BackendJob {
+impl CodexJob {
     pub(super) fn new(
         id: JobId,
         events: Arc<BoundedEventQueue>,
@@ -157,7 +158,7 @@ impl BackendJob {
     }
 
     /// Request cancellation; the worker best-effort terminates subprocesses and emits a
-    /// `BackendEventKind::Canceled` terminal event.
+    /// `CodexEventKind::Canceled` terminal event.
     pub fn cancel(&self) {
         self.cancel_token.cancel();
     }
@@ -168,7 +169,7 @@ impl BackendJob {
     }
 
     /// Drain any queued backend events.
-    pub fn drain_events(&self) -> Vec<BackendEvent> {
+    pub fn drain_events(&self) -> Vec<CodexEvent> {
         self.events.drain()
     }
 
@@ -179,7 +180,7 @@ impl BackendJob {
 }
 
 #[cfg(test)]
-impl BackendJob {
+impl CodexJob {
     pub(crate) fn is_cancelled(&self) -> bool {
         self.cancel_token.is_cancelled()
     }
@@ -195,7 +196,7 @@ pub(crate) enum TestSignal {
 }
 
 #[cfg(test)]
-pub(crate) fn build_test_backend_job(events: Vec<BackendEvent>, signal: TestSignal) -> BackendJob {
+pub(crate) fn build_test_backend_job(events: Vec<CodexEvent>, signal: TestSignal) -> CodexJob {
     let queue = Arc::new(BoundedEventQueue::new(32));
     for event in events {
         let _ = queue.push(event);
@@ -213,7 +214,7 @@ pub(crate) fn build_test_backend_job(events: Vec<BackendEvent>, signal: TestSign
         }
     }
     let handle = thread::spawn(|| {});
-    BackendJob::new(0, queue, rx, handle, CancelToken::new())
+    CodexJob::new(0, queue, rx, handle, CancelToken::new())
 }
 
 pub(super) const BACKEND_EVENT_CAPACITY: usize = 1024;
@@ -221,7 +222,7 @@ pub(super) const BACKEND_EVENT_CAPACITY: usize = 1024;
 /// Backing store for all events emitted by a job. Ensures bounded capacity with drop-oldest semantics.
 pub(super) struct BoundedEventQueue {
     capacity: usize,
-    inner: Mutex<VecDeque<BackendEvent>>,
+    inner: Mutex<VecDeque<CodexEvent>>,
 }
 
 impl BoundedEventQueue {
@@ -232,8 +233,8 @@ impl BoundedEventQueue {
         }
     }
 
-    pub(super) fn push(&self, event: BackendEvent) -> Result<(), BackendQueueError> {
-        let mut queue = self.inner.lock().unwrap();
+    pub(super) fn push(&self, event: CodexEvent) -> Result<(), BackendQueueError> {
+        let mut queue = lock_or_recover(&self.inner, "codex::BoundedEventQueue::push");
         if queue.len() >= self.capacity && !Self::drop_non_terminal(&mut queue) {
             return Err(BackendQueueError);
         }
@@ -241,22 +242,22 @@ impl BoundedEventQueue {
         Ok(())
     }
 
-    pub(super) fn drain(&self) -> Vec<BackendEvent> {
-        let mut queue = self.inner.lock().unwrap();
+    pub(super) fn drain(&self) -> Vec<CodexEvent> {
+        let mut queue = lock_or_recover(&self.inner, "codex::BoundedEventQueue::drain");
         queue.drain(..).collect()
     }
 
-    fn drop_non_terminal(queue: &mut VecDeque<BackendEvent>) -> bool {
+    fn drop_non_terminal(queue: &mut VecDeque<CodexEvent>) -> bool {
         if let Some(idx) = queue
             .iter()
-            .position(|event| matches!(event.kind, BackendEventKind::Token { .. }))
+            .position(|event| matches!(event.kind, CodexEventKind::Token { .. }))
         {
             queue.remove(idx);
             return true;
         }
         if let Some(idx) = queue
             .iter()
-            .position(|event| matches!(event.kind, BackendEventKind::Status { .. }))
+            .position(|event| matches!(event.kind, CodexEventKind::Status { .. }))
         {
             queue.remove(idx);
             return true;
@@ -264,7 +265,7 @@ impl BoundedEventQueue {
         if let Some(idx) = queue.iter().position(|event| {
             matches!(
                 event.kind,
-                BackendEventKind::RecoverableError { .. } | BackendEventKind::Started { .. }
+                CodexEventKind::RecoverableError { .. } | CodexEventKind::Started { .. }
             )
         }) {
             queue.remove(idx);
@@ -288,7 +289,7 @@ impl EventSender {
         Self { queue, signal_tx }
     }
 
-    pub(super) fn emit(&self, event: BackendEvent) -> Result<(), BackendQueueError> {
+    pub(super) fn emit(&self, event: CodexEvent) -> Result<(), BackendQueueError> {
         self.queue.push(event)?;
         let _ = self.signal_tx.send(());
         Ok(())

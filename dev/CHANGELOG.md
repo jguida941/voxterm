@@ -5,10 +5,21 @@ Note: Some historical entries reference internal documents that are not publishe
 
 ## [Unreleased]
 
+## [1.0.43] - 2026-02-06
+
+### UX
+- Add `--login` to run backend CLI authentication (Codex/Claude) before launching the overlay.
+- Honor backend-specific default themes when `--theme` is not provided.
+- IPC mode now streams Claude output via PTY and reports transcript duration in `transcript` events.
+
+### Diagnostics
+- Add JSON structured tracing logs (default: `voxterm_trace.jsonl` in the temp directory) when logging is enabled.
+
 ### Documentation
 - Reorder README sections for readability with a Quick Nav, early Requirements, and a grouped UI Tour.
 - Add the README logo asset and restore the overlay-running screenshot in the Usage guide.
 - Remove outdated theme picker screenshot notes.
+- Document the new `--login` flag across Quick Start, Usage, CLI flags, Install, and Troubleshooting guides.
 
 ## [1.0.42] - 2026-02-03
 
@@ -410,7 +421,7 @@ Note: Some historical entries reference internal documents that are not publishe
 ## [1.0.15] - 2026-01-29
 
 ### Fixes
-- **Overlay build fix**: remove stray duplicate block that broke compilation in `voxterm` (source: `codex_overlay.rs`).
+- **Overlay build fix**: remove stray duplicate block that broke compilation in `voxterm` (source: `src/bin/voxterm/`).
 
 ## [1.0.14] - 2026-01-29
 
@@ -446,7 +457,7 @@ Note: Some historical entries reference internal documents that are not publishe
 ## [1.0.9] - 2026-01-25
 
 ### Build Fixes
-- **Clippy cleanup in voxterm**: resolve collapsible-if, map_or, clamp, and question-mark lints under `-D warnings` (source: `codex_overlay.rs`).
+- **Clippy cleanup in voxterm**: resolve collapsible-if, map_or, clamp, and question-mark lints under `-D warnings` (source: `src/bin/voxterm/`).
 
 ## [1.0.8] - 2026-01-25
 
@@ -590,7 +601,7 @@ Note: Some historical entries reference internal documents that are not publishe
 - Introduced the async Codex worker module (`rust_tui/src/codex.rs`) plus the supporting test-only job hook harness so Codex calls can run off the UI thread and remain unit-testable without shelling out.
 - Documented the approved Phase 1 backend plan (“Option 2.5” event-stream refactor) in the internal architecture archive (2025-11-13), capturing the Wrapper Scope Correction + Instruction blocks required before touching Codex integration.
 - Added perf/memory guard rails: `app::tests::{perf_smoke_emits_timing_log,memory_guard_backend_threads_drop}` together with `.github/workflows/perf_smoke.yml` and `.github/workflows/memory_guard.yml` so CI enforces telemetry output and backend thread cleanup.
-- Implemented the Phase 1 backend refactor: `CodexBackend`/`BackendJob` abstractions with bounded queues, `CliBackend` PTY ownership, App wiring to backend events, and new queue/tests (`cargo test --no-default-features`).
+- Implemented the Phase 1 backend refactor: `CodexJobRunner`/`CodexJob` abstractions with bounded queues, `CodexCliBackend` PTY ownership, App wiring to Codex events, and new queue/tests (`cargo test --no-default-features`).
 - Benchmark harness for Phase 2A: `audio::offline_capture_from_pcm`, the `voice_benchmark` binary, and `scripts/benchmark_voice.sh` capture deterministic short/medium/long clip metrics that feed the capture_ms SLA (internal benchmark notes live in the 2025-11-13 archive).
 
 ### Changed

@@ -32,7 +32,7 @@ pub(super) const FORBIDDEN_DEVICE_CHARS: &[char] =
     &[';', '|', '&', '$', '`', '<', '>', '\\', '\'', '"'];
 pub(super) const DEFAULT_PIPELINE_SCRIPT: &str =
     concat!(env!("CARGO_MANIFEST_DIR"), "/../scripts/python_fallback.py");
-// PTY helper removed - using native Rust PtyCodexSession instead
+// PTY helper removed - using native Rust PtyCliSession instead
 
 pub const fn default_vad_engine() -> VadEngineKind {
     #[cfg(feature = "vad_earshot")]

@@ -1,7 +1,7 @@
 # VoxTerm (Rust Overlay) Architecture
 
-This document describes the Rust-only overlay mode. It runs the Codex CLI (or Claude Code
-via `--claude`) in a PTY and adds voice capture + a minimal status
+This document describes the Rust-only overlay mode. It runs the selected backend CLI
+(Codex or Claude Code) in a PTY and adds voice capture + a minimal status
 overlay without touching the native UI.
 
 ## Contents
@@ -48,6 +48,14 @@ overlay without touching the native UI.
 Backend selection is handled by `src/src/backend/` which provides preset configurations for Codex and Claude
 (Gemini is tracked but not yet supported).
 
+## Naming Conventions
+
+- Use `backend`/`provider` for generic, multi-backend functionality.
+- Use `codex`/`claude`/`gemini` only for provider-specific code and assets.
+- The overlay binary lives under `src/src/bin/voxterm/` (name matches the shipped binary).
+- Legacy names that are Codex-specific but generic in purpose should be migrated under Track G in
+  `dev/active/MODULARIZATION_PLAN.md`.
+
 ## Architecture Decision Records (ADRs)
 
 We track key decisions in ADRs so the rationale stays visible over time. See
@@ -60,8 +68,8 @@ graph LR
   Terminal["Terminal TTY"] <--> Input["Raw input reader"]
   Input --> Overlay["voxterm main loop"]
   Overlay --> PTY["PtyOverlaySession"]
-  PTY --> Codex["Codex CLI"]
-  Codex --> PTY
+  PTY --> Backend["Backend CLI"]
+  Backend --> PTY
   PTY --> Writer["Serialized writer"]
   Writer --> Terminal
 
@@ -73,7 +81,7 @@ graph LR
 ```
 
 What this means:
-- The **terminal is the frontend**; the overlay doesn't replace Codex's UI.
+- The **terminal is the frontend**; the overlay doesn't replace the backend's UI.
 - The overlay **injects transcripts** as if typed by the user.
 - The status line is drawn at the bottom using ANSI save/restore.
 
@@ -81,7 +89,7 @@ What this means:
 
 | Component | Path | Purpose |
 |-----------|------|---------|
-| Rust Overlay | `src/src/bin/codex_overlay/main.rs` | PTY passthrough UI with voice overlay |
+| Rust Overlay | `src/src/bin/voxterm/main.rs` | PTY passthrough UI with voice overlay |
 | Voice Pipeline | `src/src/voice.rs` | Audio capture orchestration + STT |
 | PTY Session | `src/src/pty_session/` | Raw PTY passthrough and prompt-safe output |
 | Python fallback | `scripts/python_fallback.py` | Optional fallback STT pipeline |
@@ -104,7 +112,7 @@ graph TD
 ```
 
 Why this matters:
-- **Input thread** intercepts overlay hotkeys (voice, send mode, theme picker, help, sensitivity, exit) without blocking Codex.
+- **Input thread** intercepts overlay hotkeys (voice, send mode, theme picker, help, sensitivity, exit) without blocking the backend CLI.
 - **PTY reader** keeps ANSI intact while replying to terminal queries (DSR/DA).
 - **Writer thread** prevents output + status/help overlay interleaving.
 - **Voice thread** keeps audio/Whisper work off the main loop.
@@ -123,14 +131,14 @@ sequenceDiagram
   Start->>Start: locate/download Whisper model
   Start->>Overlay: launch voxterm\n(+ --whisper-model-path)
   Overlay->>Overlay: parse & validate config
-  Overlay->>PTY: spawn Codex in PTY
+  Overlay->>PTY: spawn backend in PTY
   Overlay->>Threads: start input/reader/writer
   Overlay->>Overlay: enter main loop
 ```
 
 ## Core Flows
 
-### 1) Keyboard -> Codex -> Terminal
+### 1) Keyboard -> Backend -> Terminal
 
 ```mermaid
 sequenceDiagram
@@ -138,21 +146,21 @@ sequenceDiagram
   participant Input as InputThread
   participant Main as voxterm
   participant PTY as PTY Session
-  participant Codex
+  participant Backend
   participant Writer as WriterThread
   participant Terminal
 
   User->>Input: keystrokes
   Input->>Main: InputEvent::Bytes
   Main->>PTY: write bytes
-  PTY->>Codex: stdin
-  Codex-->>PTY: ANSI output
+  PTY->>Backend: stdin
+  Backend-->>PTY: ANSI output
   PTY-->>Main: output chunk
   Main->>Writer: WriterMessage::PtyOutput
   Writer->>Terminal: raw ANSI output
 ```
 
-### 2) Voice -> Whisper -> Transcript -> Codex
+### 2) Voice -> Whisper -> Transcript -> Backend
 
 ```mermaid
 sequenceDiagram
@@ -161,7 +169,7 @@ sequenceDiagram
   participant Voice as VoiceThread
   participant Whisper as Whisper STT
   participant PTY as PTY Session
-  participant Codex
+  participant Backend
 
   User->>Main: Ctrl+R or auto-voice
   Main->>Voice: start_voice_job()
@@ -169,7 +177,7 @@ sequenceDiagram
   Whisper-->>Voice: transcript text
   Voice-->>Main: VoiceJobMessage::Transcript
   Main->>PTY: inject transcript\n(+ newline if auto mode)
-  PTY->>Codex: stdin
+  PTY->>Backend: stdin
 ```
 
 ### 3) Auto-Voice (Prompt Detection)
@@ -252,6 +260,7 @@ Notes:
 
 - File logs are opt-in: `--logs` (add `--log-content` to include prompt/transcript snippets).
 - Debug logs rotate to avoid unbounded growth.
+- Structured trace logs (JSON) write to the temp dir when logging is enabled (override with `VOXTERM_TRACE_LOG`).
 - Prompt detection logs are opt-in via `--prompt-log` or `VOXTERM_PROMPT_LOG` (disabled by `--no-logs`).
 
 ## STT behavior (non-streaming)
@@ -270,7 +279,7 @@ Notes:
 graph LR
   Capture[Capture audio with VAD] --> STT[Whisper transcription]
   STT --> Inject[Inject transcript into PTY]
-  Inject --> Codex["Codex response"]
+  Inject --> Backend["Backend response"]
 ```
 
 Timing observability:
@@ -282,7 +291,7 @@ Timing observability:
 
 ```mermaid
 graph TD
-  Overlay[voxterm] --> Codex[Codex CLI]
+  Overlay[voxterm] --> Backend[Backend CLI]
   Overlay --> Whisper["Whisper native via whisper-rs"]
   Overlay --> Py[Python fallback]
   Py --> WhisperCli[whisper CLI]
@@ -293,7 +302,7 @@ Safety constraints in code:
 - CLI binary paths are validated (`--codex-cmd`, `--python-cmd`, `--ffmpeg-cmd`, `--whisper-cmd`).
 - `--ffmpeg-device` is restricted to avoid shell metacharacters.
 - `--whisper-model-path` must exist and is canonicalized.
-- Overlay only intercepts control hotkeys; all other bytes go directly to Codex.
+- Overlay only intercepts control hotkeys; all other bytes go directly to the backend CLI.
 
 ## Resource Lifecycle
 
@@ -304,7 +313,7 @@ sequenceDiagram
   participant Threads as Input/Reader/Writer
 
   Main->>Main: init logs + parse config
-  Main->>PTY: spawn Codex in PTY
+  Main->>PTY: spawn backend in PTY
   Main->>Main: enable raw mode
   Main->>Threads: spawn input/reader/writer
   Main->>Main: run event loop
@@ -323,16 +332,16 @@ sequenceDiagram
 
 ## PTY Handling and Resize
 
-- `PtyOverlaySession` uses `openpty` and forks Codex into the slave PTY.
+- `PtyOverlaySession` uses `openpty` and forks the backend CLI into the slave PTY.
 - It **replies to terminal queries** (DSR/DA) but leaves all ANSI intact.
-- On SIGWINCH, `ioctl(TIOCSWINSZ)` updates the PTY size and forwards SIGWINCH to Codex.
+- On SIGWINCH, `ioctl(TIOCSWINSZ)` updates the PTY size and forwards SIGWINCH to the backend CLI.
 
 ## Output Serialization
 
 All terminal output is serialized through one writer thread to avoid
 interleaving PTY output with the status line or help overlay. The status line
 and overlay use ANSI save/restore (`ESC 7` / `ESC 8`) and redraw only after
-quiet output intervals to avoid corrupting Codex's screen.
+quiet output intervals to avoid corrupting the backend's screen.
 
 ## Visual System (Overlay)
 
@@ -345,13 +354,53 @@ quiet output intervals to avoid corrupting Codex's screen.
 
 ## Key Files
 
-- `src/src/bin/codex_overlay/main.rs` - main loop, input handling, prompt detection (binary: `voxterm`)
-- `src/src/bin/codex_overlay/writer.rs` - serialized output, status line, help overlay
-- `src/src/bin/codex_overlay/status_line.rs` - status line layout + formatting
-- `src/src/bin/codex_overlay/status_style.rs` - status message categorization + styling
-- `src/src/bin/codex_overlay/theme.rs` - color palettes and theme selection
-- `src/src/bin/codex_overlay/help.rs` - shortcut help overlay rendering
-- `src/src/bin/codex_overlay/audio_meter.rs` - mic meter visuals (`--mic-meter`)
+- `src/src/bin/voxterm/main.rs` - main loop, input handling, prompt detection (binary: `voxterm`)
+- `src/src/bin/voxterm/event_loop.rs` - event loop execution and input/output handling
+- `src/src/bin/voxterm/event_state.rs` - event loop state, deps, and timers shared by the main loop
+- `src/src/bin/voxterm/writer/` - serialized output, status line, help overlay
+- `src/src/bin/voxterm/writer/state.rs` - writer state + message handling
+- `src/src/bin/voxterm/writer/render.rs` - status/overlay rendering + clear helpers
+- `src/src/bin/voxterm/writer/mouse.rs` - mouse enable/disable output
+- `src/src/bin/voxterm/writer/sanitize.rs` - status text sanitization + truncation
+- `src/src/bin/voxterm/status_line/` - status line layout + formatting modules
+- `src/src/bin/voxterm/status_line/format.rs` - status banner/line formatting
+- `src/src/bin/voxterm/status_line/buttons.rs` - button layout + click positions
+- `src/src/bin/voxterm/status_line/layout.rs` - breakpoints + banner height
+- `src/src/bin/voxterm/status_line/animation.rs` - status animation helpers
+- `src/src/bin/voxterm/status_line/state.rs` - status line state enums + structs
+- `src/src/bin/voxterm/status_line/text.rs` - display width + truncation helpers
+- `src/src/bin/voxterm/status_style.rs` - status message categorization + styling
+- `src/src/bin/voxterm/theme/` - color palettes and theme selection
+- `src/src/bin/voxterm/theme_ops.rs` - theme picker selection + theme cycling helpers
+- `src/src/bin/voxterm/help.rs` - shortcut help overlay rendering
+- `src/src/bin/voxterm/overlays.rs` - overlay rendering helpers
+- `src/src/bin/voxterm/prompt/` - prompt detection + logging modules
+- `src/src/bin/voxterm/prompt/tracker.rs` - prompt tracking + idle detection
+- `src/src/bin/voxterm/prompt/regex.rs` - prompt regex resolution
+- `src/src/bin/voxterm/prompt/logger.rs` - prompt log writer + rotation
+- `src/src/bin/voxterm/prompt/strip.rs` - ANSI stripping for prompt matching
+- `src/src/bin/voxterm/voice_control/` - voice capture manager + drain logic
+- `src/src/bin/voxterm/voice_control/manager.rs` - voice capture lifecycle + start helpers
+- `src/src/bin/voxterm/voice_control/drain.rs` - voice job handling + transcript delivery
+- `src/src/bin/voxterm/voice_control/pipeline.rs` - pipeline selection helpers
+- `src/src/bin/voxterm/input/` - input parsing + event mapping
+- `src/src/bin/voxterm/input/event.rs` - input event enum
+- `src/src/bin/voxterm/input/parser.rs` - input parser + CSI handling
+- `src/src/bin/voxterm/input/mouse.rs` - SGR mouse parsing
+- `src/src/bin/voxterm/input/spawn.rs` - input thread loop
+- `src/src/bin/voxterm/config/` - overlay CLI config + backend resolution
+- `src/src/bin/voxterm/config/cli.rs` - overlay CLI flags + enums
+- `src/src/bin/voxterm/config/backend.rs` - backend resolution + prompt patterns
+- `src/src/bin/voxterm/config/theme.rs` - theme/color-mode resolution
+- `src/src/bin/voxterm/config/util.rs` - backend command helpers
+- `src/src/bin/voxterm/settings_handlers.rs` - settings actions + toggles
+- `src/src/bin/voxterm/settings/` - settings overlay layout + menu state
+- `src/src/bin/voxterm/button_handlers.rs` - HUD button registry + action handling
+- `src/src/bin/voxterm/audio_meter/` - mic meter visuals (`--mic-meter`)
+- `src/src/backend/` - provider registry + backend presets (Codex/Claude/Gemini/etc.)
+- `src/src/codex/` - Codex CLI runtime (CodexJobRunner + CodexCliBackend)
+- `src/src/legacy_tui/` - Codex-specific TUI state + logging (legacy path)
+- `src/src/legacy_ui.rs` - Codex-specific TUI renderer (legacy path)
 - `src/src/pty_session/` - raw PTY passthrough + query replies
 - `src/src/voice.rs` - voice capture job orchestration
 - `src/src/audio/` - CPAL recorder + VAD
@@ -368,11 +417,12 @@ quiet output intervals to avoid corrupting Codex's screen.
 - `--mic-meter` - run mic calibration with visual meter output
 - `--mic-meter-ambient-ms` / `--mic-meter-speech-ms` - calibration sample durations
 - `--prompt-regex` - override prompt detection
-- `VOXTERM_CWD` - run Codex in a chosen project directory
+- `VOXTERM_CWD` - run the backend CLI in a chosen project directory
 
 ## Debugging and Logs
 
 - Logs are opt-in: enable with `--logs` (add `--log-content` for prompt/transcript snippets).
 - Debug log: `${TMPDIR}/voxterm_tui.log` (created only when logs are enabled).
+- Trace log (JSON): `${TMPDIR}/voxterm_trace.jsonl` (override with `VOXTERM_TRACE_LOG`).
 - Prompt detection log: only when `--prompt-log` or `VOXTERM_PROMPT_LOG` is set.
 - Use `--no-python-fallback` to force native Whisper and surface errors early.

@@ -59,4 +59,4 @@ Flags:
 
 - [Architecture docs](../ARCHITECTURE.md#logging-and-privacy)
 - [CLI flags reference](../../guides/CLI_FLAGS.md)
-- `src/src/app/logging.rs` - Log initialization
+- `src/src/legacy_tui/logging.rs` - Log initialization

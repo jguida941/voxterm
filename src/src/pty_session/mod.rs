@@ -1,4 +1,4 @@
-//! Minimal PTY wrapper used to host Codex in a real terminal so persistent sessions
+//! Minimal PTY wrapper used to host backend CLIs in a real terminal so persistent sessions
 //! can keep state (tools, environment) between prompts.
 
 mod counters;
@@ -9,7 +9,7 @@ mod pty;
 #[cfg(test)]
 mod tests;
 
-pub use pty::{PtyCodexSession, PtyOverlaySession};
+pub use pty::{PtyCliSession, PtyOverlaySession};
 
 #[cfg(any(test, feature = "mutants"))]
 #[allow(unused_imports)]

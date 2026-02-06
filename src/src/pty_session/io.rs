@@ -43,7 +43,7 @@ pub(super) fn spawn_reader_thread(master_fd: RawFd, tx: Sender<Vec<u8>>) -> thre
             };
             if n > 0 {
                 let mut data = buffer.get(..n as usize).unwrap_or(&[]).to_vec();
-                // Answer simple terminal capability queries so Codex doesn't hang waiting.
+                // Answer simple terminal capability queries so the backend CLI doesn't hang waiting.
                 respond_to_terminal_queries(&mut data, master_fd);
                 if data.is_empty() {
                     continue;

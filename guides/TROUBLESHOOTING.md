@@ -178,6 +178,11 @@ If you're using Claude Code, substitute `claude` wherever you see `codex` below.
    ```bash
    codex login
    ```
+   Or run:
+   ```bash
+   voxterm --login --codex
+   voxterm --login --claude
+   ```
 
 3. If the session is stuck, restart `voxterm`.
 
@@ -288,6 +293,10 @@ voxterm --logs --log-content
 
 Debug log: system temp dir (for example `${TMPDIR}/voxterm_tui.log` on macOS or
 `/tmp/voxterm_tui.log` on Linux)
+
+Trace log (JSON, written when `--logs` is enabled): system temp dir (for example
+`${TMPDIR}/voxterm_trace.jsonl` on macOS or `/tmp/voxterm_trace.jsonl` on Linux).
+Override with `VOXTERM_TRACE_LOG`.
 
 Crash log (panic only, written when `--logs` is enabled; metadata unless
 `--log-content`): system temp dir (for example `${TMPDIR}/voxterm_crash.log`

@@ -34,8 +34,8 @@
 - [ ] MP-015 Improve mutation score by adding targeted tests for high-value paths.
 - [ ] MP-016 Stress test under heavy I/O to confirm bounded memory behavior.
 - [x] MP-017 Manual QA checklist: auto-voice status visibility, queue flush in insert/auto modes, prompt log off by default, two terminals running independently.
-- [ ] MP-018 Verify CSI-u filtering fix in real sessions.
-- [ ] MP-019 Verify transcript queueing while Codex is busy (waits for next prompt).
+- [x] MP-018 Verify CSI-u filtering fix in real sessions.
+- [x] MP-019 Verify transcript queueing while Codex is busy (waits for next prompt).
 
 ### P1 - Safety and code clarity
 - [x] MP-020 Add SAFETY comments for unsafe blocks in PTY and other unsafe sections.
@@ -51,13 +51,22 @@
 - [x] MP-046 Reduce status update cloning (pre-allocate meter_levels Vec with METER_HISTORY_MAX capacity).
 - [x] MP-047 Log writer I/O failures (flush/write) with context to aid debugging.
 - [x] MP-048 Consolidate status-line formatting helpers to reduce duplication and improve maintainability.
-- [ ] MP-049 Group writer thread state into a struct to simplify redraw logic (deferred: 670-line refactor too invasive for quick wins).
+- [x] MP-049 Group writer thread state into a struct to simplify redraw logic.
 - [x] MP-050 Reduce oversized parameter lists (e.g., `handle_voice_message`) with context structs.
 - [x] MP-056 Add a pre-refactor docs readiness checklist (README/QUICK_START/USAGE/CLI_FLAGS/INSTALL/TROUBLESHOOTING + screenshots).
 - [x] MP-058 Fix buffer bounds panic in CSI-u sequence parsing (validate length before indexing).
 - [x] MP-059 Add `#[inline]` hints to hot-path functions (display_width, level_color, rms_db, peak_db).
 - [x] MP-060 Add `#[must_use]` attributes to key struct/function returns.
 - [x] MP-061 Optimize hot-path formatters to use push_str instead of format! macros.
+- [x] MP-062 Execute modularization plan for `main.rs` + large modules (see `dev/active/MODULARIZATION_PLAN.md`).
+- [x] MP-063 Naming clarity pass for multi-backend readability (see `dev/active/MODULARIZATION_PLAN.md`, Track G).
+- [x] MP-064 Legacy TUI naming alignment (`legacy_tui/`, `legacy_ui.rs`, `run_legacy_ui`, `CodexApp`) + doc references.
+- [x] MP-065 Resolve module naming overlap (`backend` registry vs legacy `codex` backend) and document/rename as needed.
+- [x] MP-066 Add overlay `--login` preflight to run backend CLI authentication (Codex/Claude) before startup.
+- [x] MP-067 Fix `--theme` default handling so backend defaults apply when the flag is not set (align clap defaults + add test).
+- [x] MP-068 Replace runtime `.lock().unwrap()` with a safe lock helper that logs and recovers from poisoned mutexes.
+- [x] MP-070 Disambiguate Codex runtime naming from provider registry (`CliBackend` → `CodexCliBackend`, `CodexBackend` trait → `CodexJobRunner`, `BackendEvent/Job` → `CodexEvent/Job`), update IPC + legacy TUI imports.
+- [x] MP-071 Rename codex-overlay test artifacts (`tests/codex_overlay_cli.rs`) and any lingering "Codex overlay" references to `voxterm` for clarity.
 
 ### P1 - Architecture decision tracking
 - [x] MP-038 Draft ADRs for upcoming UI enhancement architecture (focus/selection model, SelectableMenu reuse, preferences + migrations, action registry + keybindings, history storage, render guarantees).
@@ -69,15 +78,18 @@
 - [x] MP-057 Add ChatGPT theme (`--theme chatgpt`) with emerald green brand color.
 
 ### P2 - Observability, performance, and UX improvements
-- [ ] MP-030 Add structured logging (tracing) for better diagnostics.
+- [x] MP-030 Add structured logging (tracing) for better diagnostics.
 - [ ] MP-031 Add PTY health monitoring to detect hung processes.
 - [ ] MP-032 Retry logic for transient audio device failures.
 - [ ] MP-033 Add benchmarks to CI for latency regression detection.
 - [ ] MP-034 Add mic-meter hotkey for calibration.
-- [ ] MP-035 Optional HUD input preview while Codex is thinking.
-- [ ] MP-036 Investigate processing delay/freeze after sending input while Codex is thinking (after queue fix).
+- [x] MP-035 Optional HUD input preview while Codex is thinking. (Dropped; not needed)
+- [x] MP-036 Investigate processing delay/freeze after sending input while Codex is thinking (after queue fix). (Resolved)
 - [ ] MP-037 Consider making PTY output channel capacity configurable.
 - [x] MP-040 Add settings overlay with arrow-key navigation and button-style controls.
+- [x] MP-069 IPC TODOs: add PTY-backed output streaming in IPC mode and track real job duration metrics.
+
+# Optional dont do yet
 - [ ] MP-054 Add optional right-panel visualization modes (Ribbon/Dots/Chips) to minimal HUD strip.
 - [ ] MP-055 Add quick theme switcher in settings (recent themes + backend defaults).
 

@@ -47,6 +47,5 @@ Implement bounded FIFO queue with drop-oldest policy:
 
 ## Links
 
-- `src/src/bin/codex_overlay/transcript.rs:13` - Queue limit constant
-- `src/src/bin/codex_overlay/transcript.rs:61-73` - Drop logic
-- `src/src/bin/codex_overlay/transcript.rs:99-129` - Merge logic
+- `src/src/bin/voxterm/transcript/queue.rs` - Queue limit constant + drop logic
+- `src/src/bin/voxterm/transcript/delivery.rs` - Merge logic

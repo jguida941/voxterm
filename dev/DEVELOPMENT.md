@@ -45,18 +45,18 @@ voxterm/
 ├── img/                 # Screenshots
 ├── src/                 # Rust overlay + voice pipeline
 │   └── src/
-│       ├── bin/codex_overlay/main.rs # Overlay entry point
-│       ├── app/         # TUI state + logging
+│       ├── bin/voxterm/main.rs # Overlay entry point
+│       ├── legacy_tui/   # Codex TUI state + logging (legacy)
 │       ├── audio/       # CPAL recording, VAD, resample
-│       ├── backend/     # AI CLI backend presets
-│       ├── codex/       # Provider backend + PTY worker
+│       ├── backend/     # AI CLI backend presets (overlay)
+│       ├── codex/       # Codex-specific backend + PTY worker (TUI/IPC)
 │       ├── config/      # CLI flags + validation
 │       ├── ipc/         # JSON IPC mode
 │       ├── pty_session/ # PTY wrapper
 │       ├── voice.rs     # Voice capture orchestration
 │       ├── mic_meter.rs # Ambient/speech level sampler
 │       ├── stt.rs       # Whisper transcription
-│       └── ui.rs        # Full TUI rendering
+│       └── legacy_ui.rs  # Codex TUI rendering (legacy)
 ├── scripts/
 │   ├── README.md        # Script documentation
 │   ├── install.sh       # One-time installer
@@ -66,6 +66,8 @@ voxterm/
 ├── whisper_models/      # Whisper GGML models
 └── bin/                 # Install wrapper (created by install.sh)
 ```
+
+Note: `src/` is the Rust workspace root and the crate lives under `src/src/`. This layout is intentional (workspace + crate separation).
 
 ## Building
 
@@ -288,4 +290,5 @@ voxterm --gemini     # Gemini CLI (in works; not yet supported)
 ```bash
 voxterm --logs                    # Enable debug log
 tail -f $TMPDIR/voxterm_tui.log   # Watch log output
+tail -f $TMPDIR/voxterm_trace.jsonl  # Watch structured trace output (JSON)
 ```

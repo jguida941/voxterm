@@ -1,5 +1,7 @@
-use crate::codex::{BackendEvent, BackendEventKind, BackendJob, CliBackend};
+use crate::codex::{sanitize_pty_output, CodexCliBackend, CodexEvent, CodexEventKind, CodexJob};
+use crate::auth;
 use crate::config::AppConfig;
+use crate::pty_session::PtyCliSession;
 use crate::voice::{VoiceJob, VoiceJobMessage};
 use crate::{audio, log_debug, log_debug_content, stt};
 use anyhow::Result;
@@ -22,6 +24,9 @@ use super::router::{
 // ============================================================================
 // PTY TOGGLE - Set to false to disable PTY completely
 // ============================================================================
+#[cfg(any(test, feature = "mutants"))]
+const USE_PTY: bool = false;
+#[cfg(not(any(test, feature = "mutants")))]
 const USE_PTY: bool = true;
 
 // ============================================================================
@@ -31,7 +36,7 @@ const USE_PTY: bool = true;
 pub(super) struct IpcState {
     pub(super) config: AppConfig,
     pub(super) active_provider: Provider,
-    pub(super) codex_backend: Arc<CliBackend>,
+    pub(super) codex_cli_backend: Arc<CodexCliBackend>,
     pub(super) claude_cmd: String,
     pub(super) recorder: Option<Arc<Mutex<audio::Recorder>>>,
     pub(super) transcriber: Option<Arc<Mutex<stt::Transcriber>>>,
@@ -43,18 +48,28 @@ pub(super) struct IpcState {
 }
 
 pub(super) enum ActiveJob {
-    Codex(BackendJob),
+    Codex(CodexJob),
     Claude(ClaudeJob),
 }
 
-pub(super) struct ClaudeJob {
-    pub(super) child: std::process::Child,
-    pub(super) stdout_rx: Receiver<String>,
-    #[allow(dead_code)]
-    pub(super) started_at: Instant,
+pub(super) enum ClaudeJobOutput {
+    Piped {
+        child: std::process::Child,
+        stdout_rx: Receiver<String>,
+    },
+    Pty {
+        session: PtyCliSession,
+    },
 }
 
-pub(super) type AuthResult = std::result::Result<(), String>;
+pub(super) struct ClaudeJob {
+    pub(super) output: ClaudeJobOutput,
+    #[allow(dead_code)]
+    pub(super) started_at: Instant,
+    pub(super) pending_exit: Option<std::process::ExitStatus>,
+}
+
+pub(super) type AuthResult = auth::AuthResult;
 
 pub(super) struct AuthJob {
     pub(super) provider: Provider,
@@ -84,7 +99,7 @@ impl IpcState {
         let claude_cmd = config.claude_cmd.clone();
 
         // Initialize Codex backend
-        let codex_backend = Arc::new(CliBackend::new(config.clone()));
+        let codex_cli_backend = Arc::new(CodexCliBackend::new(config.clone()));
 
         // Get default provider from env or config
         let default_provider = env::var("VOXTERM_PROVIDER")
@@ -124,7 +139,7 @@ impl IpcState {
         Self {
             config,
             active_provider: default_provider,
-            codex_backend,
+            codex_cli_backend,
             claude_cmd,
             recorder,
             transcriber,
@@ -238,6 +253,19 @@ pub(super) fn events_since(start: usize) -> Vec<IpcEvent> {
         .unwrap_or_default()
 }
 
+impl ClaudeJob {
+    pub(super) fn cancel(&mut self) {
+        match &mut self.output {
+            ClaudeJobOutput::Piped { child, .. } => {
+                let _ = child.kill();
+            }
+            ClaudeJobOutput::Pty { session } => {
+                let _ = session.send("\u{3}");
+            }
+        }
+    }
+}
+
 // ============================================================================
 // Stdin Reader Thread
 // ============================================================================
@@ -282,10 +310,12 @@ fn spawn_stdin_reader(tx: Sender<IpcCommand>) -> thread::JoinHandle<()> {
 // Claude Backend
 // ============================================================================
 
-pub(super) fn start_claude_job(
+fn start_claude_job_with_mode(
     claude_cmd: &str,
     prompt: &str,
     skip_permissions: bool,
+    term_value: &str,
+    use_pty: bool,
 ) -> Result<ClaudeJob, String> {
     use std::process::{Command, Stdio};
 
@@ -294,16 +324,38 @@ pub(super) fn start_claude_job(
         &prompt[..prompt.len().min(30)]
     ));
 
-    // Use --print with --dangerously-skip-permissions for non-interactive operation
-    // This allows file operations without permission prompts
-    // TODO: Add PTY support to show thinking/tool calls in real-time
-    let mut command = Command::new(claude_cmd);
-    command.arg("--print");
+    // Use --print with --dangerously-skip-permissions for non-interactive operation.
+    // Prefer PTY when enabled so thinking/tool call output streams in real time.
+    let mut args = vec!["--print".to_string()];
     if skip_permissions {
-        command.arg("--dangerously-skip-permissions");
+        args.push("--dangerously-skip-permissions".to_string());
     }
+    args.push(prompt.to_string());
+
+    if use_pty {
+        let working_dir = env::current_dir()
+            .map(|path| path.display().to_string())
+            .unwrap_or_else(|_| ".".to_string());
+        match PtyCliSession::new(claude_cmd, &working_dir, &args, term_value) {
+            Ok(session) => {
+                log_debug("Claude job started (PTY)");
+                return Ok(ClaudeJob {
+                    output: ClaudeJobOutput::Pty { session },
+                    started_at: Instant::now(),
+                    pending_exit: None,
+                });
+            }
+            Err(err) => {
+                log_debug(&format!(
+                    "Claude PTY failed, falling back to pipes: {err:#}"
+                ));
+            }
+        }
+    }
+
+    let mut command = Command::new(claude_cmd);
+    command.args(&args);
     let mut child = command
-        .arg(prompt)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -339,10 +391,33 @@ pub(super) fn start_claude_job(
 
     log_debug("Claude job started");
     Ok(ClaudeJob {
-        child,
-        stdout_rx: rx,
+        output: ClaudeJobOutput::Piped {
+            child,
+            stdout_rx: rx,
+        },
         started_at: Instant::now(),
+        pending_exit: None,
     })
+}
+
+pub(super) fn start_claude_job(
+    claude_cmd: &str,
+    prompt: &str,
+    skip_permissions: bool,
+    term_value: &str,
+) -> Result<ClaudeJob, String> {
+    start_claude_job_with_mode(claude_cmd, prompt, skip_permissions, term_value, USE_PTY)
+}
+
+#[cfg(any(test, feature = "mutants"))]
+#[allow(dead_code)]
+pub(super) fn start_claude_job_with_pty(
+    claude_cmd: &str,
+    prompt: &str,
+    skip_permissions: bool,
+    term_value: &str,
+) -> Result<ClaudeJob, String> {
+    start_claude_job_with_mode(claude_cmd, prompt, skip_permissions, term_value, true)
 }
 
 // ============================================================================
@@ -376,52 +451,8 @@ pub(super) fn run_auth_flow(provider: Provider, codex_cmd: &str, claude_cmd: &st
         Provider::Codex => codex_cmd,
         Provider::Claude => claude_cmd,
     };
-    run_login_command(command).map_err(|err| format!("{} auth failed: {}", provider.as_str(), err))
-}
-
-pub(super) fn run_login_command(command: &str) -> AuthResult {
-    #[cfg(unix)]
-    {
-        use std::fs::OpenOptions;
-        use std::process::{Command, Stdio};
-
-        let tty = OpenOptions::new()
-            .read(true)
-            .write(true)
-            .open("/dev/tty")
-            .map_err(|err| format!("failed to open /dev/tty: {err}"))?;
-        let tty_in = tty
-            .try_clone()
-            .map_err(|err| format!("failed to clone tty for stdin: {err}"))?;
-        let tty_out = tty
-            .try_clone()
-            .map_err(|err| format!("failed to clone tty for stdout: {err}"))?;
-        let tty_err = tty;
-
-        let status = Command::new(command)
-            .arg("login")
-            .stdin(Stdio::from(tty_in))
-            .stdout(Stdio::from(tty_out))
-            .stderr(Stdio::from(tty_err))
-            .status()
-            .map_err(|err| format!("failed to spawn {command} login: {err}"))?;
-
-        if status.success() {
-            Ok(())
-        } else {
-            let code = status
-                .code()
-                .map(|c| c.to_string())
-                .unwrap_or_else(|| "unknown".to_string());
-            Err(format!("login exited with code {code}"))
-        }
-    }
-
-    #[cfg(not(unix))]
-    {
-        let _ = command;
-        Err("TTY auth is only supported on Unix platforms".to_string())
-    }
+    auth::run_login_command(command)
+        .map_err(|err| format!("{} auth failed: {}", provider.as_str(), err))
 }
 
 // ============================================================================
@@ -559,28 +590,28 @@ pub(super) fn run_ipc_loop(
 // Event Processing (Non-blocking, returns true when job complete)
 // ============================================================================
 
-pub(super) fn process_codex_events(job: &mut BackendJob, cancelled: bool) -> bool {
+pub(super) fn process_codex_events(job: &mut CodexJob, cancelled: bool) -> bool {
     if cancelled {
         return true;
     }
 
-    let handle_event = |event: BackendEvent| -> bool {
+    let handle_event = |event: CodexEvent| -> bool {
         match event.kind {
-            BackendEventKind::Token { text } => {
+            CodexEventKind::Token { text } => {
                 send_event(&IpcEvent::Token { text });
                 false
             }
-            BackendEventKind::Status { message } => {
+            CodexEventKind::Status { message } => {
                 send_event(&IpcEvent::Status { message });
                 false
             }
-            BackendEventKind::Started { .. } => {
+            CodexEventKind::Started { .. } => {
                 send_event(&IpcEvent::Status {
                     message: "Processing...".to_string(),
                 });
                 false
             }
-            BackendEventKind::Finished { lines, .. } => {
+            CodexEventKind::Finished { lines, .. } => {
                 for line in lines {
                     send_event(&IpcEvent::Token {
                         text: format!("{line}\n"),
@@ -593,7 +624,7 @@ pub(super) fn process_codex_events(job: &mut BackendJob, cancelled: bool) -> boo
                 });
                 true
             }
-            BackendEventKind::FatalError { message, .. } => {
+            CodexEventKind::FatalError { message, .. } => {
                 send_event(&IpcEvent::JobEnd {
                     provider: "codex".to_string(),
                     success: false,
@@ -601,13 +632,13 @@ pub(super) fn process_codex_events(job: &mut BackendJob, cancelled: bool) -> boo
                 });
                 true
             }
-            BackendEventKind::RecoverableError { message, .. } => {
+            CodexEventKind::RecoverableError { message, .. } => {
                 send_event(&IpcEvent::Status {
                     message: format!("Retrying: {message}"),
                 });
                 false
             }
-            BackendEventKind::Canceled { .. } => {
+            CodexEventKind::Canceled { .. } => {
                 send_event(&IpcEvent::JobEnd {
                     provider: "codex".to_string(),
                     success: false,
@@ -654,86 +685,138 @@ pub(super) fn process_codex_events(job: &mut BackendJob, cancelled: bool) -> boo
 pub(super) fn process_claude_events(job: &mut ClaudeJob, cancelled: bool) -> bool {
     if cancelled {
         log_debug("Claude job: cancelled");
-        let _ = job.child.kill();
+        job.cancel();
         return true;
     }
 
-    // Check for stdout output
-    match job.stdout_rx.try_recv() {
-        Ok(line) => {
-            log_debug_content(&format!(
-                "Claude job: got line: {}",
-                &line[..line.len().min(50)]
-            ));
-            send_event(&IpcEvent::Token {
-                text: format!("{line}\n"),
-            });
+    match &mut job.output {
+        ClaudeJobOutput::Piped { child, stdout_rx } => match stdout_rx.try_recv() {
+            Ok(line) => {
+                log_debug_content(&format!(
+                    "Claude job: got line: {}",
+                    &line[..line.len().min(50)]
+                ));
+                send_event(&IpcEvent::Token {
+                    text: format!("{line}\n"),
+                });
+                false
+            }
+            Err(TryRecvError::Empty) => {
+                match child.try_wait() {
+                    Ok(Some(status)) => {
+                        log_debug(&format!(
+                            "Claude job: process exited with status {status:?}"
+                        ));
+                        send_event(&IpcEvent::JobEnd {
+                            provider: "claude".to_string(),
+                            success: status.success(),
+                            error: if status.success() {
+                                None
+                            } else {
+                                Some(format!("Exit code: {:?}", status.code()))
+                            },
+                        });
+                        true
+                    }
+                    Ok(None) => false,
+                    Err(e) => {
+                        send_event(&IpcEvent::JobEnd {
+                            provider: "claude".to_string(),
+                            success: false,
+                            error: Some(format!("Process error: {e}")),
+                        });
+                        true
+                    }
+                }
+            }
+            Err(TryRecvError::Disconnected) => {
+                log_debug("Claude job: stdout disconnected");
+                match child.try_wait() {
+                    Ok(Some(status)) => {
+                        log_debug(&format!(
+                            "Claude job: process already exited with {status:?}"
+                        ));
+                        send_event(&IpcEvent::JobEnd {
+                            provider: "claude".to_string(),
+                            success: status.success(),
+                            error: None,
+                        });
+                        true
+                    }
+                    Ok(None) => {
+                        log_debug("Claude job: process still running, killing it");
+                        let _ = child.kill();
+                        send_event(&IpcEvent::JobEnd {
+                            provider: "claude".to_string(),
+                            success: true,
+                            error: None,
+                        });
+                        true
+                    }
+                    Err(e) => {
+                        send_event(&IpcEvent::JobEnd {
+                            provider: "claude".to_string(),
+                            success: false,
+                            error: Some(format!("Wait error: {e}")),
+                        });
+                        true
+                    }
+                }
+            }
+        },
+        ClaudeJobOutput::Pty { session } => {
+            for chunk in session.read_output() {
+                let text = sanitize_pty_output(&chunk);
+                if !text.is_empty() {
+                    send_event(&IpcEvent::Token { text });
+                }
+            }
+            if let Some(status) = job.pending_exit.take() {
+                let (success, error) = if status.success() {
+                    (true, None)
+                } else {
+                    let msg = status
+                        .code()
+                        .map(|code| format!("Exit code: {code}"))
+                        .unwrap_or_else(|| "Exited by signal".to_string());
+                    (false, Some(msg))
+                };
+                send_event(&IpcEvent::JobEnd {
+                    provider: "claude".to_string(),
+                    success,
+                    error,
+                });
+                return true;
+            }
+            if let Some(status) = session.try_wait() {
+                let trailing = session.read_output_timeout(Duration::from_millis(50));
+                if !trailing.is_empty() {
+                    for chunk in trailing {
+                        let text = sanitize_pty_output(&chunk);
+                        if !text.is_empty() {
+                            send_event(&IpcEvent::Token { text });
+                        }
+                    }
+                    job.pending_exit = Some(status);
+                    return false;
+                }
+                let (success, error) = if status.success() {
+                    (true, None)
+                } else {
+                    let msg = status
+                        .code()
+                        .map(|code| format!("Exit code: {code}"))
+                        .unwrap_or_else(|| "Exited by signal".to_string());
+                    (false, Some(msg))
+                };
+                send_event(&IpcEvent::JobEnd {
+                    provider: "claude".to_string(),
+                    success,
+                    error,
+                });
+                return true;
+            }
             false
-        }
-        Err(TryRecvError::Empty) => {
-            // Check if process has exited
-            match job.child.try_wait() {
-                Ok(Some(status)) => {
-                    log_debug(&format!(
-                        "Claude job: process exited with status {status:?}"
-                    ));
-                    send_event(&IpcEvent::JobEnd {
-                        provider: "claude".to_string(),
-                        success: status.success(),
-                        error: if status.success() {
-                            None
-                        } else {
-                            Some(format!("Exit code: {:?}", status.code()))
-                        },
-                    });
-                    true
-                }
-                Ok(None) => false, // Still running
-                Err(e) => {
-                    send_event(&IpcEvent::JobEnd {
-                        provider: "claude".to_string(),
-                        success: false,
-                        error: Some(format!("Process error: {e}")),
-                    });
-                    true
-                }
-            }
-        }
-        Err(TryRecvError::Disconnected) => {
-            log_debug("Claude job: stdout disconnected");
-            // stdout closed, check if process has exited (non-blocking)
-            match job.child.try_wait() {
-                Ok(Some(status)) => {
-                    log_debug(&format!(
-                        "Claude job: process already exited with {status:?}"
-                    ));
-                    send_event(&IpcEvent::JobEnd {
-                        provider: "claude".to_string(),
-                        success: status.success(),
-                        error: None,
-                    });
-                    true
-                }
-                Ok(None) => {
-                    // Process still running, kill it
-                    log_debug("Claude job: process still running, killing it");
-                    let _ = job.child.kill();
-                    send_event(&IpcEvent::JobEnd {
-                        provider: "claude".to_string(),
-                        success: true,
-                        error: None,
-                    });
-                    true
-                }
-                Err(e) => {
-                    send_event(&IpcEvent::JobEnd {
-                        provider: "claude".to_string(),
-                        success: false,
-                        error: Some(format!("Wait error: {e}")),
-                    });
-                    true
-                }
-            }
         }
     }
 }
@@ -749,12 +832,13 @@ pub(super) fn process_voice_events(job: &VoiceJob, cancelled: bool) -> bool {
                 VoiceJobMessage::Transcript {
                     text,
                     source,
-                    metrics: _,
+                    metrics,
                 } => {
+                    let duration_ms = metrics.as_ref().map(|m| m.capture_ms).unwrap_or(0);
                     send_event(&IpcEvent::VoiceEnd { error: None });
                     send_event(&IpcEvent::Transcript {
                         text,
-                        duration_ms: 0, // TODO: track actual duration
+                        duration_ms,
                     });
                     log_debug(&format!("Voice transcript via {}", source.label()));
                 }
@@ -797,7 +881,7 @@ pub(super) fn process_auth_events(state: &mut IpcState) -> bool {
             };
 
             if success && provider == Provider::Codex {
-                state.codex_backend.reset_session();
+                state.codex_cli_backend.reset_session();
             }
 
             send_event(&IpcEvent::AuthEnd {

@@ -353,11 +353,11 @@ fn current_terminal_size_falls_back_on_invalid_fd() {
 }
 
 #[test]
-fn pty_codex_session_send_appends_newline() {
+fn pty_cli_session_send_appends_newline() {
     let (read_fd, write_fd) = pipe_pair();
     let (_tx, rx) = bounded(1);
     let handle = thread::spawn(|| {});
-    let mut session = ManuallyDrop::new(PtyCodexSession {
+    let mut session = ManuallyDrop::new(PtyCliSession {
         master_fd: write_fd,
         child_pid: -1,
         output_rx: rx,
@@ -438,7 +438,7 @@ fn pty_session_counters_track_send_and_read() {
     let (read_fd, write_fd) = pipe_pair();
     let (_tx, rx) = bounded(1);
     let handle = thread::spawn(|| {});
-    let mut session = ManuallyDrop::new(PtyCodexSession {
+    let mut session = ManuallyDrop::new(PtyCliSession {
         master_fd: write_fd,
         child_pid: -1,
         output_rx: rx,
@@ -453,7 +453,7 @@ fn pty_session_counters_track_send_and_read() {
     let _guard = read_output_timeout_lock().lock().unwrap();
     let (_tx2, rx2) = bounded(1);
     let handle2 = thread::spawn(|| {});
-    let session2 = ManuallyDrop::new(PtyCodexSession {
+    let session2 = ManuallyDrop::new(PtyCliSession {
         master_fd: -1,
         child_pid: -1,
         output_rx: rx2,
@@ -948,12 +948,12 @@ fn write_all_errors_on_invalid_fd() {
 }
 
 #[test]
-fn pty_codex_session_read_output_drains_channel() {
+fn pty_cli_session_read_output_drains_channel() {
     let (tx, rx) = bounded(4);
     tx.send(b"one".to_vec()).unwrap();
     tx.send(b"two".to_vec()).unwrap();
     let handle = thread::spawn(|| {});
-    let session = ManuallyDrop::new(PtyCodexSession {
+    let session = ManuallyDrop::new(PtyCliSession {
         master_fd: -1,
         child_pid: -1,
         output_rx: rx,
@@ -965,7 +965,7 @@ fn pty_codex_session_read_output_drains_channel() {
 }
 
 #[test]
-fn pty_codex_session_read_output_timeout_elapsed_override_prevents_loop() {
+fn pty_cli_session_read_output_timeout_elapsed_override_prevents_loop() {
     struct OverrideReset;
     impl Drop for OverrideReset {
         fn drop(&mut self) {
@@ -980,7 +980,7 @@ fn pty_codex_session_read_output_timeout_elapsed_override_prevents_loop() {
     let (tx, rx) = bounded(1);
     tx.send(b"ready".to_vec()).unwrap();
     let handle = thread::spawn(|| {});
-    let session = ManuallyDrop::new(PtyCodexSession {
+    let session = ManuallyDrop::new(PtyCliSession {
         master_fd: -1,
         child_pid: -1,
         output_rx: rx,
@@ -991,13 +991,13 @@ fn pty_codex_session_read_output_timeout_elapsed_override_prevents_loop() {
 }
 
 #[test]
-fn pty_codex_session_read_output_timeout_respects_zero_timeout() {
+fn pty_cli_session_read_output_timeout_respects_zero_timeout() {
     let _guard = read_output_timeout_lock().lock().unwrap();
     set_read_output_grace_override(None);
     let (tx, rx) = bounded(1);
     tx.send(b"ready".to_vec()).unwrap();
     let handle = thread::spawn(|| {});
-    let session = ManuallyDrop::new(PtyCodexSession {
+    let session = ManuallyDrop::new(PtyCliSession {
         master_fd: -1,
         child_pid: -1,
         output_rx: rx,
@@ -1008,7 +1008,7 @@ fn pty_codex_session_read_output_timeout_respects_zero_timeout() {
 }
 
 #[test]
-fn pty_codex_session_read_output_timeout_elapsed_boundary() {
+fn pty_cli_session_read_output_timeout_elapsed_boundary() {
     struct OverrideReset;
     impl Drop for OverrideReset {
         fn drop(&mut self) {
@@ -1023,7 +1023,7 @@ fn pty_codex_session_read_output_timeout_elapsed_boundary() {
     let (tx, rx) = bounded(1);
     tx.send(b"ready".to_vec()).unwrap();
     let handle = thread::spawn(|| {});
-    let session = ManuallyDrop::new(PtyCodexSession {
+    let session = ManuallyDrop::new(PtyCliSession {
         master_fd: -1,
         child_pid: -1,
         output_rx: rx,
@@ -1034,12 +1034,12 @@ fn pty_codex_session_read_output_timeout_elapsed_boundary() {
 }
 
 #[test]
-fn pty_codex_session_read_output_timeout_collects_recent_chunks() {
+fn pty_cli_session_read_output_timeout_collects_recent_chunks() {
     let _guard = read_output_timeout_lock().lock().unwrap();
     set_read_output_grace_override(None);
     let (tx, rx) = bounded(4);
     let handle = thread::spawn(|| {});
-    let session = ManuallyDrop::new(PtyCodexSession {
+    let session = ManuallyDrop::new(PtyCliSession {
         master_fd: -1,
         child_pid: -1,
         output_rx: rx,
@@ -1056,7 +1056,7 @@ fn pty_codex_session_read_output_timeout_collects_recent_chunks() {
 }
 
 #[test]
-fn pty_codex_session_read_output_timeout_breaks_on_grace_boundary() {
+fn pty_cli_session_read_output_timeout_breaks_on_grace_boundary() {
     struct GraceReset;
     impl Drop for GraceReset {
         fn drop(&mut self) {
@@ -1070,7 +1070,7 @@ fn pty_codex_session_read_output_timeout_breaks_on_grace_boundary() {
 
     let (tx, rx) = bounded(4);
     let handle = thread::spawn(|| {});
-    let session = ManuallyDrop::new(PtyCodexSession {
+    let session = ManuallyDrop::new(PtyCliSession {
         master_fd: -1,
         child_pid: -1,
         output_rx: rx,
@@ -1087,10 +1087,10 @@ fn pty_codex_session_read_output_timeout_breaks_on_grace_boundary() {
 }
 
 #[test]
-fn pty_codex_session_wait_for_output_collects_and_drains() {
+fn pty_cli_session_wait_for_output_collects_and_drains() {
     let (tx, rx) = bounded(4);
     let handle = thread::spawn(|| {});
-    let session = ManuallyDrop::new(PtyCodexSession {
+    let session = ManuallyDrop::new(PtyCliSession {
         master_fd: -1,
         child_pid: -1,
         output_rx: rx,
@@ -1106,7 +1106,7 @@ fn pty_codex_session_wait_for_output_collects_and_drains() {
 }
 
 #[test]
-fn pty_codex_session_is_responsive_tracks_liveness() {
+fn pty_cli_session_is_responsive_tracks_liveness() {
     let mut child = std::process::Command::new("sleep")
         .arg("1")
         .spawn()
@@ -1114,7 +1114,7 @@ fn pty_codex_session_is_responsive_tracks_liveness() {
     let pid = child.id() as i32;
     let (_tx, rx) = bounded(1);
     let handle = thread::spawn(|| {});
-    let mut session = ManuallyDrop::new(PtyCodexSession {
+    let mut session = ManuallyDrop::new(PtyCliSession {
         master_fd: -1,
         child_pid: pid,
         output_rx: rx,
@@ -1127,7 +1127,7 @@ fn pty_codex_session_is_responsive_tracks_liveness() {
 }
 
 #[test]
-fn pty_codex_session_is_alive_reflects_child() {
+fn pty_cli_session_is_alive_reflects_child() {
     let mut child = std::process::Command::new("sleep")
         .arg("1")
         .spawn()
@@ -1135,7 +1135,7 @@ fn pty_codex_session_is_alive_reflects_child() {
     let pid = child.id() as i32;
     let (_tx, rx) = bounded(1);
     let handle = thread::spawn(|| {});
-    let session = ManuallyDrop::new(PtyCodexSession {
+    let session = ManuallyDrop::new(PtyCliSession {
         master_fd: -1,
         child_pid: pid,
         output_rx: rx,
@@ -1344,7 +1344,7 @@ fn wait_for_exit_reaps_forked_child() {
 
 #[cfg(unix)]
 #[test]
-fn pty_codex_session_drop_terminates_child() {
+fn pty_cli_session_drop_terminates_child() {
     let mut child = std::process::Command::new("sleep")
         .arg("5")
         .spawn()
@@ -1354,7 +1354,7 @@ fn pty_codex_session_drop_terminates_child() {
     let (_tx, rx) = bounded(1);
     let handle = thread::spawn(|| {});
     let log = capture_new_log(|| {
-        let session = PtyCodexSession {
+        let session = PtyCliSession {
             master_fd: write_fd,
             child_pid: pid,
             output_rx: rx,
@@ -1362,8 +1362,8 @@ fn pty_codex_session_drop_terminates_child() {
         };
         drop(session);
     });
-    assert!(!log.contains("SIGTERM to Codex session failed"));
-    assert!(!log.contains("SIGKILL to Codex session failed"));
+    assert!(!log.contains("SIGTERM to PTY session failed"));
+    assert!(!log.contains("SIGKILL to PTY session failed"));
     unsafe { libc::close(read_fd) };
     let mut status = 0;
     let start = Instant::now();
@@ -1382,14 +1382,14 @@ fn pty_codex_session_drop_terminates_child() {
             libc::kill(pid, libc::SIGKILL);
             let _ = libc::waitpid(pid, &mut status, 0);
         }
-        panic!("child still alive after PtyCodexSession drop");
+        panic!("child still alive after PtyCliSession drop");
     }
     let _ = child.wait();
 }
 
 #[cfg(unix)]
 #[test]
-fn pty_codex_session_drop_sigkill_for_ignored_sigterm() {
+fn pty_cli_session_drop_sigkill_for_ignored_sigterm() {
     let mut child = std::process::Command::new("sh")
         .arg("-c")
         .arg("trap '' TERM; sleep 5")
@@ -1400,7 +1400,7 @@ fn pty_codex_session_drop_sigkill_for_ignored_sigterm() {
     let (_tx, rx) = bounded(1);
     let handle = thread::spawn(|| {});
     let log = capture_new_log(|| {
-        let session = PtyCodexSession {
+        let session = PtyCliSession {
             master_fd: write_fd,
             child_pid: pid,
             output_rx: rx,
@@ -1408,7 +1408,7 @@ fn pty_codex_session_drop_sigkill_for_ignored_sigterm() {
         };
         drop(session);
     });
-    assert!(!log.contains("SIGKILL to Codex session failed"));
+    assert!(!log.contains("SIGKILL to PTY session failed"));
     unsafe { libc::close(read_fd) };
     let mut status = 0;
     let result = unsafe { libc::waitpid(pid, &mut status, libc::WNOHANG) };
@@ -1418,7 +1418,7 @@ fn pty_codex_session_drop_sigkill_for_ignored_sigterm() {
             let result = libc::waitpid(pid, &mut status, 0);
             assert!(
                 result > 0 || result == -1,
-                "child still alive after SIGKILL in PtyCodexSession drop"
+                "child still alive after SIGKILL in PtyCliSession drop"
             );
         }
     }
@@ -1445,8 +1445,8 @@ fn pty_overlay_session_drop_terminates_child() {
         };
         drop(session);
     });
-    assert!(!log.contains("SIGTERM to Codex session failed"));
-    assert!(!log.contains("SIGKILL to Codex session failed"));
+    assert!(!log.contains("SIGTERM to PTY session failed"));
+    assert!(!log.contains("SIGKILL to PTY session failed"));
     unsafe { libc::close(read_fd) };
     let mut status = 0;
     let start = Instant::now();
@@ -1491,7 +1491,7 @@ fn pty_overlay_session_drop_sigkill_for_ignored_sigterm() {
         };
         drop(session);
     });
-    assert!(!log.contains("SIGKILL to Codex session failed"));
+    assert!(!log.contains("SIGKILL to PTY session failed"));
     unsafe { libc::close(read_fd) };
     let mut status = 0;
     let result = unsafe { libc::waitpid(pid, &mut status, libc::WNOHANG) };

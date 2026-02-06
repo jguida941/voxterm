@@ -43,6 +43,12 @@ cd ~/your-project
 voxterm
 ```
 
+If you haven't authenticated yet:
+```bash
+voxterm --login --codex
+voxterm --login --claude
+```
+
 First run downloads a Whisper model (~142 MB for `base`). To choose a different size:
 - `./scripts/install.sh --small`
 - `./scripts/setup.sh models --medium`
@@ -92,6 +98,7 @@ VoxTerm is optimized for Codex and Claude Code.
 npm install -g @openai/codex
 voxterm
 voxterm --codex   # explicit (optional)
+voxterm --login --codex
 ```
 
 ![Codex Backend](https://raw.githubusercontent.com/jguida941/voxterm/master/img/codex-backend.png)
@@ -101,6 +108,7 @@ voxterm --codex   # explicit (optional)
 ```bash
 curl -fsSL https://claude.ai/install.sh | bash
 voxterm --claude
+voxterm --login --claude
 ```
 
 ![Claude Backend](https://raw.githubusercontent.com/jguida941/voxterm/master/img/claude-backend.png)

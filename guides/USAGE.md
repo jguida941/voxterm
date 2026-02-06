@@ -30,6 +30,10 @@ That's it! Read on for more control over how voice input works.
 To use Claude Code:
 - `voxterm --claude`
 
+If you have not logged in yet:
+- `voxterm --login --codex`
+- `voxterm --login --claude`
+
 ---
 
 ## How Voice Input Works

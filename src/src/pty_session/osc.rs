@@ -11,7 +11,7 @@ use super::counters::{
 };
 use super::io::write_all;
 
-/// Codex occasionally probes terminal capabilities; strip those control sequences
+/// Backend CLIs occasionally probe terminal capabilities; strip those control sequences
 /// and apply inline edits (CR/BS) before rendering so the UI only sees printable text.
 pub(super) fn respond_to_terminal_queries(buffer: &mut Vec<u8>, master_fd: RawFd) {
     let (rows, cols) = current_terminal_size(master_fd);

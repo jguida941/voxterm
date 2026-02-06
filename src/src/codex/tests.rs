@@ -1,5 +1,5 @@
 use super::backend::{
-    BackendEvent, BackendEventKind, BackendJob, BoundedEventQueue, CancelToken, CodexCallError,
+    CodexEvent, CodexEventKind, CodexJob, BoundedEventQueue, CancelToken, CodexCallError,
     EventSender,
 };
 use super::cli::{
@@ -10,9 +10,9 @@ use super::pty_backend::{
     call_codex_via_session, clamp_line_start, compute_deadline, current_line_start, duration_ms,
     find_csi_sequence, first_output_timed_out, init_guard, normalize_control_bytes,
     pop_last_codepoint, should_accept_printable, should_break_overall, should_fail_control_only,
-    skip_osc_sequence, step_guard, CliBackendState, CodexSession,
+    skip_osc_sequence, step_guard, CodexCliBackendState, CodexSession,
 };
-use super::{prepare_for_display, sanitize_pty_output, CliBackend, CodexBackend, CodexRequest};
+use super::{prepare_for_display, sanitize_pty_output, CodexCliBackend, CodexJobRunner, CodexRequest};
 use clap::Parser;
 use std::{
     path::Path,
@@ -60,26 +60,26 @@ fn sanitize_strips_escape_wrapped_cursor_report() {
 fn bounded_queue_drops_token_before_status() {
     let queue = BoundedEventQueue::new(2);
     queue
-        .push(BackendEvent {
+        .push(CodexEvent {
             job_id: 1,
-            kind: BackendEventKind::Token {
+            kind: CodexEventKind::Token {
                 text: "token".into(),
             },
         })
         .unwrap();
     queue
-        .push(BackendEvent {
+        .push(CodexEvent {
             job_id: 1,
-            kind: BackendEventKind::Status {
+            kind: CodexEventKind::Status {
                 message: "status".into(),
             },
         })
         .unwrap();
     // Force overflow; token event should be dropped first.
     queue
-        .push(BackendEvent {
+        .push(CodexEvent {
             job_id: 1,
-            kind: BackendEventKind::RecoverableError {
+            kind: CodexEventKind::RecoverableError {
                 phase: "test",
                 message: "backpressure".into(),
                 retry_available: true,
@@ -90,10 +90,10 @@ fn bounded_queue_drops_token_before_status() {
     assert_eq!(events.len(), 2);
     assert!(events
         .iter()
-        .any(|e| matches!(e.kind, BackendEventKind::Status { .. })));
+        .any(|e| matches!(e.kind, CodexEventKind::Status { .. })));
     assert!(events
         .iter()
-        .any(|e| matches!(e.kind, BackendEventKind::RecoverableError { .. })));
+        .any(|e| matches!(e.kind, CodexEventKind::RecoverableError { .. })));
 }
 
 #[test]
@@ -102,9 +102,9 @@ fn event_sender_notifies_listener() {
     let (tx, rx) = mpsc::channel();
     let sender = EventSender::new(Arc::clone(&queue), tx);
     sender
-        .emit(BackendEvent {
+        .emit(CodexEvent {
             job_id: 7,
-            kind: BackendEventKind::Status {
+            kind: CodexEventKind::Status {
                 message: "hello".into(),
             },
         })
@@ -328,7 +328,7 @@ fn backend_job_take_handle_consumes_once() {
     let (_tx, rx) = mpsc::channel();
     let cancel = CancelToken::new();
     let handle = thread::spawn(|| {});
-    let mut job = BackendJob::new(1, queue, rx, handle, cancel);
+    let mut job = CodexJob::new(1, queue, rx, handle, cancel);
     let handle = job.take_handle().expect("handle");
     handle.join().unwrap();
     assert!(job.take_handle().is_none());
@@ -340,7 +340,7 @@ fn backend_job_cancel_sets_flag() {
     let (_tx, rx) = mpsc::channel();
     let cancel = CancelToken::new();
     let handle = thread::spawn(|| {});
-    let mut job = BackendJob::new(1, queue, rx, handle, cancel);
+    let mut job = CodexJob::new(1, queue, rx, handle, cancel);
     job.cancel();
     assert!(job.is_cancelled());
     let handle = job.take_handle().expect("handle");
@@ -353,7 +353,7 @@ fn backend_job_try_recv_signal_reports_empty_then_ready() {
     let (tx, rx) = mpsc::channel();
     let cancel = CancelToken::new();
     let handle = thread::spawn(|| {});
-    let mut job = BackendJob::new(1, queue, rx, handle, cancel);
+    let mut job = CodexJob::new(1, queue, rx, handle, cancel);
     assert!(matches!(
         job.try_recv_signal(),
         Err(mpsc::TryRecvError::Empty)
@@ -392,9 +392,9 @@ fn write_stub_script(contents: &str) -> std::path::PathBuf {
 }
 
 #[cfg(unix)]
-fn new_test_pty_session() -> crate::pty_session::PtyCodexSession {
+fn new_test_pty_session() -> crate::pty_session::PtyCliSession {
     let args: Vec<String> = Vec::new();
-    crate::pty_session::PtyCodexSession::new("/bin/cat", ".", &args, "xterm-256color")
+    crate::pty_session::PtyCliSession::new("/bin/cat", ".", &args, "xterm-256color")
         .expect("pty session")
 }
 
@@ -416,7 +416,7 @@ fn call_codex_cli_reports_failure() {
 fn cli_backend_reuses_preloaded_session() {
     let mut config = crate::config::AppConfig::parse_from(["test"]);
     config.persistent_codex = true;
-    let backend = CliBackend::new(config);
+    let backend = CodexCliBackend::new(config);
     let session = new_test_pty_session();
     {
         let mut state = backend.state.lock().unwrap();
@@ -435,8 +435,8 @@ fn cli_backend_ensure_codex_session_fails_for_bad_command() {
     let mut config = crate::config::AppConfig::parse_from(["test"]);
     config.persistent_codex = true;
     config.codex_cmd = "bad\0cmd".into();
-    let backend = CliBackend::new(config);
-    let mut state = CliBackendState {
+    let backend = CodexCliBackend::new(config);
+    let mut state = CodexCliBackendState {
         codex_session: None,
         pty_disabled: false,
     };
@@ -446,7 +446,7 @@ fn cli_backend_ensure_codex_session_fails_for_bad_command() {
 
 #[test]
 fn cli_backend_cancels_and_cleans_registry() {
-    let backend = CliBackend::new(crate::config::AppConfig::parse_from(["test"]));
+    let backend = CodexCliBackend::new(crate::config::AppConfig::parse_from(["test"]));
     let token = CancelToken::new();
     {
         let mut registry = backend.cancel_tokens.lock().unwrap();
@@ -454,7 +454,7 @@ fn cli_backend_cancels_and_cleans_registry() {
     }
     backend.cancel(7);
     assert!(token.is_cancelled());
-    CliBackend::cleanup_job(Arc::clone(&backend.cancel_tokens), 7);
+    CodexCliBackend::cleanup_job(Arc::clone(&backend.cancel_tokens), 7);
     let registry = backend.cancel_tokens.lock().unwrap();
     assert!(registry.is_empty());
 }
@@ -464,7 +464,7 @@ fn cli_backend_cancels_and_cleans_registry() {
 fn cli_backend_reset_session_clears_cached_session() {
     let mut config = crate::config::AppConfig::parse_from(["test"]);
     config.persistent_codex = true;
-    let backend = CliBackend::new(config);
+    let backend = CodexCliBackend::new(config);
     let session = new_test_pty_session();
     {
         let mut state = backend.state.lock().unwrap();
@@ -479,12 +479,12 @@ fn cli_backend_reset_session_clears_cached_session() {
 #[cfg(unix)]
 #[test]
 fn cli_backend_restore_static_state_sets_session() {
-    let state = Arc::new(Mutex::new(CliBackendState {
+    let state = Arc::new(Mutex::new(CodexCliBackendState {
         codex_session: None,
         pty_disabled: false,
     }));
     let session = new_test_pty_session();
-    CliBackend::restore_static_state(Arc::clone(&state), Some(session), false);
+    CodexCliBackend::restore_static_state(Arc::clone(&state), Some(session), false);
     let state = state.lock().unwrap();
     assert!(state.codex_session.is_some());
     assert!(!state.pty_disabled);
@@ -493,11 +493,11 @@ fn cli_backend_restore_static_state_sets_session() {
 #[cfg(unix)]
 #[test]
 fn cli_backend_restore_static_state_disables_pty() {
-    let state = Arc::new(Mutex::new(CliBackendState {
+    let state = Arc::new(Mutex::new(CodexCliBackendState {
         codex_session: None,
         pty_disabled: false,
     }));
-    CliBackend::restore_static_state(Arc::clone(&state), None, true);
+    CodexCliBackend::restore_static_state(Arc::clone(&state), None, true);
     let state = state.lock().unwrap();
     assert!(state.pty_disabled);
     assert!(state.codex_session.is_none());
@@ -505,7 +505,7 @@ fn cli_backend_restore_static_state_disables_pty() {
 
 #[test]
 fn backend_job_ids_increment() {
-    let backend = CliBackend::new(crate::config::AppConfig::parse_from(["test"]));
+    let backend = CodexCliBackend::new(crate::config::AppConfig::parse_from(["test"]));
     let (mut jobs, _guard) = super::with_job_hook(Box::new(|_, _| Vec::new()), || {
         let job1 = backend
             .start(CodexRequest::chat("one".into()))
@@ -558,8 +558,8 @@ fn call_codex_via_session_returns_output() {
 fn pty_session_send_and_read_output() {
     crate::pty_session::reset_pty_session_counters();
     let mut session = new_test_pty_session();
-    <crate::pty_session::PtyCodexSession as CodexSession>::send(&mut session, "ping\n").unwrap();
-    let _ = <crate::pty_session::PtyCodexSession as CodexSession>::read_output_timeout(
+    <crate::pty_session::PtyCliSession as CodexSession>::send(&mut session, "ping\n").unwrap();
+    let _ = <crate::pty_session::PtyCliSession as CodexSession>::read_output_timeout(
         &session,
         Duration::from_millis(50),
     );

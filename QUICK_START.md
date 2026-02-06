@@ -37,6 +37,13 @@ cd ~/my-project
 voxterm
 ```
 
+If you haven't authenticated with your backend CLI yet:
+
+```bash
+voxterm --login --codex
+voxterm --login --claude
+```
+
 First run downloads a Whisper model if missing.
 To pick a size, use `./scripts/install.sh --small` or
 `./scripts/setup.sh models --medium`.

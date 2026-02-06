@@ -31,6 +31,12 @@ Recommended: Homebrew on macOS/Linux for a global `voxterm` command.
 | Codex (default) | `npm install -g @openai/codex` |
 | Claude Code | `curl -fsSL https://claude.ai/install.sh | bash` |
 
+Authenticate once after installing your CLI:
+```bash
+voxterm --login --codex
+voxterm --login --claude
+```
+
 **Other requirements:**
 - Microphone access
 - Whisper model (GGML) downloaded on first run

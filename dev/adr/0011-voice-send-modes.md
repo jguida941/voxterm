@@ -50,6 +50,6 @@ Mode affects auto-voice re-arming:
 
 ## Links
 
-- `src/src/bin/codex_overlay/config.rs` - `VoiceSendMode` enum
-- `src/src/bin/codex_overlay/main.rs:220-236` - Toggle handling
-- `src/src/bin/codex_overlay/transcript.rs:131-150` - Mode-specific send paths
+- `src/src/bin/voxterm/config/cli.rs` - `VoiceSendMode` enum
+- `src/src/bin/voxterm/main.rs:220-236` - Toggle handling
+- `src/src/bin/voxterm/transcript/delivery.rs` - Mode-specific send paths

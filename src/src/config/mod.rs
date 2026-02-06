@@ -46,7 +46,7 @@ pub struct AppConfig {
     #[arg(long = "term", default_value_t = default_term())]
     pub term_value: String,
 
-    // PTY helper removed - using native Rust PtyCodexSession instead
+    // PTY helper removed - using native Rust PtyCliSession instead
     /// Preferred audio input device name
     #[arg(long)]
     pub input_device: Option<String>,

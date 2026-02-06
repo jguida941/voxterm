@@ -13,7 +13,7 @@ use std::sync::mpsc::TryRecvError;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use voxterm::audio;
-use voxterm::codex::{BackendEventKind, CliBackend, CodexBackend, CodexRequest};
+use voxterm::codex::{CodexEventKind, CodexCliBackend, CodexJobRunner, CodexRequest};
 use voxterm::config::AppConfig;
 use voxterm::stt;
 use voxterm::voice::{self, VoiceJobMessage};
@@ -100,7 +100,7 @@ fn collect_real_measurements(args: &Args, config: &AppConfig) -> Result<Vec<Late
         None
     };
 
-    let backend: Arc<dyn CodexBackend> = Arc::new(CliBackend::new(config.clone()));
+    let backend: Arc<dyn CodexJobRunner> = Arc::new(CodexCliBackend::new(config.clone()));
 
     for i in 1..=args.count {
         eprintln!("\n=== Measurement {}/{} ===", i, args.count);
@@ -138,7 +138,7 @@ fn collect_synthetic_measurements(
         None
     };
 
-    let backend: Arc<dyn CodexBackend> = Arc::new(CliBackend::new(config.clone()));
+    let backend: Arc<dyn CodexJobRunner> = Arc::new(CodexCliBackend::new(config.clone()));
 
     for i in 1..=args.count {
         eprintln!("\n=== Measurement {}/{} ===", i, args.count);
@@ -164,7 +164,7 @@ fn measure_single_run(
     label: &str,
     recorder: Option<Arc<Mutex<audio::Recorder>>>,
     transcriber: Option<Arc<Mutex<stt::Transcriber>>>,
-    backend: &dyn CodexBackend,
+    backend: &dyn CodexJobRunner,
     config: &AppConfig,
     voice_only: bool,
 ) -> Result<LatencyMeasurement> {
@@ -237,7 +237,7 @@ fn measure_synthetic_run(
     speech_ms: u64,
     silence_ms: u64,
     transcriber: Option<Arc<Mutex<stt::Transcriber>>>,
-    backend: &dyn CodexBackend,
+    backend: &dyn CodexJobRunner,
     config: &AppConfig,
     voice_only: bool,
 ) -> Result<LatencyMeasurement> {
@@ -339,7 +339,7 @@ fn wait_for_voice_job(mut job: voice::VoiceJob) -> Result<VoiceJobMessage> {
     }
 }
 
-fn wait_for_codex_job(mut job: voxterm::codex::BackendJob) -> Result<String> {
+fn wait_for_codex_job(mut job: voxterm::codex::CodexJob) -> Result<String> {
     let mut output_lines = Vec::new();
 
     loop {
@@ -348,17 +348,17 @@ fn wait_for_codex_job(mut job: voxterm::codex::BackendJob) -> Result<String> {
                 let events = job.drain_events();
                 for event in events {
                     match event.kind {
-                        BackendEventKind::Finished { lines, .. } => {
+                        CodexEventKind::Finished { lines, .. } => {
                             output_lines = lines;
                             if let Some(handle) = job.take_handle() {
                                 let _ = handle.join();
                             }
                             return Ok(output_lines.join("\n"));
                         }
-                        BackendEventKind::FatalError { message, .. } => {
+                        CodexEventKind::FatalError { message, .. } => {
                             bail!("Codex failed: {message}");
                         }
-                        BackendEventKind::Canceled { .. } => {
+                        CodexEventKind::Canceled { .. } => {
                             bail!("Codex job was canceled");
                         }
                         _ => {}
@@ -372,7 +372,7 @@ fn wait_for_codex_job(mut job: voxterm::codex::BackendJob) -> Result<String> {
                 // Worker finished, drain remaining events
                 let events = job.drain_events();
                 for event in events {
-                    if let BackendEventKind::Finished { lines, .. } = event.kind {
+                    if let CodexEventKind::Finished { lines, .. } = event.kind {
                         output_lines = lines;
                     }
                 }

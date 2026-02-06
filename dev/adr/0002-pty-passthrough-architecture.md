@@ -9,7 +9,7 @@ VoxTerm needs to add voice input to the Codex CLI while preserving its full TUI
 experience. Two main approaches exist:
 
 1. **TUI replacement**: Build a custom terminal UI that renders Codex output and adds
-   voice controls (like the original `src/src/app.rs` TUI mode).
+   voice controls (like the original `src/src/legacy_tui/` TUI mode).
 2. **PTY passthrough**: Run Codex in a pseudo-terminal and pass all ANSI output through
    unchanged, adding only a minimal overlay.
 
@@ -47,7 +47,7 @@ Use PTY passthrough architecture:
 
 ## Alternatives Considered
 
-- **Full TUI mode** (`src/src/app.rs`): Built and tested, but fragile and lost
+- **Full TUI mode** (`src/src/legacy_tui/` + `src/src/legacy_ui.rs`): Built and tested, but fragile and lost
   Codex's native experience. Deprecated in favor of overlay.
 - **Codex plugin/extension API**: Does not exist; would require upstream changes.
 - **Screen scraping with parsing**: Complex, error-prone, and still loses fidelity.
@@ -56,4 +56,4 @@ Use PTY passthrough architecture:
 
 - [Architecture docs](../ARCHITECTURE.md)
 - `src/src/pty_session/` - PTY implementation
-- `src/src/bin/codex_overlay/main.rs` - Overlay entry point
+- `src/src/bin/voxterm/main.rs` - Overlay entry point
