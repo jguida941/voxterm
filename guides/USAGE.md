@@ -23,8 +23,8 @@ Gemini is currently nonfunctional and Aider/OpenCode are untested.
 **Already installed?** Here's how to start talking to the CLI:
 
 1. **Launch**: Run `voxterm` in your project folder
-2. **Speak**: Press `Ctrl+R`, say your request, then pause. VoxTerm types your words into the CLI. Auto-send submits immediately; insert lets you press `Enter` to submit when you’re ready.
-3. **Done**: Your words appear as text and the CLI responds. In insert mode, press `Enter` to submit.
+2. **Speak**: Press `Ctrl+R`, say your request, then pause
+3. **Done**: VoxTerm types your words into the terminal for you. In auto mode it also presses Enter; in insert mode you press `Enter` yourself when ready.
 
 That's it! Read on for more control over how voice input works.
 
@@ -45,13 +45,19 @@ Experimental presets (untested):
 
 ## How Voice Input Works
 
-When you speak, VoxTerm:
-1. Records your voice until you stop talking (silence detection)
-2. Transcribes it to text using Whisper (runs locally, nothing sent to the cloud)
-3. Types that text into the active CLI terminal (Codex by default). Auto-send submits immediately; insert lets you press `Enter` to submit.
+VoxTerm turns your voice into keystrokes. It does **not** talk to any AI
+directly — it just types into the terminal, exactly like you would.
 
-**Important**: VoxTerm only writes to the terminal (PTY). It does not call Codex/Claude APIs directly.
-"Submit" in this guide means "type into the terminal; insert lets you press Enter to submit sooner."
+1. **Record** — you speak, VoxTerm listens until you stop
+2. **Transcribe** — Whisper converts speech to text locally (nothing leaves your machine)
+3. **Type** — the text is typed into the terminal automatically
+
+That's it. The only difference between the two send modes is what happens
+after the text is typed:
+
+- **Auto** — VoxTerm also presses Enter, so the CLI processes it right away
+- **Insert** — the text appears on the command line and you press `Enter`
+  yourself (handy if you want to review or edit first)
 
 ![Recording Mode](https://raw.githubusercontent.com/jguida941/voxterm/master/img/recording.png)
 
@@ -104,44 +110,40 @@ Left/Right selects a HUD button and Enter activates it.
 
 ---
 
-## Voice Modes Explained
+## Voice Modes
 
-Two toggles control how voice works. Use `Ctrl+V` for auto-voice, `Ctrl+T` for
-send mode. If auto-voice is off, press `Ctrl+R` to start recording.
+Two toggles control voice behavior:
 
-### Mode chart (all combinations)
+- **Auto-voice** (`Ctrl+V`) — should VoxTerm listen automatically, or wait for you to press `Ctrl+R`?
+- **Send mode** (`Ctrl+T`) — after typing your words, should VoxTerm press Enter for you (auto) or let you do it (insert)?
 
-| Auto-voice (`Ctrl+V`) | Send mode (`Ctrl+T`) | How you start | After you stop talking | Best for |
-|-----------------------|----------------------|---------------|------------------------|----------|
-| Off | Auto | Press `Ctrl+R` | Transcribes, types into terminal, and submits immediately | Quick commands, precise timing |
-| Off | Insert | Press `Ctrl+R` | Transcribes and types into terminal; press `Enter` to submit | Edit before submitting |
-| On | Auto | Just speak | Transcribes, types into terminal, and submits immediately | Hands-free |
-| On | Insert | Just speak | Transcribes and types into terminal; press `Enter` to submit | Hands-free + review |
+### All four combinations
 
-**Notes**
-- **Auto-voice**: ON keeps listening after each transcript. OFF means you press `Ctrl+R` each time.
-- **Insert mode**: transcript is typed into the terminal; press `Enter` to submit right away (or after edits).
-- **Auto send**: submits immediately after transcription.
-- **Enter while recording (insert mode)**: stops the recording early so it transcribes sooner. Press `Enter` again to submit.
-- **Terminal only**: VoxTerm only types into the terminal.
-- **Prompt detection fallback**: if auto-voice does not start after the CLI
-  finishes, it falls back to an idle timer. Set `--prompt-regex` if your prompt
-  is unusual (especially with Claude).
-- **When the CLI is busy**: VoxTerm waits, then types the transcript when the prompt returns.
-- **Python fallback**: if the Python pipeline is active, pressing `Enter` while
-  recording cancels the capture instead of stopping early.
+| Auto-voice | Send mode | How it works |
+|------------|-----------|--------------|
+| Off | Auto | You press `Ctrl+R` to record. Text is typed + Enter is pressed for you. |
+| Off | Insert | You press `Ctrl+R` to record. Text is typed. You press `Enter` when ready. |
+| On | Auto | Just start talking. Text is typed + Enter is pressed for you. |
+| On | Insert | Just start talking. Text is typed. You press `Enter` when ready. |
+
+### Tips
+
+- **Enter during recording** (insert mode): stops recording early so it
+  transcribes faster. Press `Enter` again to send.
+- **Auto-voice ON** keeps listening after each transcript — you never need
+  to press `Ctrl+R`.
+- **When the CLI is busy**: VoxTerm waits, then types when the prompt returns.
+- **Prompt detection**: if auto-voice doesn't re-trigger after the CLI
+  finishes, it falls back to an idle timer. Set `--prompt-regex` if your
+  prompt is unusual (especially with Claude).
 
 ### Long dictation (auto-voice + insert)
 
 Each recording chunk is 30 seconds by default (max 60s via
-`--voice-max-capture-ms`). With auto-voice and insert mode, you can speak
-continuously:
-
-1. Turn on auto-voice (`Ctrl+V`) and set send mode to insert (`Ctrl+T`).
-2. Start speaking. After 30 seconds, the chunk is transcribed and appears on screen.
-3. Auto-voice immediately starts a new recording. Keep talking.
-4. Repeat as long as you want. Each chunk gets added to your message.
-5. Press `Enter` when done to submit everything to the CLI.
+`--voice-max-capture-ms`). With auto-voice + insert mode you can speak
+continuously — each chunk is transcribed and typed, and auto-voice
+immediately starts a new recording. Press `Enter` when you're done to send
+everything.
 
 ---
 
@@ -224,7 +226,7 @@ When recording or processing, the mode label includes a pipeline tag
 | `Auto-voice enabled` | Listening will start when the CLI is ready |
 | `Listening Manual Mode (Rust)` | Recording now (you pressed Ctrl+R) |
 | `Processing …` | Transcribing your speech (spinner updates) |
-| `Transcript ready (Rust)` | Text injected into the terminal (auto mode submits immediately) |
+| `Transcript ready (Rust)` | Text typed into the terminal (auto mode also presses Enter) |
 | `No speech detected` | Recording finished but no voice was heard |
 | `Transcript queued (2)` | 2 transcripts waiting for the CLI to be ready |
 | `Mic sensitivity: -35 dB` | Threshold changed |
