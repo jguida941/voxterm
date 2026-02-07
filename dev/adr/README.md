@@ -70,6 +70,7 @@ without re-litigating old context. Keep them short, factual, and specific.
 - **Superseded** - Replaced by another ADR (link to replacement)
 
 ## Process
+
 1. Copy the template and increment the number (next: 0023)
 2. Fill in Context, Decision, and Consequences
 3. Add links to related docs or code

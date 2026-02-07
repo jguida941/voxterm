@@ -1,9 +1,8 @@
 # Usage Guide
 
 This guide explains how to use VoxTerm for hands-free coding with the Codex CLI
-or Claude Code.   
-Experimental presets exist for Gemini, Aider, and OpenCode, but
-Gemini is currently nonfunctional and Aider/OpenCode are untested.   
+or Claude Code. Experimental presets exist for Gemini, Aider, and OpenCode, but
+Gemini is currently nonfunctional and Aider/OpenCode are untested.
 
 ![VoxTerm](../img/logo.svg)
 
@@ -24,7 +23,8 @@ Gemini is currently nonfunctional and Aider/OpenCode are untested.
 
 1. **Launch**: Run `voxterm` in your project folder
 2. **Speak**: Press `Ctrl+R`, say your request, then pause
-3. **Done**: VoxTerm types your words into the terminal for you. In auto mode it also presses Enter; in insert mode you press `Enter` yourself when ready.
+3. **Done**: VoxTerm types your words into the terminal for you. In auto mode
+   it also presses Enter; in insert mode you press `Enter` yourself when ready.
 
 That's it! Read on for more control over how voice input works.
 
