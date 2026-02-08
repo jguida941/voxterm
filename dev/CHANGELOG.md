@@ -5,6 +5,14 @@ Note: Some historical entries reference internal documents that are not publishe
 
 ## [Unreleased]
 
+## [1.0.46] - 2026-02-08
+
+### Tests
+- Stabilize PTY/IPC exit checks and avoid a racy token assertion.
+
+### Chore
+- Run rustfmt on test files and silence mutants-feature lint warnings.
+
 ## [1.0.45] - 2026-02-08
 
 ### Documentation
