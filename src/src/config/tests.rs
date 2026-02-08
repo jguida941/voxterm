@@ -103,6 +103,12 @@ fn rejects_whisper_beam_size_out_of_bounds() {
 }
 
 #[test]
+fn accepts_whisper_beam_size_upper_bound() {
+    let mut cfg = AppConfig::parse_from(["test-app", "--whisper-beam-size", "10"]);
+    assert!(cfg.validate().is_ok());
+}
+
+#[test]
 fn rejects_whisper_temperature_out_of_bounds() {
     let mut cfg = AppConfig::parse_from(["test-app", "--whisper-temperature=-1.0"]);
     assert!(cfg.validate().is_err());

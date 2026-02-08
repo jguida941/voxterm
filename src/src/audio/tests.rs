@@ -441,6 +441,15 @@ fn vad_smoother_majority_vote_prefers_stable_label() {
 }
 
 #[test]
+fn vad_smoother_drops_oldest_frame_when_window_full() {
+    let mut smoother = VadSmoother::new(3);
+    assert_eq!(smoother.smooth(FrameLabel::Speech), FrameLabel::Speech);
+    assert_eq!(smoother.smooth(FrameLabel::Silence), FrameLabel::Silence);
+    assert_eq!(smoother.smooth(FrameLabel::Silence), FrameLabel::Silence);
+    assert_eq!(smoother.smooth(FrameLabel::Speech), FrameLabel::Silence);
+}
+
+#[test]
 fn vad_smoother_window_size_one_noop() {
     let mut smoother = VadSmoother::new(1);
     assert_eq!(smoother.smooth(FrameLabel::Silence), FrameLabel::Silence);

@@ -65,4 +65,20 @@ mod tests {
     fn rms_db_handles_empty() {
         assert_eq!(rms_db(&[]), DEFAULT_METER_DB);
     }
+
+    #[test]
+    fn rms_db_reports_unity_as_zero_db() {
+        let db = rms_db(&[1.0, -1.0]);
+        assert!(db.abs() < 1e-4, "expected 0 dB, got {db}");
+    }
+
+    #[test]
+    fn rms_db_reports_half_scale_level() {
+        let db = rms_db(&[0.5, -0.5]);
+        let expected = -6.0206_f32;
+        assert!(
+            (db - expected).abs() < 0.05,
+            "expected ~{expected} dB, got {db}"
+        );
+    }
 }

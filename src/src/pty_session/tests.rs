@@ -3,6 +3,7 @@ use super::io::*;
 use super::osc::*;
 use super::pty::*;
 use crossbeam_channel::{bounded, RecvTimeoutError};
+use crate::set_logging_for_tests;
 use std::fs;
 use std::io::{self, ErrorKind};
 use std::mem;
@@ -71,6 +72,19 @@ fn open_pty_pair() -> (RawFd, RawFd) {
     (master, slave)
 }
 
+#[cfg(unix)]
+fn spawn_zombie_child() -> i32 {
+    unsafe {
+        let pid = libc::fork();
+        assert!(pid >= 0, "fork failed");
+        if pid == 0 {
+            libc::_exit(0);
+        }
+        thread::sleep(Duration::from_millis(10));
+        pid
+    }
+}
+
 fn log_lock() -> &'static Mutex<()> {
     static LOG_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
     LOG_LOCK.get_or_init(|| Mutex::new(()))
@@ -94,9 +108,12 @@ fn wait_for_exit_lock() -> &'static Mutex<()> {
 fn capture_new_log<F: FnOnce()>(f: F) -> String {
     let _guard = log_lock().lock().unwrap();
     let log_path = crate::log_file_path();
+    let _ = fs::remove_file(&log_path);
+    set_logging_for_tests(true, false);
     let before = fs::read(&log_path).unwrap_or_default();
     f();
     let after = fs::read(&log_path).unwrap_or_default();
+    set_logging_for_tests(false, false);
     let new_bytes = after.get(before.len()..).unwrap_or(&[]);
     String::from_utf8_lossy(new_bytes).to_string()
 }
@@ -278,6 +295,40 @@ fn write_all_reports_zero_write() {
         libc::close(read_fd);
     }
     assert!(err.to_string().contains("returned 0"));
+}
+
+#[cfg(unix)]
+#[test]
+fn write_all_retries_on_wouldblock() {
+    let (read_fd, write_fd) = pipe_pair();
+    set_nonblocking_fd(write_fd);
+
+    let fill = [0u8; 1024];
+    loop {
+        let written =
+            unsafe { libc::write(write_fd, fill.as_ptr() as *const libc::c_void, fill.len()) };
+        if written < 0 {
+            let err = io::Error::last_os_error();
+            assert_eq!(err.kind(), ErrorKind::WouldBlock);
+            break;
+        }
+    }
+
+    let read_fd_dup = unsafe { libc::dup(read_fd) };
+    assert!(read_fd_dup >= 0);
+    let reader = thread::spawn(move || {
+        thread::sleep(Duration::from_millis(20));
+        let mut buf = [0u8; 4096];
+        let _ = unsafe { libc::read(read_fd_dup, buf.as_mut_ptr() as *mut _, buf.len()) };
+        unsafe { libc::close(read_fd_dup) };
+    });
+
+    write_all(write_fd, b"ping").unwrap();
+    unsafe { libc::close(write_fd) };
+    reader.join().unwrap();
+    let output = read_all(read_fd);
+    assert!(reply_contains(&output, b"ping"));
+    unsafe { libc::close(read_fd) };
 }
 
 #[cfg(unix)]
@@ -716,6 +767,24 @@ fn apply_control_edits_handles_osc_with_prior_bel() {
 
 #[cfg(unix)]
 #[test]
+fn wait_for_exit_does_not_poll_when_elapsed_equals_timeout_nonzero() {
+    struct OverrideReset;
+    impl Drop for OverrideReset {
+        fn drop(&mut self) {
+            set_wait_for_exit_elapsed_override(None);
+        }
+    }
+
+    let _guard = wait_for_exit_lock().lock().unwrap();
+    reset_wait_for_exit_counters();
+    set_wait_for_exit_elapsed_override(Some(50));
+    let _reset = OverrideReset;
+    assert!(!wait_for_exit(99999, Duration::from_millis(50)));
+    assert_eq!(wait_for_exit_poll_count(), 0);
+}
+
+#[cfg(unix)]
+#[test]
 fn wait_for_exit_does_not_poll_when_elapsed_equals_timeout() {
     struct OverrideReset;
     impl Drop for OverrideReset {
@@ -1126,6 +1195,54 @@ fn pty_cli_session_is_responsive_tracks_liveness() {
     assert!(!session.is_responsive(Duration::from_millis(10)));
 }
 
+#[cfg(unix)]
+#[test]
+fn pty_cli_session_is_alive_with_zero_pid_checks_process_group() {
+    let mut child = std::process::Command::new("sleep")
+        .arg("1")
+        .spawn()
+        .expect("spawned child");
+    let (_tx, rx) = bounded(1);
+    let handle = thread::spawn(|| {});
+    let session = ManuallyDrop::new(PtyCliSession {
+        master_fd: -1,
+        child_pid: 0,
+        output_rx: rx,
+        _output_thread: handle,
+    });
+    assert!(session.is_alive());
+    let _ = child.kill();
+    let _ = child.wait();
+}
+
+#[cfg(unix)]
+#[test]
+fn pty_cli_session_try_wait_with_zero_pid_reaps_exited_child() {
+    let mut child = std::process::Command::new("true")
+        .spawn()
+        .expect("spawned child");
+    let (_tx, rx) = bounded(1);
+    let handle = thread::spawn(|| {});
+    let mut session = ManuallyDrop::new(PtyCliSession {
+        master_fd: -1,
+        child_pid: 0,
+        output_rx: rx,
+        _output_thread: handle,
+    });
+    let start = Instant::now();
+    let mut status = None;
+    while start.elapsed() < Duration::from_millis(200) {
+        if let Some(s) = session.try_wait() {
+            status = Some(s);
+            break;
+        }
+        thread::sleep(Duration::from_millis(5));
+    }
+    assert!(status.is_some());
+    assert_eq!(session.child_pid, -1);
+    let _ = child.wait();
+}
+
 #[test]
 fn pty_cli_session_is_alive_reflects_child() {
     let mut child = std::process::Command::new("sleep")
@@ -1385,6 +1502,29 @@ fn pty_cli_session_drop_terminates_child() {
         panic!("child still alive after PtyCliSession drop");
     }
     let _ = child.wait();
+}
+
+#[cfg(unix)]
+#[test]
+fn pty_cli_session_drop_writes_exit_for_zero_pid() {
+    let zombie_pid = spawn_zombie_child();
+    let (read_fd, write_fd) = pipe_pair();
+    let (_tx, rx) = bounded(1);
+    let handle = thread::spawn(|| {});
+    let session = PtyCliSession {
+        master_fd: write_fd,
+        child_pid: 0,
+        output_rx: rx,
+        _output_thread: handle,
+    };
+    drop(session);
+    let output = read_all(read_fd);
+    assert!(reply_contains(&output, b"exit\n"));
+    unsafe { libc::close(read_fd) };
+    let mut status = 0;
+    unsafe {
+        let _ = libc::waitpid(zombie_pid, &mut status, libc::WNOHANG);
+    }
 }
 
 #[cfg(unix)]

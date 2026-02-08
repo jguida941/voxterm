@@ -7,9 +7,14 @@ use crate::codex::{
     CodexEvent, CodexEventKind, CodexJobStats, RequestMode, TestSignal,
 };
 use crate::config::AppConfig;
+use crate::pty_session::test_pty_session;
 use crate::voice;
 use crate::{PipelineJsonResult, PipelineMetrics, VoiceJob, VoiceJobMessage};
 use clap::Parser;
+use crossbeam_channel::bounded;
+use std::io;
+#[cfg(unix)]
+use std::os::unix::io::RawFd;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::mpsc;
 use std::sync::Arc;
@@ -82,6 +87,19 @@ fn write_stub_script(contents: &str) -> std::path::PathBuf {
     perms.set_mode(0o755);
     fs::set_permissions(&path, perms).expect("chmod stub");
     path
+}
+
+#[cfg(unix)]
+fn pipe_pair() -> (RawFd, RawFd) {
+    let mut fds = [0; 2];
+    let result = unsafe { libc::pipe(fds.as_mut_ptr()) };
+    assert_eq!(
+        result,
+        0,
+        "pipe() failed with errno {}",
+        io::Error::last_os_error()
+    );
+    (fds[0], fds[1])
 }
 
 // -------------------------------------------------------------------------
@@ -596,6 +614,119 @@ fn process_claude_events_emits_tokens_and_end() {
     assert!(events.iter().any(|event| {
         matches!(event, IpcEvent::JobEnd { provider, .. } if provider == "claude")
     }));
+}
+
+#[cfg(unix)]
+#[test]
+fn claude_job_cancel_kills_piped_child() {
+    let (_tx, rx) = mpsc::channel();
+    let child = std::process::Command::new("sleep")
+        .arg("5")
+        .spawn()
+        .expect("spawned child");
+    let mut job = ClaudeJob {
+        output: ClaudeJobOutput::Piped {
+            child,
+            stdout_rx: rx,
+        },
+        started_at: Instant::now(),
+        pending_exit: None,
+    };
+
+    job.cancel();
+
+    if let ClaudeJobOutput::Piped { child, .. } = &mut job.output {
+        let start = Instant::now();
+        let mut exited = false;
+        while start.elapsed() < Duration::from_millis(200) {
+            if let Ok(Some(_)) = child.try_wait() {
+                exited = true;
+                break;
+            }
+            thread::sleep(Duration::from_millis(10));
+        }
+        if !exited {
+            let _ = child.kill();
+            let _ = child.wait();
+            panic!("claude piped child still running after cancel");
+        }
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn claude_job_cancel_sends_ctrl_c_for_pty() {
+    let (read_fd, write_fd) = pipe_pair();
+    let (_tx, rx) = bounded(1);
+    let session = test_pty_session(write_fd, -1, rx);
+    let mut job = ClaudeJob {
+        output: ClaudeJobOutput::Pty { session },
+        started_at: Instant::now(),
+        pending_exit: None,
+    };
+
+    job.cancel();
+
+    let mut buf = [0u8; 8];
+    let n = unsafe { libc::read(read_fd, buf.as_mut_ptr() as *mut _, buf.len()) };
+    unsafe { libc::close(read_fd) };
+    assert!(n > 0);
+    assert_eq!(buf[0], 0x03);
+}
+
+#[cfg(unix)]
+#[test]
+fn process_claude_events_pty_ignores_empty_output() {
+    let snapshot = event_snapshot();
+    let (tx, rx) = bounded(1);
+    tx.send(Vec::new()).unwrap();
+    let session = test_pty_session(-1, -1, rx);
+    let mut job = ClaudeJob {
+        output: ClaudeJobOutput::Pty { session },
+        started_at: Instant::now(),
+        pending_exit: None,
+    };
+
+    assert!(!process_claude_events(&mut job, false));
+    let events = events_since(snapshot);
+    assert!(
+        !events.iter().any(|event| matches!(event, IpcEvent::Token { .. })),
+        "empty PTY output should not emit tokens"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn process_claude_events_pty_exits_without_trailing_output() {
+    let snapshot = event_snapshot();
+    let (_tx, rx) = bounded(1);
+    let mut child = std::process::Command::new("true")
+        .spawn()
+        .expect("spawned child");
+    let pid = child.id() as i32;
+    thread::sleep(Duration::from_millis(10));
+    let session = test_pty_session(-1, pid, rx);
+    let mut job = ClaudeJob {
+        output: ClaudeJobOutput::Pty { session },
+        started_at: Instant::now(),
+        pending_exit: None,
+    };
+
+    let done = process_claude_events(&mut job, false);
+    assert!(done, "job should end immediately without trailing output");
+    assert!(job.pending_exit.is_none());
+    let events = events_since(snapshot);
+    assert!(
+        events
+            .iter()
+            .any(|event| matches!(event, IpcEvent::JobEnd { provider, .. } if provider == "claude")),
+        "expected JobEnd for claude PTY job"
+    );
+    assert!(
+        !events.iter().any(|event| matches!(event, IpcEvent::Token { .. })),
+        "empty trailing output should not emit tokens"
+    );
+    let _ = child.wait();
 }
 
 #[test]

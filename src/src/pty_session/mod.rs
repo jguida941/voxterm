@@ -22,3 +22,6 @@ pub(crate) use counters::{
     set_write_all_limit, wait_for_exit_error_count, wait_for_exit_poll_count,
     wait_for_exit_reap_count,
 };
+
+#[cfg(any(test, feature = "mutants"))]
+pub(crate) use pty::test_pty_session;

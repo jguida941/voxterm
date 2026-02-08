@@ -342,6 +342,21 @@ impl PtyOverlaySession {
     }
 }
 
+#[cfg(any(test, feature = "mutants"))]
+pub(crate) fn test_pty_session(
+    master_fd: RawFd,
+    child_pid: i32,
+    output_rx: Receiver<Vec<u8>>,
+) -> PtyCliSession {
+    let handle = thread::spawn(|| {});
+    PtyCliSession {
+        master_fd,
+        child_pid,
+        output_rx,
+        _output_thread: handle,
+    }
+}
+
 impl Drop for PtyOverlaySession {
     fn drop(&mut self) {
         unsafe {
