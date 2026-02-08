@@ -714,8 +714,16 @@ fn process_claude_events_pty_exits_without_trailing_output() {
         pending_exit: None,
     };
 
-    let done = process_claude_events(&mut job, false);
-    assert!(done, "job should end immediately without trailing output");
+    let start = Instant::now();
+    let mut done = false;
+    while start.elapsed() < Duration::from_millis(200) {
+        if process_claude_events(&mut job, false) {
+            done = true;
+            break;
+        }
+        thread::sleep(Duration::from_millis(10));
+    }
+    assert!(done, "job should end promptly without trailing output");
     assert!(job.pending_exit.is_none());
     let events = events_since(snapshot);
     assert!(

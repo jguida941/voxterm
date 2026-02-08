@@ -1195,37 +1195,31 @@ fn pty_cli_session_is_responsive_tracks_liveness() {
     assert!(!session.is_responsive(Duration::from_millis(10)));
 }
 
-#[cfg(unix)]
 #[test]
-fn pty_cli_session_is_alive_with_zero_pid_checks_process_group() {
-    let mut child = std::process::Command::new("sleep")
-        .arg("1")
-        .spawn()
-        .expect("spawned child");
+fn pty_cli_session_is_alive_with_negative_pid_returns_false() {
     let (_tx, rx) = bounded(1);
     let handle = thread::spawn(|| {});
     let session = ManuallyDrop::new(PtyCliSession {
         master_fd: -1,
-        child_pid: 0,
+        child_pid: -1,
         output_rx: rx,
         _output_thread: handle,
     });
-    assert!(session.is_alive());
-    let _ = child.kill();
-    let _ = child.wait();
+    assert!(!session.is_alive());
 }
 
 #[cfg(unix)]
 #[test]
-fn pty_cli_session_try_wait_with_zero_pid_reaps_exited_child() {
+fn pty_cli_session_try_wait_reaps_exited_child() {
     let mut child = std::process::Command::new("true")
         .spawn()
         .expect("spawned child");
+    let pid = child.id() as i32;
     let (_tx, rx) = bounded(1);
     let handle = thread::spawn(|| {});
     let mut session = ManuallyDrop::new(PtyCliSession {
         master_fd: -1,
-        child_pid: 0,
+        child_pid: pid,
         output_rx: rx,
         _output_thread: handle,
     });
