@@ -5,6 +5,8 @@ Note: Some historical entries reference internal documents that are not publishe
 
 ## [Unreleased]
 
+## [1.0.47] - 2026-02-09
+
 ### UX
 - Preserve CRLF PTY output so line content is not erased during control-edit handling.
 
