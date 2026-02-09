@@ -247,6 +247,13 @@ fn apply_control_edits_handles_cr_and_backspace() {
 }
 
 #[test]
+fn apply_control_edits_preserves_crlf_lines() {
+    let mut data = b"hello\r\nworld\r\n".to_vec();
+    apply_control_edits(&mut data);
+    assert_eq!(data, b"hello\nworld\n");
+}
+
+#[test]
 fn write_all_writes_bytes() {
     let (read_fd, write_fd) = pipe_pair();
     write_all(write_fd, b"hello").unwrap();

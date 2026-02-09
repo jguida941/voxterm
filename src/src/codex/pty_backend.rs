@@ -601,6 +601,12 @@ pub(super) fn normalize_control_bytes(raw: &[u8]) -> Vec<u8> {
         }
         match raw[idx] {
             b'\r' => {
+                if raw.get(idx + 1) == Some(&b'\n') {
+                    output.push(b'\n');
+                    idx += 2;
+                    line_start = output.len();
+                    continue;
+                }
                 output.truncate(line_start);
                 idx += 1;
             }

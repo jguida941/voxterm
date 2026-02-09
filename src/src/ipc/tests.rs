@@ -1167,22 +1167,28 @@ fn start_claude_job_with_pty_emits_output() {
 
     let start = Instant::now();
     let mut finished = false;
+    let mut saw_out = false;
+    let mut saw_err = false;
     while start.elapsed() < Duration::from_secs(2) {
         if process_claude_events(&mut job, false) {
             finished = true;
+        }
+        let events = events_since(snapshot);
+        saw_out = events
+            .iter()
+            .any(|event| matches!(event, IpcEvent::Token { text } if text.contains("out-line")));
+        saw_err = events
+            .iter()
+            .any(|event| matches!(event, IpcEvent::Token { text } if text.contains("err-line")));
+        if finished && saw_out && saw_err {
             break;
         }
         thread::sleep(Duration::from_millis(10));
     }
 
     assert!(finished, "PTY job did not finish");
-    let events = events_since(snapshot);
-    assert!(events
-        .iter()
-        .any(|event| { matches!(event, IpcEvent::Token { text } if text.contains("out-line")) }));
-    assert!(events
-        .iter()
-        .any(|event| { matches!(event, IpcEvent::Token { text } if text.contains("err-line")) }));
+    assert!(saw_out, "expected PTY stdout token");
+    assert!(saw_err, "expected PTY stderr token");
 
     let _ = fs::remove_file(script);
 }

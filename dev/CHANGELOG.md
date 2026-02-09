@@ -5,6 +5,12 @@ Note: Some historical entries reference internal documents that are not publishe
 
 ## [Unreleased]
 
+### UX
+- Preserve CRLF PTY output so line content is not erased during control-edit handling.
+
+### Tests
+- Cover CRLF handling for PTY control edits and PTY output capture in IPC tests.
+
 ## [1.0.46] - 2026-02-08
 
 ### Tests

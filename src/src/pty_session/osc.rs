@@ -291,6 +291,12 @@ pub(super) fn apply_control_edits(buffer: &mut Vec<u8>) {
         }
         match buffer[idx] {
             b'\r' => {
+                if buffer.get(idx + 1) == Some(&b'\n') {
+                    output.push(b'\n');
+                    idx += 2;
+                    line_start = output.len();
+                    continue;
+                }
                 output.truncate(line_start);
                 idx += 1;
             }

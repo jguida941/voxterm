@@ -134,6 +134,12 @@ fn normalize_control_bytes_handles_cr_and_backspace() {
 }
 
 #[test]
+fn normalize_control_bytes_preserves_crlf_lines() {
+    let cleaned = normalize_control_bytes(b"hello\r\nworld\r\n");
+    assert_eq!(String::from_utf8_lossy(&cleaned), "hello\nworld\n");
+}
+
+#[test]
 fn normalize_control_bytes_skips_osc_and_csi_sequences() {
     let cleaned = normalize_control_bytes(b"hi\x1b]0;title\x07there");
     assert_eq!(String::from_utf8_lossy(&cleaned), "hithere");
