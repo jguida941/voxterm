@@ -18,6 +18,7 @@ Note: Some historical entries reference internal documents that are not publishe
 - Fix Full HUD right-panel width handling so idle/status text (including `Ready`) remains visible instead of collapsing to blank when Ribbon/Heartbeat is enabled.
 - Tighten Full HUD idle semantics: use `PTT` label (instead of `MANUAL`), collapse idle success/info text to `Ready`, and avoid duplicate queue text when `Q:n` is already shown in the shortcuts row.
 - Remove transition-marker dot jitter in recording/processing labels; transition pulses now use brief `✦`/`•` markers only in idle transitions.
+- Improve Full HUD visual balance by right-aligning status text toward the telemetry side and increasing the maximum right-panel ribbon waveform width.
 
 ### CI
 - Add a dedicated latency guard workflow (`.github/workflows/latency_guard.yml`) that runs synthetic voice-only regression bounds in CI.

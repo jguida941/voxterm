@@ -21,7 +21,7 @@ use super::text::{display_width, truncate_display};
 
 const MAIN_ROW_DURATION_PLACEHOLDER: &str = "--.-s";
 const MAIN_ROW_WAVEFORM_MIN_WIDTH: usize = 3;
-const RIGHT_PANEL_MAX_WAVEFORM_WIDTH: usize = 12;
+const RIGHT_PANEL_MAX_WAVEFORM_WIDTH: usize = 20;
 const RIGHT_PANEL_MIN_CONTENT_WIDTH: usize = 4;
 
 /// Keyboard shortcuts to display.
@@ -262,22 +262,18 @@ fn format_main_row(
     let right_width = display_width(&right_panel);
     let message_available = inner_width.saturating_sub(content_width + right_width);
     let truncated_message = truncate_display(&message_section, message_available);
-
-    let interior = format!("{content}{truncated_message}");
     let message_width = display_width(&truncated_message);
-
-    // Padding to fill the row (leave room for right panel)
-    let padding_needed = inner_width.saturating_sub(content_width + message_width + right_width);
-    let padding = " ".repeat(padding_needed);
+    // Right-align the status text so concise states (e.g., Ready) land near the right telemetry.
+    let padding_before_message = " ".repeat(message_available.saturating_sub(message_width));
+    let interior = format!("{content}{padding_before_message}{truncated_message}");
 
     // No background colors - use transparent backgrounds for terminal compatibility
     format!(
-        "{}{}{}{}{}{}{}{}{}",
+        "{}{}{}{}{}{}{}{}",
         colors.border,
         borders.vertical,
         colors.reset,
         interior,
-        padding,
         right_panel,
         colors.border,
         borders.vertical,
@@ -287,12 +283,18 @@ fn format_main_row(
 
 fn format_full_hud_message(state: &StatusLineState, colors: &ThemeColors) -> String {
     if state.recording_state != RecordingState::Idle {
+        if state.message.is_empty() {
+            return String::new();
+        }
         let status_type = StatusType::from_message(&state.message);
-        let status_color = status_type.color(colors);
-        return if state.message.is_empty() {
-            format!(" {}Ready{}", colors.success, colors.reset)
-        } else {
-            format!(" {}{}{}", status_color, state.message, colors.reset)
+        return match status_type {
+            // Keep only high-signal warnings/errors during active states; state itself is shown on the left.
+            StatusType::Warning => format!(" {}{}{}", colors.warning, state.message, colors.reset),
+            StatusType::Error => format!(" {}{}{}", colors.error, state.message, colors.reset),
+            StatusType::Recording
+            | StatusType::Processing
+            | StatusType::Success
+            | StatusType::Info => String::new(),
         };
     }
 
@@ -1120,6 +1122,30 @@ mod tests {
         let banner = format_status_banner(&state, Theme::Coral, 96);
         assert!(banner.lines.iter().any(|line| line.contains("PTT")));
         assert!(!banner.lines.iter().any(|line| line.contains("MANUAL")));
+    }
+
+    #[test]
+    fn format_status_banner_full_mode_recording_suppresses_stale_ready_text() {
+        let mut state = StatusLineState::new();
+        state.hud_style = HudStyle::Full;
+        state.recording_state = RecordingState::Recording;
+        state.message = "Transcript ready (Rust pipeline)".to_string();
+
+        let banner = format_status_banner(&state, Theme::Coral, 96);
+        assert!(!banner.lines.iter().any(|line| line.contains("Ready")));
+    }
+
+    #[test]
+    fn format_status_banner_full_mode_processing_does_not_duplicate_processing_text() {
+        let mut state = StatusLineState::new();
+        state.hud_style = HudStyle::Full;
+        state.recording_state = RecordingState::Processing;
+        state.message = "Processing...".to_string();
+
+        let banner = format_status_banner(&state, Theme::Coral, 96);
+        let main_row = &banner.lines[1];
+        let count = main_row.to_lowercase().matches("processing").count();
+        assert_eq!(count, 1);
     }
 
     #[test]
