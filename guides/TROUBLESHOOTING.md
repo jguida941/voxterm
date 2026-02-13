@@ -366,6 +366,8 @@ Symptoms can include:
 - duplicated/staggered HUD borders
 - repeated trailing `[back]` strips
 - partial HUD rows left behind after redraw
+- a stray horizontal HUD border line near the top of the terminal
+- Codex/Claude panel content appearing partially overwritten by HUD redraws
 
 1. Verify version is current:
    ```bash

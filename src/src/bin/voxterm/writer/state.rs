@@ -5,8 +5,8 @@ use voxterm::log_debug;
 
 use super::mouse::{disable_mouse, enable_mouse};
 use super::render::{
-    clear_overlay_panel, clear_status_banner, clear_status_line, write_overlay_panel,
-    write_status_banner, write_status_line,
+    clear_overlay_panel, clear_status_banner, clear_status_line, reset_scroll_region,
+    set_scroll_region, write_overlay_panel, write_status_banner, write_status_line,
 };
 use super::WriterMessage;
 use crate::status_line::{format_status_banner, StatusLineState};
@@ -65,6 +65,9 @@ pub(super) struct WriterState {
     last_status_draw_at: Instant,
     theme: Theme,
     mouse_enabled: bool,
+    /// Actual bottom row of the current scroll region (0 = not set).
+    /// Tracking the row ensures resize-triggered scroll-region updates.
+    scroll_region_bottom: u16,
 }
 
 impl WriterState {
@@ -81,6 +84,7 @@ impl WriterState {
             last_status_draw_at: Instant::now(),
             theme: Theme::default(),
             mouse_enabled: false,
+            scroll_region_bottom: 0,
         }
     }
 
@@ -173,7 +177,9 @@ impl WriterState {
                 disable_mouse(&mut self.stdout, &mut self.mouse_enabled);
             }
             WriterMessage::Shutdown => {
-                // Disable mouse before exiting to restore terminal state
+                // Reset scroll region and disable mouse before exiting.
+                let _ = reset_scroll_region(&mut self.stdout);
+                self.scroll_region_bottom = 0;
                 disable_mouse(&mut self.stdout, &mut self.mouse_enabled);
                 return false;
             }
@@ -238,34 +244,67 @@ impl WriterState {
             self.display.enhanced_status = None;
         }
 
-        let flush_error = {
-            let rows = self.rows;
-            let cols = self.cols;
-            // Keep one safety column to avoid right-edge auto-wrap drift in IDE terminals.
-            let render_cols = cols.saturating_sub(1).max(1);
-            let theme = self.theme;
-            let (stdout, overlay_panel, enhanced_status, status, current_banner_height) = (
-                &mut self.stdout,
-                &self.display.overlay_panel,
-                &self.display.enhanced_status,
-                &self.display.status,
-                &mut self.display.banner_height,
-            );
-            if let Some(panel) = overlay_panel.as_ref() {
-                let _ = write_overlay_panel(stdout, panel, rows);
-            } else if let Some(state) = enhanced_status.as_ref() {
-                let banner = format_status_banner(state, theme, render_cols as usize);
-                let clear_height = (*current_banner_height).max(banner.height);
-                if clear_height > 0 {
-                    let _ = clear_status_banner(stdout, rows, clear_height);
-                }
-                *current_banner_height = banner.height;
-                let _ = write_status_banner(stdout, &banner, rows);
-            } else if let Some(text) = status.as_deref() {
-                let _ = write_status_line(stdout, text, rows, render_cols, theme);
-            }
-            stdout.flush().err()
+        let rows = self.rows;
+        let cols = self.cols;
+        // Keep one safety column to avoid right-edge auto-wrap drift in IDE terminals.
+        let render_cols = cols.saturating_sub(1).max(1);
+        let theme = self.theme;
+        let banner = self
+            .display
+            .enhanced_status
+            .as_ref()
+            .map(|state| format_status_banner(state, theme, render_cols as usize));
+        let desired_reserved = if let Some(panel) = self.display.overlay_panel.as_ref() {
+            panel.height
+        } else if let Some(banner) = banner.as_ref() {
+            banner.height
+        } else if self.display.status.is_some() {
+            1
+        } else {
+            0
         };
+
+        // Compute the actual scroll region bottom row. Tracking the row (not
+        // only reserved count) ensures terminal resizes are handled correctly.
+        let desired_bottom: u16 = if desired_reserved > 0 && rows > desired_reserved as u16 {
+            rows.saturating_sub(desired_reserved as u16)
+        } else {
+            0
+        };
+
+        // Re-apply scroll region on every redraw because backend TUIs can emit
+        // escapes that reset it.
+        let mut flush_error: Option<io::Error> = None;
+        if desired_bottom > 0 {
+            if let Err(err) = set_scroll_region(&mut self.stdout, rows, desired_reserved) {
+                flush_error = Some(err);
+            } else {
+                self.scroll_region_bottom = desired_bottom;
+            }
+        } else if self.scroll_region_bottom > 0 {
+            if let Err(err) = reset_scroll_region(&mut self.stdout) {
+                flush_error = Some(err);
+            } else {
+                self.scroll_region_bottom = 0;
+            }
+        }
+
+        if let Some(panel) = self.display.overlay_panel.as_ref() {
+            let _ = write_overlay_panel(&mut self.stdout, panel, rows);
+        } else if let Some(banner) = banner.as_ref() {
+            let clear_height = self.display.banner_height.max(banner.height);
+            if clear_height > 0 {
+                let _ = clear_status_banner(&mut self.stdout, rows, clear_height);
+            }
+            self.display.banner_height = banner.height;
+            let _ = write_status_banner(&mut self.stdout, banner, rows);
+        } else if let Some(text) = self.display.status.as_deref() {
+            let _ = write_status_line(&mut self.stdout, text, rows, render_cols, theme);
+        }
+
+        if let Err(err) = self.stdout.flush() {
+            flush_error.get_or_insert(err);
+        }
         self.needs_redraw = false;
         self.last_status_draw_at = Instant::now();
         if let Some(err) = flush_error {

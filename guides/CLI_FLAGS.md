@@ -157,6 +157,9 @@ latency + queue, busy favors queue + latency, idle favors latency).
 Full HUD formatting keeps a one-column right-edge safety margin to avoid
 terminal autowrap drift in IDE terminals; there is no CLI flag for this
 behavior.
+VoxTerm also reserves a protected scroll region above HUD rows in Full HUD so
+backend output cannot overwrite the bottom banner area; there is no CLI flag
+for this behavior.
 
 **Theme defaults:** If `--theme` is not provided, VoxTerm selects a backend-
 appropriate default. Claude → `claude`, Codex → `codex`, others → `coral`.

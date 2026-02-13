@@ -66,6 +66,8 @@ IDE terminal HUD compatibility (`v1.0.61`):
 - Full HUD uses the proven `v1.0.53` writer/render baseline plus a one-column
   right-edge safety margin to avoid duplicated or wrapped rows in
   Cursor/JetBrains terminals.
+- VoxTerm also reserves the terminal scroll region above HUD rows so backend
+  output does not scroll stale HUD borders into the main Codex/Claude panel.
 
 ## How It Works
 

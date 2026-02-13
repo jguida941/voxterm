@@ -10,9 +10,10 @@ Note: Some historical entries reference internal documents that are not publishe
 ### UX
 - Restore the `v1.0.53` HUD writer/render path in current builds to recover stable Full HUD behavior in Cursor and JetBrains terminals while preserving later non-render features.
 - Keep the one-column HUD safety margin in status formatting to avoid right-edge autowrap drift in IDE terminals.
+- Restore protected terminal scroll-region handling so backend output cannot scroll HUD borders into the main screen area (fixes stray top-border lines and Codex panel overwrite artifacts).
 
 ### Documentation
-- Sync release/user docs for the `v1.0.61` HUD stabilization rollback and IDE troubleshooting guidance.
+- Sync release/user docs for the `v1.0.61` HUD stabilization rollback, scroll-region protection, and IDE troubleshooting guidance.
 
 ## [1.0.60] - 2026-02-13
 

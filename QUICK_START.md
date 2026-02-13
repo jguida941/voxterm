@@ -84,7 +84,8 @@ Minimal HUD as compact chips when enabled in Settings.
 Compact HUD telemetry also adapts by context (recording/busy/idle).
 IDE note (`v1.0.61`): Full HUD uses the stable `v1.0.53` writer/render path
 plus a one-column safety margin to prevent duplicate/wrapped rows in
-Cursor/JetBrains terminals.
+Cursor/JetBrains terminals, and reserves a protected scroll region so backend
+output does not overwrite HUD rows.
 Startup splash note: default dwell is short (`VOXTERM_STARTUP_SPLASH_MS=1500`).
 Use `VOXTERM_STARTUP_SPLASH_MS=0` for immediate clear, or
 `VOXTERM_NO_STARTUP_BANNER=1` to skip it.

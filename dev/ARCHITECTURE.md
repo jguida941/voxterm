@@ -391,6 +391,9 @@ All terminal output is serialized through one writer thread to avoid
 interleaving PTY output with the status line or help overlay. The status line
 and overlay use ANSI save/restore sequences and redraw only after quiet output
 intervals to avoid corrupting the backend's screen.
+The writer also maintains a reserved bottom scroll region for HUD/overlay rows
+and reapplies it during redraws so backend output cannot scroll those rows into
+the main terminal area.
 
 ## Visual System (Overlay)
 

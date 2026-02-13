@@ -95,6 +95,8 @@ when `Right panel` is set to `Ribbon`, `Dots`, or `Heartbeat`.
 You should also see compact latency/meter trend telemetry in narrow HUD space.
 If you use Full HUD in IDE terminals, confirm the banner redraws as a single
 frame without duplicated/wrapped rows.
+Confirm backend panel output (Codex/Claude) scrolls normally above the HUD
+without HUD borders being dragged upward into the main terminal area.
 
 ## Option B: Install from source
 

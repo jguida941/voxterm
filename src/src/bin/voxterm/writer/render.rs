@@ -7,8 +7,38 @@ use crate::theme::Theme;
 use super::sanitize::{sanitize_status, truncate_status};
 use super::state::OverlayPanel;
 
-const SAVE_CURSOR: &[u8] = b"\x1b[s\x1b7";
-const RESTORE_CURSOR: &[u8] = b"\x1b[u\x1b8";
+// Use ANSI save/restore only. DEC restore (\x1b8) can reset scroll margins on
+// some IDE terminals, which lets backend output overwrite HUD rows.
+const SAVE_CURSOR: &[u8] = b"\x1b[s";
+const RESTORE_CURSOR: &[u8] = b"\x1b[u";
+
+pub(super) fn set_scroll_region(
+    stdout: &mut dyn Write,
+    rows: u16,
+    reserved_rows: usize,
+) -> io::Result<()> {
+    if rows == 0 {
+        return Ok(());
+    }
+    if reserved_rows == 0 {
+        return reset_scroll_region(stdout);
+    }
+    let reserved = reserved_rows.min(rows as usize) as u16;
+    let bottom = rows.saturating_sub(reserved).max(1);
+    let mut sequence = Vec::new();
+    sequence.extend_from_slice(SAVE_CURSOR);
+    sequence.extend_from_slice(format!("\x1b[1;{bottom}r").as_bytes());
+    sequence.extend_from_slice(RESTORE_CURSOR);
+    stdout.write_all(&sequence)
+}
+
+pub(super) fn reset_scroll_region(stdout: &mut dyn Write) -> io::Result<()> {
+    let mut sequence = Vec::new();
+    sequence.extend_from_slice(SAVE_CURSOR);
+    sequence.extend_from_slice(b"\x1b[r");
+    sequence.extend_from_slice(RESTORE_CURSOR);
+    stdout.write_all(&sequence)
+}
 
 pub(super) fn write_status_line(
     stdout: &mut dyn Write,
@@ -230,5 +260,29 @@ mod tests {
         // The only escape codes should be cursor positioning, not color
         let color_codes = output.matches("\u{1b}[9").count();
         assert_eq!(color_codes, 0, "Should not contain color codes");
+    }
+
+    #[test]
+    fn set_scroll_region_writes_reserved_bottom_margin() {
+        let mut buf = Vec::new();
+        set_scroll_region(&mut buf, 40, 4).unwrap();
+        let output = String::from_utf8_lossy(&buf);
+        assert!(output.contains("\u{1b}[s"));
+        assert!(output.contains("\u{1b}[1;36r"));
+        assert!(output.contains("\u{1b}[u"));
+        assert!(!output.contains("\u{1b}7"));
+        assert!(!output.contains("\u{1b}8"));
+    }
+
+    #[test]
+    fn reset_scroll_region_writes_full_region_reset() {
+        let mut buf = Vec::new();
+        reset_scroll_region(&mut buf).unwrap();
+        let output = String::from_utf8_lossy(&buf);
+        assert!(output.contains("\u{1b}[s"));
+        assert!(output.contains("\u{1b}[r"));
+        assert!(output.contains("\u{1b}[u"));
+        assert!(!output.contains("\u{1b}7"));
+        assert!(!output.contains("\u{1b}8"));
     }
 }
