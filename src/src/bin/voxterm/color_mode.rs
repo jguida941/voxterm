@@ -94,15 +94,7 @@ fn env_supports_truecolor_without_colorterm() -> bool {
         }
     }
 
-    [
-        "PYCHARM_HOSTED",
-        "JETBRAINS_IDE",
-        "IDEA_INITIAL_DIRECTORY",
-        "IDEA_INITIAL_PROJECT",
-        "CLION_IDE",
-    ]
-    .iter()
-    .any(|name| env::var(name).is_ok())
+    false
 }
 
 impl std::fmt::Display for ColorMode {
@@ -344,19 +336,23 @@ mod tests {
     }
 
     #[test]
-    fn detect_truecolor_for_jetbrains_ide_env_marker() {
+    fn detect_color256_for_jetbrains_ide_env_marker_without_term_hints() {
         with_env_lock(|| {
             let prev_colorterm = std::env::var("COLORTERM").ok();
             let prev_term = std::env::var("TERM").ok();
             let prev_idea_dir = std::env::var("IDEA_INITIAL_DIRECTORY").ok();
+            let prev_term_program = std::env::var("TERM_PROGRAM").ok();
+            let prev_terminal_emulator = std::env::var("TERMINAL_EMULATOR").ok();
             let prev_no_color = std::env::var("NO_COLOR").ok();
 
             std::env::remove_var("COLORTERM");
             std::env::set_var("TERM", "xterm-256color");
             std::env::set_var("IDEA_INITIAL_DIRECTORY", "/tmp/project");
+            std::env::remove_var("TERM_PROGRAM");
+            std::env::remove_var("TERMINAL_EMULATOR");
             std::env::remove_var("NO_COLOR");
 
-            assert_eq!(ColorMode::detect(), ColorMode::TrueColor);
+            assert_eq!(ColorMode::detect(), ColorMode::Color256);
 
             match prev_colorterm {
                 Some(v) => std::env::set_var("COLORTERM", v),
@@ -369,6 +365,14 @@ mod tests {
             match prev_idea_dir {
                 Some(v) => std::env::set_var("IDEA_INITIAL_DIRECTORY", v),
                 None => std::env::remove_var("IDEA_INITIAL_DIRECTORY"),
+            }
+            match prev_term_program {
+                Some(v) => std::env::set_var("TERM_PROGRAM", v),
+                None => std::env::remove_var("TERM_PROGRAM"),
+            }
+            match prev_terminal_emulator {
+                Some(v) => std::env::set_var("TERMINAL_EMULATOR", v),
+                None => std::env::remove_var("TERMINAL_EMULATOR"),
             }
             match prev_no_color {
                 Some(v) => std::env::set_var("NO_COLOR", v),

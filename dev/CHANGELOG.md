@@ -5,6 +5,19 @@ Note: Some historical entries reference internal documents that are not publishe
 
 ## [Unreleased]
 
+### UX
+- Drop startup arrow-key escape noise during the first input window so pre-launch swipes/arrow presses on the splash screen do not leak `^[...` sequences into Claude/Codex prompts.
+- Suppress idle transition pulse markers for auto-voice toggles so `Ctrl+V` no longer shows a transient dot beside `PTT`.
+- Restore conservative theme fallback behavior: non-truecolor terminals now resolve truecolor themes to `ansi`, and generic IDE env markers alone no longer force truecolor mode.
+
+### Tests
+- Add startup input-spawn coverage for dropping arrow escape noise and keeping normal text input.
+- Add theme-resolution coverage for 256-color fallback behavior in runtime theme switching (`theme_ops`) and config theme resolution.
+- Add color-mode coverage ensuring generic IDE markers without terminal truecolor hints resolve to `Color256` instead of `TrueColor`.
+
+### Documentation
+- Update troubleshooting guidance for startup arrow escape leakage and revised IDE-terminal theme fallback behavior.
+
 ## [1.0.56] - 2026-02-13
 
 ### UX

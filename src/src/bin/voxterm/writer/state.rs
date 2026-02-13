@@ -356,18 +356,16 @@ impl WriterState {
 
 fn should_start_state_transition(prev: &StatusLineState, next: &StatusLineState) -> bool {
     prev.recording_state != next.recording_state
-        || prev.voice_mode != next.voice_mode
         || prev.send_mode != next.send_mode
         || prev.hud_style != next.hud_style
         || prev.hud_right_panel != next.hud_right_panel
         || prev.hud_right_panel_recording_only != next.hud_right_panel_recording_only
-        || prev.auto_voice_enabled != next.auto_voice_enabled
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::HudStyle;
+    use crate::config::{HudStyle, VoiceSendMode};
     use crate::status_line::{RecordingState, VoiceMode};
 
     #[test]
@@ -381,6 +379,17 @@ mod tests {
 
         next = prev.clone();
         next.voice_mode = VoiceMode::Auto;
+        assert!(!should_start_state_transition(&prev, &next));
+
+        next = prev.clone();
+        next.auto_voice_enabled = !prev.auto_voice_enabled;
+        assert!(!should_start_state_transition(&prev, &next));
+
+        next = prev.clone();
+        next.send_mode = match prev.send_mode {
+            VoiceSendMode::Auto => VoiceSendMode::Insert,
+            VoiceSendMode::Insert => VoiceSendMode::Auto,
+        };
         assert!(should_start_state_transition(&prev, &next));
 
         next = prev.clone();

@@ -5,7 +5,6 @@ use std::time::{Duration, Instant};
 use crossbeam_channel::Sender;
 use voxterm::pty_session::PtyOverlaySession;
 
-use crate::color_mode::ColorMode;
 use crate::config::OverlayConfig;
 use crate::overlays::OverlayMode;
 use crate::status_line::StatusLineState;
@@ -133,7 +132,7 @@ fn resolve_theme_choice(config: &OverlayConfig, requested: Theme) -> (Theme, Opt
     if !mode.supports_color() {
         return (Theme::None, Some("no color support"));
     }
-    if matches!(mode, ColorMode::Ansi16) {
+    if !mode.supports_truecolor() {
         let resolved = requested.fallback_for_ansi();
         if resolved != requested {
             return (resolved, Some("ansi fallback"));
@@ -141,4 +140,91 @@ fn resolve_theme_choice(config: &OverlayConfig, requested: Theme) -> (Theme, Opt
         return (resolved, None);
     }
     (requested, None)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::Parser;
+    use std::sync::{Mutex, OnceLock};
+
+    static ENV_GUARD: OnceLock<Mutex<()>> = OnceLock::new();
+
+    #[test]
+    fn resolve_theme_choice_falls_back_on_256color() {
+        let _guard = ENV_GUARD
+            .get_or_init(|| Mutex::new(()))
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        let prev_colorterm = std::env::var("COLORTERM").ok();
+        let prev_term = std::env::var("TERM").ok();
+        let prev_no_color = std::env::var("NO_COLOR").ok();
+        let prev_term_program = std::env::var("TERM_PROGRAM").ok();
+        let prev_terminal_emulator = std::env::var("TERMINAL_EMULATOR").ok();
+
+        std::env::remove_var("COLORTERM");
+        std::env::set_var("TERM", "xterm-256color");
+        std::env::remove_var("NO_COLOR");
+        std::env::remove_var("TERM_PROGRAM");
+        std::env::remove_var("TERMINAL_EMULATOR");
+
+        let config = OverlayConfig::parse_from(["test"]);
+        let (resolved, note) = resolve_theme_choice(&config, Theme::Dracula);
+        assert_eq!(resolved, Theme::Ansi);
+        assert_eq!(note, Some("ansi fallback"));
+
+        match prev_colorterm {
+            Some(v) => std::env::set_var("COLORTERM", v),
+            None => std::env::remove_var("COLORTERM"),
+        }
+        match prev_term {
+            Some(v) => std::env::set_var("TERM", v),
+            None => std::env::remove_var("TERM"),
+        }
+        match prev_no_color {
+            Some(v) => std::env::set_var("NO_COLOR", v),
+            None => std::env::remove_var("NO_COLOR"),
+        }
+        match prev_term_program {
+            Some(v) => std::env::set_var("TERM_PROGRAM", v),
+            None => std::env::remove_var("TERM_PROGRAM"),
+        }
+        match prev_terminal_emulator {
+            Some(v) => std::env::set_var("TERMINAL_EMULATOR", v),
+            None => std::env::remove_var("TERMINAL_EMULATOR"),
+        }
+    }
+
+    #[test]
+    fn resolve_theme_choice_keeps_theme_on_truecolor() {
+        let _guard = ENV_GUARD
+            .get_or_init(|| Mutex::new(()))
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        let prev_colorterm = std::env::var("COLORTERM").ok();
+        let prev_term = std::env::var("TERM").ok();
+        let prev_no_color = std::env::var("NO_COLOR").ok();
+
+        std::env::set_var("COLORTERM", "truecolor");
+        std::env::set_var("TERM", "xterm-256color");
+        std::env::remove_var("NO_COLOR");
+
+        let config = OverlayConfig::parse_from(["test"]);
+        let (resolved, note) = resolve_theme_choice(&config, Theme::Dracula);
+        assert_eq!(resolved, Theme::Dracula);
+        assert_eq!(note, None);
+
+        match prev_colorterm {
+            Some(v) => std::env::set_var("COLORTERM", v),
+            None => std::env::remove_var("COLORTERM"),
+        }
+        match prev_term {
+            Some(v) => std::env::set_var("TERM", v),
+            None => std::env::remove_var("TERM"),
+        }
+        match prev_no_color {
+            Some(v) => std::env::set_var("NO_COLOR", v),
+            None => std::env::remove_var("NO_COLOR"),
+        }
+    }
 }

@@ -16,6 +16,7 @@
 | Full HUD columns shift when REC duration grows | See [Status Messages → Full HUD columns shift as REC timer grows](#full-hud-columns-shift-as-rec-timer-grows) |
 | Transcript stays queued in Claude confirmation prompts | See [Status Messages → Transcript stays queued in Claude-confirmation prompts](#transcript-stays-queued-in-claude-confirmation-prompts) |
 | Startup splash lingers in IDE terminal | See [Startup Banner Lingers in IDE Terminal](#startup-banner-lingers-in-ide-terminal) |
+| Arrow gibberish appears after splash | See [Arrow-Key Gibberish Appears After Splash](#arrow-key-gibberish-appears-after-splash) |
 | Theme colors look muted in IDE terminal | See [Theme Colors Look Muted in IDE Terminal](#theme-colors-look-muted-in-ide-terminal) |
 | Theme picker still looks colorized in `none` theme | See [Theme Picker Looks Colorized in `none` Theme](#theme-picker-looks-colorized-in-none-theme) |
 | Voice macro not expanding | See [Status Messages → Voice macro not expanding](#voice-macro-not-expanding) |
@@ -473,10 +474,24 @@ clears normally in Cursor/VS Code, use these checks:
    VOXTERM_NO_STARTUP_BANNER=1 voxterm
    ```
 
+### Arrow-Key Gibberish Appears After Splash
+
+If you press arrow keys/trackpad direction controls while the startup splash is
+still showing, older builds could leak raw escape bytes (for example `^[ [ A`)
+into the backend prompt right after launch.
+
+**Fixes:**
+1. Upgrade to the latest VoxTerm build.
+2. Restart VoxTerm after upgrading.
+3. If needed, disable the splash while troubleshooting:
+   ```bash
+   VOXTERM_NO_STARTUP_BANNER=1 voxterm --claude
+   ```
+
 ### Theme Colors Look Muted in IDE Terminal
 
 Some IDE terminals do not export `COLORTERM=truecolor`, which can make color
-themes look like ANSI fallbacks on older builds.
+themes look like ANSI fallbacks.
 
 **Checks:**
 1. Inspect terminal env:
@@ -489,11 +504,10 @@ themes look like ANSI fallbacks on older builds.
    COLORTERM=truecolor voxterm --theme catppuccin
    ```
 
-If forced truecolor fixes appearance, update to the latest VoxTerm build.
-
-Older builds could also force `ansi` fallback in some `xterm-256color` IDE
-terminals. Current builds keep the selected theme on 256-color terminals and
-reserve `ansi` fallback for true ANSI-16 environments.
+If forced truecolor fixes appearance, you can keep using that override for that
+terminal profile. Current builds intentionally use conservative fallback:
+truecolor themes resolve to `ansi` unless truecolor capability is explicitly
+detected, to avoid broken rendering in IDE terminals with partial color support.
 
 ### Theme Picker Looks Colorized in `none` Theme
 

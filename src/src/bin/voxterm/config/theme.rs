@@ -18,7 +18,7 @@ impl OverlayConfig {
         let mode = self.color_mode();
         if !mode.supports_color() {
             Theme::None
-        } else if matches!(mode, ColorMode::Ansi16) {
+        } else if !mode.supports_truecolor() {
             requested.fallback_for_ansi()
         } else {
             requested
@@ -98,7 +98,7 @@ mod tests {
     }
 
     #[test]
-    fn theme_for_backend_keeps_requested_theme_on_256color_term() {
+    fn theme_for_backend_uses_ansi_fallback_on_256color_term() {
         let _guard = ENV_GUARD
             .get_or_init(|| Mutex::new(()))
             .lock()
@@ -106,12 +106,16 @@ mod tests {
         let prev_colorterm = std::env::var("COLORTERM").ok();
         let prev_term = std::env::var("TERM").ok();
         let prev_no_color = std::env::var("NO_COLOR").ok();
+        let prev_term_program = std::env::var("TERM_PROGRAM").ok();
+        let prev_terminal_emulator = std::env::var("TERMINAL_EMULATOR").ok();
         std::env::remove_var("COLORTERM");
         std::env::set_var("TERM", "xterm-256color");
         std::env::remove_var("NO_COLOR");
+        std::env::remove_var("TERM_PROGRAM");
+        std::env::remove_var("TERMINAL_EMULATOR");
 
         let config = OverlayConfig::parse_from(["test", "--theme", "dracula"]);
-        assert_eq!(config.theme_for_backend("codex"), Theme::Dracula);
+        assert_eq!(config.theme_for_backend("codex"), Theme::Ansi);
 
         match prev_colorterm {
             Some(value) => std::env::set_var("COLORTERM", value),
@@ -125,6 +129,22 @@ mod tests {
             Some(value) => std::env::set_var("NO_COLOR", value),
             None => std::env::remove_var("NO_COLOR"),
         }
+        match prev_term_program {
+            Some(value) => std::env::set_var("TERM_PROGRAM", value),
+            None => std::env::remove_var("TERM_PROGRAM"),
+        }
+        match prev_terminal_emulator {
+            Some(value) => std::env::set_var("TERMINAL_EMULATOR", value),
+            None => std::env::remove_var("TERMINAL_EMULATOR"),
+        }
+    }
+
+    #[test]
+    fn theme_for_backend_keeps_requested_theme_on_truecolor_term() {
+        with_truecolor_env(|| {
+            let config = OverlayConfig::parse_from(["test", "--theme", "dracula"]);
+            assert_eq!(config.theme_for_backend("codex"), Theme::Dracula);
+        });
     }
 
     #[test]
