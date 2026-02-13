@@ -15,6 +15,8 @@
 | Full HUD shows blank idle status | See [Status Messages → Full HUD shows blank idle status](#full-hud-shows-blank-idle-status) |
 | Full HUD columns shift when REC duration grows | See [Status Messages → Full HUD columns shift as REC timer grows](#full-hud-columns-shift-as-rec-timer-grows) |
 | Transcript stays queued in Claude confirmation prompts | See [Status Messages → Transcript stays queued in Claude-confirmation prompts](#transcript-stays-queued-in-claude-confirmation-prompts) |
+| Startup splash lingers in IDE terminal | See [Startup Banner Lingers in IDE Terminal](#startup-banner-lingers-in-ide-terminal) |
+| Theme colors look muted in IDE terminal | See [Theme Colors Look Muted in IDE Terminal](#theme-colors-look-muted-in-ide-terminal) |
 | Voice macro not expanding | See [Status Messages → Voice macro not expanding](#voice-macro-not-expanding) |
 | Voice macro expanded unexpectedly | See [Status Messages → Voice macro expanded unexpectedly](#voice-macro-expanded-unexpectedly) |
 | Wrong version after update | [Install Issues → Wrong version after update](#wrong-version-after-update) |
@@ -454,6 +456,39 @@ To explicitly hide it (useful in scripts), set:
 ```bash
 VOXTERM_NO_STARTUP_BANNER=1 voxterm
 ```
+
+### Startup Banner Lingers in IDE Terminal
+
+If the startup splash stays on screen in PyCharm/JetBrains terminals while it
+clears normally in Cursor/VS Code, use these checks:
+
+1. Upgrade to the latest VoxTerm build (older builds used a long dwell and weaker clear sequence).
+2. Force immediate clear to confirm terminal behavior:
+   ```bash
+   VOXTERM_STARTUP_SPLASH_MS=0 voxterm
+   ```
+3. If you prefer no splash in IDE terminals:
+   ```bash
+   VOXTERM_NO_STARTUP_BANNER=1 voxterm
+   ```
+
+### Theme Colors Look Muted in IDE Terminal
+
+Some IDE terminals do not export `COLORTERM=truecolor`, which can make color
+themes look like ANSI fallbacks on older builds.
+
+**Checks:**
+1. Inspect terminal env:
+   ```bash
+   env | rg 'COLORTERM|TERM|TERM_PROGRAM|TERMINAL_EMULATOR|NO_COLOR'
+   ```
+2. Ensure `NO_COLOR` is not set.
+3. Force truecolor for a quick A/B check:
+   ```bash
+   COLORTERM=truecolor voxterm --theme catppuccin
+   ```
+
+If forced truecolor fixes appearance, update to the latest VoxTerm build.
 
 ---
 

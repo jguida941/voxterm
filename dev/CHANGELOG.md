@@ -26,6 +26,9 @@ Note: Some historical entries reference internal documents that are not publishe
 - Color the full labeled latency text (`Latency: Nms`) with the same threshold color as compact latency (`Nms`).
 - Suppress duplicate active-state text in Full HUD main row (for example `processing`/`ready`) so recording/processing state is shown once via the left mode indicator.
 - Update send-mode status wording to user-facing `Edit mode: press Enter to send` when insert behavior is active.
+- Shorten startup splash dwell time, render it in an alternate screen, and clear with stronger reset sequences so IDE terminals (for example PyCharm) do not retain the splash frame.
+- Fix startup tagline centering by using display-width math for Unicode separators (`│`) instead of byte length.
+- Improve terminal color capability detection so JetBrains/VSCode-style terminals that omit `COLORTERM` can still use truecolor themes instead of always falling back to ANSI.
 
 ### CI
 - Add a dedicated latency guard workflow (`.github/workflows/latency_guard.yml`) that runs synthetic voice-only regression bounds in CI.

@@ -206,6 +206,7 @@ appropriate default. Claude → `claude`, Codex → `codex`, others → `coral`.
 | `VOXTERM_MODEL_DIR` | Whisper model storage path (used by install/start scripts) | `whisper_models/` or `~/.local/share/voxterm/models` |
 | `VOXTERM_INSTALL_DIR` | Override install location | unset |
 | `VOXTERM_NO_STARTUP_BANNER` | Skip the startup splash screen | unset |
+| `VOXTERM_STARTUP_SPLASH_MS` | Splash dwell time in milliseconds (0 = immediate, max 30000) | 1500 |
 | `VOXTERM_PROMPT_REGEX` | Override prompt detection | unset |
 | `VOXTERM_PROMPT_LOG` | Prompt detection log path | unset |
 | `VOXTERM_LOGS` | Enable logging (same as `--logs`) | unset |

@@ -54,6 +54,7 @@
 - [x] MP-100 Add animation transition framework for overlays and state changes (TachyonFX or equivalent).
 - [x] MP-054 Optional right-panel visualization modes in minimal HUD.
 - [x] MP-105 Add adaptive/contextual HUD layouts and state-driven module expansion.
+- [x] MP-113 Tighten startup splash ergonomics and IDE compatibility (shorter splash duration, reliable teardown in IDE terminals, corrected startup tagline centering, and better truecolor detection for JetBrains-style terminals).
 - [ ] MP-104 Add explicit voice-state visualization (idle/listening/processing/responding) with clear transitions.
 - [ ] MP-055 Quick theme switcher in settings.
 - [ ] MP-102 Add toast notification center with auto-dismiss, severity, and history review.

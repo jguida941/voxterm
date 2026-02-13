@@ -57,6 +57,11 @@ First run downloads a Whisper model (install/start scripts default to base ~142 
 - Or pass `--whisper-model-path` directly
 See [Whisper docs](guides/WHISPER.md) for details.
 
+Startup splash behavior:
+- default dwell is short (`VOXTERM_STARTUP_SPLASH_MS=1500`)
+- set `VOXTERM_STARTUP_SPLASH_MS=0` for immediate clear
+- set `VOXTERM_NO_STARTUP_BANNER=1` to skip it entirely
+
 ## How It Works
 
 ```mermaid

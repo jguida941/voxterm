@@ -34,6 +34,11 @@ impl ColorMode {
             }
         }
 
+        // Some terminals support truecolor but do not set COLORTERM.
+        if env_supports_truecolor_without_colorterm() {
+            return Self::TrueColor;
+        }
+
         // Check TERM for color capabilities
         if let Ok(term) = env::var("TERM") {
             if term.contains("256color") || term.contains("256-color") {
@@ -66,6 +71,27 @@ impl ColorMode {
     pub fn supports_truecolor(&self) -> bool {
         matches!(self, Self::TrueColor)
     }
+}
+
+fn env_supports_truecolor_without_colorterm() -> bool {
+    if let Ok(term_program) = env::var("TERM_PROGRAM") {
+        let program = term_program.to_lowercase();
+        if matches!(
+            program.as_str(),
+            "vscode" | "cursor" | "wezterm" | "iterm.app" | "warpterminal"
+        ) {
+            return true;
+        }
+    }
+
+    if let Ok(terminal_emulator) = env::var("TERMINAL_EMULATOR") {
+        let emulator = terminal_emulator.to_lowercase();
+        if emulator.contains("jetbrains-jediterm") {
+            return true;
+        }
+    }
+
+    env::var("PYCHARM_HOSTED").is_ok() || env::var("JETBRAINS_IDE").is_ok()
 }
 
 impl std::fmt::Display for ColorMode {
@@ -142,6 +168,16 @@ pub fn rgb_to_ansi16(r: u8, g: u8, b: u8) -> u8 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::{Mutex, OnceLock};
+
+    fn with_env_lock<T>(f: impl FnOnce() -> T) -> T {
+        static ENV_GUARD: OnceLock<Mutex<()>> = OnceLock::new();
+        let _guard = ENV_GUARD
+            .get_or_init(|| Mutex::new(()))
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        f()
+    }
 
     #[test]
     fn color_mode_supports_color() {
@@ -192,5 +228,73 @@ mod tests {
         assert_eq!(rgb_to_ansi16(0, 0, 0), 0);
         // Bright white
         assert_eq!(rgb_to_ansi16(255, 255, 255), 15);
+    }
+
+    #[test]
+    fn detect_truecolor_for_jetbrains_terminal_env() {
+        with_env_lock(|| {
+            let prev_colorterm = std::env::var("COLORTERM").ok();
+            let prev_term = std::env::var("TERM").ok();
+            let prev_terminal_emulator = std::env::var("TERMINAL_EMULATOR").ok();
+            let prev_no_color = std::env::var("NO_COLOR").ok();
+
+            std::env::remove_var("COLORTERM");
+            std::env::set_var("TERM", "xterm-256color");
+            std::env::set_var("TERMINAL_EMULATOR", "JetBrains-JediTerm");
+            std::env::remove_var("NO_COLOR");
+
+            assert_eq!(ColorMode::detect(), ColorMode::TrueColor);
+
+            match prev_colorterm {
+                Some(v) => std::env::set_var("COLORTERM", v),
+                None => std::env::remove_var("COLORTERM"),
+            }
+            match prev_term {
+                Some(v) => std::env::set_var("TERM", v),
+                None => std::env::remove_var("TERM"),
+            }
+            match prev_terminal_emulator {
+                Some(v) => std::env::set_var("TERMINAL_EMULATOR", v),
+                None => std::env::remove_var("TERMINAL_EMULATOR"),
+            }
+            match prev_no_color {
+                Some(v) => std::env::set_var("NO_COLOR", v),
+                None => std::env::remove_var("NO_COLOR"),
+            }
+        });
+    }
+
+    #[test]
+    fn detect_truecolor_for_vscode_term_program_env() {
+        with_env_lock(|| {
+            let prev_colorterm = std::env::var("COLORTERM").ok();
+            let prev_term = std::env::var("TERM").ok();
+            let prev_term_program = std::env::var("TERM_PROGRAM").ok();
+            let prev_no_color = std::env::var("NO_COLOR").ok();
+
+            std::env::remove_var("COLORTERM");
+            std::env::set_var("TERM", "xterm-256color");
+            std::env::set_var("TERM_PROGRAM", "vscode");
+            std::env::remove_var("NO_COLOR");
+
+            assert_eq!(ColorMode::detect(), ColorMode::TrueColor);
+
+            match prev_colorterm {
+                Some(v) => std::env::set_var("COLORTERM", v),
+                None => std::env::remove_var("COLORTERM"),
+            }
+            match prev_term {
+                Some(v) => std::env::set_var("TERM", v),
+                None => std::env::remove_var("TERM"),
+            }
+            match prev_term_program {
+                Some(v) => std::env::set_var("TERM_PROGRAM", v),
+                None => std::env::remove_var("TERM_PROGRAM"),
+            }
+            match prev_no_color {
+                Some(v) => std::env::set_var("NO_COLOR", v),
+                None => std::env::remove_var("NO_COLOR"),
+            }
+        });
     }
 }

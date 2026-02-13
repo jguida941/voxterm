@@ -109,6 +109,8 @@ The installer builds the overlay, installs the `voxterm` wrapper, and downloads
 a Whisper model to the correct path for the CLI.
 
 To suppress the startup splash screen, set `VOXTERM_NO_STARTUP_BANNER=1`.
+To keep it but shorten/disable dwell time, set `VOXTERM_STARTUP_SPLASH_MS`
+(`0` = immediate clear, default `1500`).
 
 Example output:
 

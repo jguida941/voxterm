@@ -83,6 +83,9 @@ Visual note: right-panel telemetry modes (`Ribbon`, `Dots`, `Heartbeat`) show in
 Minimal HUD as compact chips when enabled in Settings.
 Compact HUD telemetry also adapts by context (recording/busy/idle), and short
 transition pulse markers appear briefly on major mode changes.
+Startup splash note: default dwell is short (`VOXTERM_STARTUP_SPLASH_MS=1500`).
+Use `VOXTERM_STARTUP_SPLASH_MS=0` for immediate clear, or
+`VOXTERM_NO_STARTUP_BANNER=1` to skip it.
 
 ## 5) Common flags
 

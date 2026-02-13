@@ -199,6 +199,19 @@ voxterm --auto-voice-idle-ms 1200
 voxterm --transcript-idle-ms 250
 ```
 
+### Tune startup splash timing
+
+```bash
+# Keep splash but clear immediately
+VOXTERM_STARTUP_SPLASH_MS=0 voxterm
+
+# Keep splash longer/shorter (milliseconds, max 30000)
+VOXTERM_STARTUP_SPLASH_MS=900 voxterm
+
+# Disable splash entirely
+VOXTERM_NO_STARTUP_BANNER=1 voxterm
+```
+
 ### Notification sounds
 
 ```bash

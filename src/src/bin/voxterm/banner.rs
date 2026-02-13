@@ -4,6 +4,7 @@
 
 use crate::theme::Theme;
 use crossterm::terminal::size as terminal_size;
+use std::env;
 use std::io::{self, Write};
 use std::time::Duration;
 use unicode_width::UnicodeWidthStr;
@@ -11,7 +12,8 @@ use unicode_width::UnicodeWidthStr;
 /// Version from Cargo.toml
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-const STARTUP_SPLASH_CLEAR_MS: u64 = 10_000;
+const DEFAULT_STARTUP_SPLASH_CLEAR_MS: u64 = 1_500;
+const MAX_STARTUP_SPLASH_CLEAR_MS: u64 = 30_000;
 
 /// ASCII art logo for VoxTerm - displayed on startup.
 const ASCII_LOGO: &[&str] = &[
@@ -36,6 +38,28 @@ const PURPLE_GRADIENT: &[(u8, u8, u8)] = &[
 /// Format RGB color as ANSI truecolor foreground code
 fn rgb_fg(r: u8, g: u8, b: u8) -> String {
     format!("\x1b[38;2;{};{};{}m", r, g, b)
+}
+
+fn centered_padding(terminal_width: u16, text: &str) -> usize {
+    let width = UnicodeWidthStr::width(text);
+    if (terminal_width as usize) > width {
+        (terminal_width as usize - width) / 2
+    } else {
+        0
+    }
+}
+
+fn splash_duration_ms() -> u64 {
+    env::var("VOXTERM_STARTUP_SPLASH_MS")
+        .ok()
+        .and_then(|value| value.parse::<u64>().ok())
+        .map(|value| value.min(MAX_STARTUP_SPLASH_CLEAR_MS))
+        .unwrap_or(DEFAULT_STARTUP_SPLASH_CLEAR_MS)
+}
+
+fn clear_screen(stdout: &mut dyn Write) -> io::Result<()> {
+    // Use both clear-screen and clear-scrollback sequences for IDE terminals.
+    write!(stdout, "\x1b[0m\x1b[2J\x1b[3J\x1b[H")
 }
 
 /// Format the shiny purple ASCII art banner with tagline underneath.
@@ -77,11 +101,7 @@ pub fn format_ascii_banner(use_color: bool, terminal_width: u16) -> String {
         "v{} │ Ctrl+R record │ Ctrl+V auto-voice │ Ctrl+Q quit",
         VERSION
     );
-    let tagline_padding = if (terminal_width as usize) > tagline.len() {
-        (terminal_width as usize - tagline.len()) / 2
-    } else {
-        0
-    };
+    let tagline_padding = centered_padding(terminal_width, &tagline);
 
     output.push('\n');
     output.push_str(&" ".repeat(tagline_padding));
@@ -96,11 +116,7 @@ pub fn format_ascii_banner(use_color: bool, terminal_width: u16) -> String {
 
     // Add "Initializing..." in golden yellow
     let init_text = "Initializing...";
-    let init_padding = if (terminal_width as usize) > init_text.len() {
-        (terminal_width as usize - init_text.len()) / 2
-    } else {
-        0
-    };
+    let init_padding = centered_padding(terminal_width, init_text);
     output.push_str(&" ".repeat(init_padding));
     if use_color {
         // Golden yellow color
@@ -199,17 +215,40 @@ fn build_startup_banner(config: &BannerConfig, theme: Theme) -> String {
 pub(crate) fn show_startup_splash(config: &BannerConfig, theme: Theme) -> io::Result<()> {
     let banner = build_startup_banner(config, theme).replace('\n', "\r\n");
     let mut stdout = io::stdout();
-    write!(stdout, "\x1b[2J\x1b[H")?;
+    // Render splash in the alternate screen so it always tears down cleanly.
+    write!(stdout, "\x1b[?1049h")?;
+    clear_screen(&mut stdout)?;
     write!(stdout, "{banner}")?;
     stdout.flush()?;
-    std::thread::sleep(Duration::from_millis(STARTUP_SPLASH_CLEAR_MS));
-    write!(stdout, "\x1b[2J\x1b[H")?;
+    std::thread::sleep(Duration::from_millis(splash_duration_ms()));
+    clear_screen(&mut stdout)?;
+    write!(stdout, "\x1b[?1049l")?;
     stdout.flush()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::{Mutex, OnceLock};
+
+    fn with_splash_env<T>(value: Option<&str>, f: impl FnOnce() -> T) -> T {
+        static ENV_GUARD: OnceLock<Mutex<()>> = OnceLock::new();
+        let _guard = ENV_GUARD
+            .get_or_init(|| Mutex::new(()))
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        let prev = std::env::var("VOXTERM_STARTUP_SPLASH_MS").ok();
+        match value {
+            Some(v) => std::env::set_var("VOXTERM_STARTUP_SPLASH_MS", v),
+            None => std::env::remove_var("VOXTERM_STARTUP_SPLASH_MS"),
+        }
+        let result = f();
+        match prev {
+            Some(v) => std::env::set_var("VOXTERM_STARTUP_SPLASH_MS", v),
+            None => std::env::remove_var("VOXTERM_STARTUP_SPLASH_MS"),
+        }
+        result
+    }
 
     #[test]
     fn version_defined() {
@@ -261,8 +300,22 @@ mod tests {
     }
 
     #[test]
-    fn startup_splash_min_duration_is_at_least_10s() {
-        assert!(STARTUP_SPLASH_CLEAR_MS >= 10_000);
+    fn startup_splash_default_duration_is_short() {
+        assert!(DEFAULT_STARTUP_SPLASH_CLEAR_MS <= 2_000);
+    }
+
+    #[test]
+    fn splash_duration_honors_env_override() {
+        with_splash_env(Some("900"), || {
+            assert_eq!(splash_duration_ms(), 900);
+        });
+    }
+
+    #[test]
+    fn splash_duration_caps_large_env_override() {
+        with_splash_env(Some("999999"), || {
+            assert_eq!(splash_duration_ms(), MAX_STARTUP_SPLASH_CLEAR_MS);
+        });
     }
 
     #[test]
@@ -314,6 +367,23 @@ mod tests {
         // Find a line with the logo (not empty)
         let logo_line = lines.iter().find(|l| l.contains("██")).unwrap();
         assert!(logo_line.starts_with(" ")); // Should have padding
+    }
+
+    #[test]
+    fn ascii_banner_centers_tagline_using_display_width() {
+        let width = 120;
+        let banner = format_ascii_banner(false, width);
+        let line = banner
+            .lines()
+            .find(|line| line.contains("Ctrl+R record"))
+            .expect("tagline line should exist");
+        let leading_spaces = line.chars().take_while(|c| *c == ' ').count();
+        let tagline = format!(
+            "v{} │ Ctrl+R record │ Ctrl+V auto-voice │ Ctrl+Q quit",
+            VERSION
+        );
+        let expected = centered_padding(width, &tagline);
+        assert_eq!(leading_spaces, expected);
     }
 
     #[test]
