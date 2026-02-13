@@ -328,14 +328,14 @@ In Full HUD idle state, VoxTerm uses concise labels for visual stability:
 - success/info idle messages collapse to `Ready`
 - queued state is shown in the shortcuts row badge (`Q:n`) without repeating
   `Transcript queued (...)` in the main row
-- status text is right-aligned toward the telemetry side so short states like
-  `Ready` sit closer to the right-side latency/visualizer cluster
 - right-panel Ribbon mode uses a wider waveform budget in Full HUD for better
   readability on wide terminals
-- Full HUD latency (`Nms`) now appears on the main row next to status text and
-  right-panel telemetry, rather than on the shortcuts row.
-- During active recording/processing, the main-row status text suppresses
-  duplicate state words so `REC`/`processing` is not shown twice.
+- Full HUD keeps steady-state `Ready` + latency (`Nms`) with the lower
+  shortcuts/theme cluster.
+- Main-row status text lane (after dB) is reserved for transient/toggle
+  messages so control feedback appears in a stable location.
+- During active recording/processing, duplicate state words are suppressed in
+  the main-row status lane so `REC`/`processing` is not shown twice.
 
 When Mouse is enabled, Minimal HUD shows a [back] button on the right to return
 to Full. If a right-panel mode is enabled, Minimal HUD also shows a compact

@@ -259,23 +259,24 @@ fn format_main_row(
         theme,
         inner_width.saturating_sub(content_width + 1),
     );
-    let latency_badge = format_main_row_latency_badge(state, colors);
-    let latency_width = display_width(&latency_badge);
     let right_width = display_width(&right_panel);
-    let message_available = inner_width.saturating_sub(content_width + latency_width + right_width);
+    let message_available = inner_width.saturating_sub(content_width + right_width);
     let truncated_message = truncate_display(&message_section, message_available);
     let message_width = display_width(&truncated_message);
-    // Right-align the status text so concise states (e.g., Ready) land near the right telemetry.
-    let padding_before_message = " ".repeat(message_available.saturating_sub(message_width));
-    let interior = format!("{content}{padding_before_message}{truncated_message}{latency_badge}");
+    let interior = format!("{content}{truncated_message}");
+
+    // Padding to fill the row (leave room for right panel)
+    let padding_needed = inner_width.saturating_sub(content_width + message_width + right_width);
+    let padding = " ".repeat(padding_needed);
 
     // No background colors - use transparent backgrounds for terminal compatibility
     format!(
-        "{}{}{}{}{}{}{}{}",
+        "{}{}{}{}{}{}{}{}{}",
         colors.border,
         borders.vertical,
         colors.reset,
         interior,
+        padding,
         right_panel,
         colors.border,
         borders.vertical,
@@ -306,15 +307,15 @@ fn format_full_hud_message(state: &StatusLineState, colors: &ThemeColors) -> Str
     }
 
     if state.message.is_empty() {
-        return format!(" {}Ready{}", colors.success, colors.reset);
+        return String::new();
     }
 
     let status_type = StatusType::from_message(&state.message);
     match status_type {
-        // Keep idle success/info state visually stable.
-        StatusType::Success | StatusType::Info => {
-            format!(" {}Ready{}", colors.success, colors.reset)
-        }
+        // Keep idle success state concise in the shortcut row badge.
+        StatusType::Success => String::new(),
+        // Show actionable/info toggles in the center message lane.
+        StatusType::Info => format!(" {}{}{}", colors.info, state.message, colors.reset),
         StatusType::Warning => format!(" {}{}{}", colors.warning, state.message, colors.reset),
         StatusType::Error => format!(" {}{}{}", colors.error, state.message, colors.reset),
         StatusType::Processing | StatusType::Recording => {
@@ -326,20 +327,6 @@ fn format_full_hud_message(state: &StatusLineState, colors: &ThemeColors) -> Str
             )
         }
     }
-}
-
-fn format_main_row_latency_badge(state: &StatusLineState, colors: &ThemeColors) -> String {
-    let Some(latency) = state.last_latency_ms else {
-        return String::new();
-    };
-    let latency_color = if latency < 300 {
-        colors.success
-    } else if latency < 500 {
-        colors.warning
-    } else {
-        colors.error
-    };
-    format!(" {}{}ms{}", latency_color, latency, colors.reset)
 }
 
 fn format_right_panel(
@@ -1165,15 +1152,26 @@ mod tests {
     }
 
     #[test]
-    fn format_status_banner_full_mode_shows_latency_on_main_row() {
+    fn format_status_banner_full_mode_shows_latency_on_shortcuts_row() {
         let mut state = StatusLineState::new();
         state.hud_style = HudStyle::Full;
         state.recording_state = RecordingState::Idle;
         state.last_latency_ms = Some(228);
 
         let banner = format_status_banner(&state, Theme::Coral, 96);
-        assert!(banner.lines[1].contains("228ms"));
-        assert!(!banner.lines[2].contains("228ms"));
+        assert!(!banner.lines[1].contains("228ms"));
+        assert!(banner.lines[2].contains("228ms"));
+    }
+
+    #[test]
+    fn format_status_banner_full_mode_shows_idle_info_message_on_main_row() {
+        let mut state = StatusLineState::new();
+        state.hud_style = HudStyle::Full;
+        state.recording_state = RecordingState::Idle;
+        state.message = "Auto-voice disabled (capture cancelled)".to_string();
+
+        let banner = format_status_banner(&state, Theme::Coral, 120);
+        assert!(banner.lines[1].contains("Auto-voice disabled"));
     }
 
     #[test]

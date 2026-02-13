@@ -18,8 +18,8 @@ Note: Some historical entries reference internal documents that are not publishe
 - Fix Full HUD right-panel width handling so idle/status text (including `Ready`) remains visible instead of collapsing to blank when Ribbon/Heartbeat is enabled.
 - Tighten Full HUD idle semantics: use `PTT` label (instead of `MANUAL`), collapse idle success/info text to `Ready`, and avoid duplicate queue text when `Q:n` is already shown in the shortcuts row.
 - Remove transition-marker dot jitter in recording/processing labels; transition pulses now use brief `✦`/`•` markers only in idle transitions.
-- Improve Full HUD visual balance by right-aligning status text toward the telemetry side and increasing the maximum right-panel ribbon waveform width.
-- Move Full HUD latency badge (`Nms`) to the main status row beside status text/right-panel telemetry, and remove the duplicate latency badge from the shortcuts row.
+- Improve Full HUD visual balance by increasing the maximum right-panel ribbon waveform width.
+- Keep Full HUD steady-state badges (`Ready`, latency `Nms`) with the shortcuts/theme cluster on the lower row, while restoring toggle/status messages to the main row lane after dB.
 - Suppress duplicate active-state text in Full HUD main row (for example `processing`/`ready`) so recording/processing state is shown once via the left mode indicator.
 
 ### CI

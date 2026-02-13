@@ -26,7 +26,7 @@ pub fn get_button_positions(
             let colors = theme.colors();
             let inner_width = width.saturating_sub(2);
             let (_, buttons) =
-                format_button_row_with_positions(state, &colors, inner_width, 2, false);
+                format_button_row_with_positions(state, &colors, inner_width, 2, true, true);
             buttons
         }
         HudStyle::Minimal => {
@@ -336,7 +336,7 @@ pub(super) fn format_shortcuts_row_with_positions(
 ) -> (String, Vec<ButtonPosition>) {
     // Row 2 from bottom of HUD (row 1 = bottom border)
     let (shortcuts_str, buttons) =
-        format_button_row_with_positions(state, colors, inner_width, 2, false);
+        format_button_row_with_positions(state, colors, inner_width, 2, true, true);
 
     // Add leading space to match main row's left margin
     let interior = format!(" {}", shortcuts_str);
@@ -460,6 +460,7 @@ fn format_button_row_with_positions(
     inner_width: usize,
     hud_row: u16,
     show_latency_badge: bool,
+    show_ready_badge: bool,
 ) -> (String, Vec<ButtonPosition>) {
     let button_defs = get_button_defs(state);
     let mut items = Vec::new();
@@ -523,6 +524,11 @@ fn format_button_row_with_positions(
             "{}Q:{}{}",
             colors.warning, state.queue_depth, colors.reset
         ));
+    }
+
+    // Ready badge (not clickable)
+    if show_ready_badge && state.recording_state == RecordingState::Idle && state.queue_depth == 0 {
+        items.push(format!("{}Ready{}", colors.success, colors.reset));
     }
 
     // Latency badge (not clickable)
@@ -609,7 +615,7 @@ fn format_button_row_with_positions(
 }
 
 fn format_button_row(state: &StatusLineState, colors: &ThemeColors, inner_width: usize) -> String {
-    let (row, _) = format_button_row_with_positions(state, colors, inner_width, 2, true);
+    let (row, _) = format_button_row_with_positions(state, colors, inner_width, 2, true, true);
     row
 }
 
