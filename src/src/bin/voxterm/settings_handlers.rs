@@ -13,7 +13,9 @@ use crate::status_line::{RecordingState, StatusLineState, VoiceMode};
 use crate::terminal::update_pty_winsize;
 use crate::theme::Theme;
 use crate::theme_ops::{apply_theme_selection, cycle_theme};
-use crate::voice_control::{reset_capture_visuals, start_voice_capture, VoiceManager};
+use crate::voice_control::{
+    clear_capture_metrics, reset_capture_visuals, start_voice_capture, VoiceManager,
+};
 use crate::writer::{set_status, WriterMessage};
 
 pub(crate) struct SettingsActionContext<'a> {
@@ -88,12 +90,23 @@ impl<'a> SettingsActionContext<'a> {
         };
         let msg = if *self.auto_voice_enabled {
             "Auto-voice enabled"
-        } else if self.voice_manager.cancel_capture() {
-            self.status_state.recording_state = RecordingState::Idle;
-            *self.recording_started_at = None;
-            "Auto-voice disabled (capture cancelled)"
         } else {
-            "Auto-voice disabled"
+            let cancelled = self.voice_manager.cancel_capture();
+            if cancelled {
+                self.status_state.recording_state = RecordingState::Idle;
+                *self.recording_started_at = None;
+            }
+            clear_capture_metrics(self.status_state);
+            reset_capture_visuals(
+                self.status_state,
+                self.preview_clear_deadline,
+                self.last_meter_update,
+            );
+            if cancelled {
+                "Auto-voice disabled (capture cancelled)"
+            } else {
+                "Auto-voice disabled"
+            }
         };
         set_status(
             self.writer_tx,
@@ -393,6 +406,10 @@ mod tests {
             other => panic!("unexpected writer message: {other:?}"),
         }
 
+        status_state.recording_duration = Some(1.7);
+        status_state.meter_db = Some(-40.0);
+        status_state.meter_levels.push(-40.0);
+        status_state.transcript_preview = Some("stale preview".to_string());
         {
             let mut ctx = make_context(
                 &mut config,
@@ -702,6 +719,10 @@ mod tests {
         }
         assert!(!auto_voice_enabled);
         assert_eq!(status_state.voice_mode, VoiceMode::Manual);
+        assert!(status_state.recording_duration.is_none());
+        assert!(status_state.meter_db.is_none());
+        assert!(status_state.meter_levels.is_empty());
+        assert!(status_state.transcript_preview.is_none());
         match writer_rx
             .recv_timeout(Duration::from_millis(200))
             .expect("status message")
