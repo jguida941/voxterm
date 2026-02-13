@@ -5,6 +5,30 @@ Note: Some historical entries reference internal documents that are not publishe
 
 ## [Unreleased]
 
+## [1.0.56] - 2026-02-13
+
+### UX
+- Shorten startup splash dwell time, render it in an alternate screen, and clear with stronger reset sequences so IDE terminals (for example PyCharm) do not retain the splash frame.
+- Fix startup tagline centering by using display-width math for Unicode separators (`│`) instead of byte length.
+- Improve terminal color capability detection so JetBrains/VSCode-style terminals that omit `COLORTERM` can still use truecolor themes instead of always falling back to ANSI.
+- Rename Settings send-mode `Insert` label to user-facing `Edit` so terminology matches HUD/status messaging.
+- Preserve Full HUD lane alignment between the duration separator and `[edit]` shortcut column.
+- Remove the startup ASCII banner’s leading blank line so splash content sits closer to the top edge instead of opening with extra top whitespace.
+- Keep requested themes on `xterm-256color` terminals (fallback to `ansi` only on true ANSI-16 environments) so IDE terminals are less likely to collapse into one look.
+- Expand JetBrains terminal truecolor heuristics (`TERM_PROGRAM`/`TERMINAL_EMULATOR`/IDE env markers) to better match PyCharm/CLion integrations.
+- Render Theme Picker rows neutrally when current theme is `none` (no per-theme color previews), so `none` mode no longer looks colorized.
+
+### Tests
+- Add settings-render coverage for `Send mode -> [ Edit ]` label semantics.
+- Add full-HUD layout coverage ensuring the duration separator aligns with the `[edit]` shortcut lane.
+- Add startup-banner coverage ensuring ASCII splash output no longer starts with a blank line.
+- Add color-mode coverage for JetBrains `TERM_PROGRAM` and IDE-marker env detection.
+- Add theme-picker coverage verifying `none` mode renders neutral preview rows (no ANSI/theme glyph colorization).
+- Add theme-resolution coverage for `xterm-256color` keep-theme behavior and explicit ANSI-16 fallback behavior.
+
+### Documentation
+- Update user docs and troubleshooting notes for startup splash behavior, IDE theme capability differences, and `none` theme preview behavior.
+
 ## [1.0.55] - 2026-02-13
 
 ### UX
@@ -26,15 +50,6 @@ Note: Some historical entries reference internal documents that are not publishe
 - Color the full labeled latency text (`Latency: Nms`) with the same threshold color as compact latency (`Nms`).
 - Suppress duplicate active-state text in Full HUD main row (for example `processing`/`ready`) so recording/processing state is shown once via the left mode indicator.
 - Update send-mode status wording to user-facing `Edit mode: press Enter to send` when insert behavior is active.
-- Shorten startup splash dwell time, render it in an alternate screen, and clear with stronger reset sequences so IDE terminals (for example PyCharm) do not retain the splash frame.
-- Fix startup tagline centering by using display-width math for Unicode separators (`│`) instead of byte length.
-- Improve terminal color capability detection so JetBrains/VSCode-style terminals that omit `COLORTERM` can still use truecolor themes instead of always falling back to ANSI.
-- Rename Settings send-mode `Insert` label to user-facing `Edit` so terminology matches HUD/status messaging.
-- Preserve Full HUD lane alignment between the duration separator and `[edit]` shortcut column.
-- Remove the startup ASCII banner’s leading blank line so splash content sits closer to the top edge instead of opening with extra top whitespace.
-- Keep requested themes on `xterm-256color` terminals (fallback to `ansi` only on true ANSI-16 environments) so IDE terminals are less likely to collapse into one look.
-- Expand JetBrains terminal truecolor heuristics (`TERM_PROGRAM`/`TERMINAL_EMULATOR`/IDE env markers) to better match PyCharm/CLion integrations.
-- Render Theme Picker rows neutrally when current theme is `none` (no per-theme color previews), so `none` mode no longer looks colorized.
 
 ### CI
 - Add a dedicated latency guard workflow (`.github/workflows/latency_guard.yml`) that runs synthetic voice-only regression bounds in CI.
@@ -56,12 +71,6 @@ Note: Some historical entries reference internal documents that are not publishe
 - Add HUD module coverage for meter/latency sparkline rendering.
 - Add status-line coverage for adaptive compact module registry selection.
 - Add minimal-HUD coverage for ribbon colorized waveform output and idle status compaction behavior.
-- Add settings-render coverage for `Send mode -> [ Edit ]` label semantics.
-- Add full-HUD layout coverage ensuring the duration separator aligns with the `[edit]` shortcut lane.
-- Add startup-banner coverage ensuring ASCII splash output no longer starts with a blank line.
-- Add color-mode coverage for JetBrains `TERM_PROGRAM` and IDE-marker env detection.
-- Add theme-picker coverage verifying `none` mode renders neutral preview rows (no ANSI/theme glyph colorization).
-- Add theme-resolution coverage for `xterm-256color` keep-theme behavior and explicit ANSI-16 fallback behavior.
 
 ### Developer Experience
 - Add `python3 dev/scripts/devctl.py hygiene` to audit archive naming, ADR status/index consistency, and `dev/scripts` documentation coverage.
