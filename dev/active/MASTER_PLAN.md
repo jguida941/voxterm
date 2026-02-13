@@ -8,7 +8,8 @@
 ## Status Snapshot (2026-02-13)
 - Last tagged release: `v1.0.53` (2026-02-13)
 - Current release target: `v1.0.54`
-- Branch: `master`
+- Active development branch: `develop`
+- Release branch: `master`
 - Strategic focus: overlay differentiation with measurable latency correctness
 
 ## Strategic Direction

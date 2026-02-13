@@ -29,6 +29,14 @@ terminal experience without replacing it.
 - Check git status and avoid unrelated changes.
 - Confirm scope and whether a release/version bump is needed.
 
+## Branching model (required)
+- Long-lived branches: `master` (release/tag branch) and `develop` (active integration branch).
+- Start all non-release work from `develop` using short-lived `feature/<topic>` or `fix/<topic>` branches.
+- Merge feature/fix branches back into `develop` only after checks pass.
+- Promote release candidates from `develop` to `master`, then tag and publish from `master`.
+- Delete merged feature/fix branches locally and on origin to keep branch history clean.
+- Do not introduce additional long-lived branches unless the change is tracked in `dev/active/MASTER_PLAN.md`.
+
 ## SDLC policy (user-facing changes)
 - Update docs for user-facing behavior changes (see Documentation Checklist below).
 - Add or update an entry in `dev/CHANGELOG.md` with a clear summary and the correct date.
