@@ -167,6 +167,15 @@ If Full HUD right-panel rendering is over-reserved, status text (including
 1. Upgrade to the latest VoxTerm build
 2. Restart the session after upgrading
 
+### Full HUD shows duplicate queued text
+
+If you see both `Transcript queued (...)` in the main row and `Q:n` in the
+shortcuts row at the same time, you are on an older build.
+
+**Fixes:**
+1. Upgrade to the latest VoxTerm build
+2. Restart the session after upgrading
+
 ### REC timer or dB meter appears frozen while queued
 
 If the backend is producing continuous output, older builds could pause HUD timer

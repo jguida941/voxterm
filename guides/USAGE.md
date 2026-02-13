@@ -323,6 +323,11 @@ For users who prefer less UI clutter, VoxTerm offers three HUD styles:
 Examples of the Minimal strip: `◉ AUTO · Ready`, `● REC · -55dB`.
 In Full HUD, status text (for example `Ready`) remains visible even with a
 right-panel visualization enabled.
+In Full HUD idle state, VoxTerm uses concise labels for visual stability:
+- manual mode label is shown as `PTT`
+- success/info idle messages collapse to `Ready`
+- queued state is shown in the shortcuts row badge (`Q:n`) without repeating
+  `Transcript queued (...)` in the main row
 
 When Mouse is enabled, Minimal HUD shows a [back] button on the right to return
 to Full. If a right-panel mode is enabled, Minimal HUD also shows a compact

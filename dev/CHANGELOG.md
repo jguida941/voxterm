@@ -16,6 +16,7 @@ Note: Some historical entries reference internal documents that are not publishe
 - Add adaptive compact HUD module selection by context (recording vs busy queue vs idle) so narrow layouts prioritize relevant telemetry.
 - In Minimal HUD with right-panel visuals, color ribbon waveform bars by level (instead of inheriting terminal default white), and stabilize idle status text to concise labels (`Ready`/`Queued N`/`Warning`/`Error`) to reduce layout churn.
 - Fix Full HUD right-panel width handling so idle/status text (including `Ready`) remains visible instead of collapsing to blank when Ribbon/Heartbeat is enabled.
+- Tighten Full HUD idle semantics: use `PTT` label (instead of `MANUAL`), collapse idle success/info text to `Ready`, and avoid duplicate queue text when `Q:n` is already shown in the shortcuts row.
 
 ### CI
 - Add a dedicated latency guard workflow (`.github/workflows/latency_guard.yml`) that runs synthetic voice-only regression bounds in CI.

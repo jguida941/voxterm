@@ -53,6 +53,14 @@ fn pipeline_tag_short(pipeline: Pipeline) -> &'static str {
     }
 }
 
+fn full_mode_voice_label(mode: VoiceMode) -> &'static str {
+    match mode {
+        VoiceMode::Auto => "AUTO",
+        VoiceMode::Manual => "PTT",
+        VoiceMode::Idle => "IDLE",
+    }
+}
+
 /// Format hidden mode strip - grey/obscure, only shows essential info when active.
 /// More subtle than minimal mode - all dim colors for minimal distraction.
 fn format_hidden_strip(state: &StatusLineState, colors: &ThemeColors, width: usize) -> String {
@@ -238,14 +246,7 @@ fn format_main_row(
     let duration_section = format_duration_section(state, colors);
     let meter_section = format_meter_section(state, colors);
 
-    // Status message with color
-    let status_type = StatusType::from_message(&state.message);
-    let status_color = status_type.color(colors);
-    let message_section = if state.message.is_empty() {
-        format!(" {}Ready{}", colors.success, colors.reset)
-    } else {
-        format!(" {}{}{}", status_color, state.message, colors.reset)
-    };
+    let message_section = format_full_hud_message(state, colors);
 
     // Combine all sections
     let sep = format!("{}│{}", colors.dim, colors.reset);
@@ -282,6 +283,45 @@ fn format_main_row(
         borders.vertical,
         colors.reset,
     )
+}
+
+fn format_full_hud_message(state: &StatusLineState, colors: &ThemeColors) -> String {
+    if state.recording_state != RecordingState::Idle {
+        let status_type = StatusType::from_message(&state.message);
+        let status_color = status_type.color(colors);
+        return if state.message.is_empty() {
+            format!(" {}Ready{}", colors.success, colors.reset)
+        } else {
+            format!(" {}{}{}", status_color, state.message, colors.reset)
+        };
+    }
+
+    if state.queue_depth > 0 {
+        // Queue is shown on the shortcuts row (`Q:n`); avoid duplicate text on main row.
+        return String::new();
+    }
+
+    if state.message.is_empty() {
+        return format!(" {}Ready{}", colors.success, colors.reset);
+    }
+
+    let status_type = StatusType::from_message(&state.message);
+    match status_type {
+        // Keep idle success/info state visually stable.
+        StatusType::Success | StatusType::Info => {
+            format!(" {}Ready{}", colors.success, colors.reset)
+        }
+        StatusType::Warning => format!(" {}{}{}", colors.warning, state.message, colors.reset),
+        StatusType::Error => format!(" {}{}{}", colors.error, state.message, colors.reset),
+        StatusType::Processing | StatusType::Recording => {
+            format!(
+                " {}{}{}",
+                status_type.color(colors),
+                state.message,
+                colors.reset
+            )
+        }
+    }
 }
 
 fn format_right_panel(
@@ -419,7 +459,7 @@ fn format_mode_indicator(state: &StatusLineState, colors: &ThemeColors) -> Strin
         RecordingState::Idle => {
             let (indicator, label, color) = match state.voice_mode {
                 VoiceMode::Auto => (colors.indicator_auto, "AUTO", colors.info),
-                VoiceMode::Manual => (colors.indicator_manual, "MANUAL", ""),
+                VoiceMode::Manual => (colors.indicator_manual, "PTT", ""),
                 VoiceMode::Idle => (colors.indicator_idle, "IDLE", ""),
             };
             if !color.is_empty() {
@@ -755,7 +795,9 @@ fn format_left_section(state: &StatusLineState, colors: &ThemeColors) -> String 
     let mode_label = match state.recording_state {
         RecordingState::Recording => format!("REC {pipeline_tag}{transition}"),
         RecordingState::Processing => format!("processing {pipeline_tag}{transition}"),
-        RecordingState::Idle => format!("{}{}", state.voice_mode.label(), transition),
+        RecordingState::Idle => {
+            format!("{}{}", full_mode_voice_label(state.voice_mode), transition)
+        }
     };
 
     let sensitivity = format!("{:.0}dB", state.sensitivity_db);
@@ -1035,6 +1077,49 @@ mod tests {
         let banner = format_status_banner(&state, Theme::Coral, 96);
         assert_eq!(banner.height, 4);
         assert!(banner.lines.iter().any(|line| line.contains("Ready")));
+    }
+
+    #[test]
+    fn format_status_banner_full_mode_collapses_idle_success_to_ready() {
+        let mut state = StatusLineState::new();
+        state.hud_style = HudStyle::Full;
+        state.recording_state = RecordingState::Idle;
+        state.message = "Transcript ready (Rust pipeline)".to_string();
+
+        let banner = format_status_banner(&state, Theme::Coral, 96);
+        assert!(banner.lines.iter().any(|line| line.contains("Ready")));
+        assert!(!banner
+            .lines
+            .iter()
+            .any(|line| line.contains("Transcript ready")));
+    }
+
+    #[test]
+    fn format_status_banner_full_mode_avoids_duplicate_queue_text() {
+        let mut state = StatusLineState::new();
+        state.hud_style = HudStyle::Full;
+        state.recording_state = RecordingState::Idle;
+        state.queue_depth = 1;
+        state.message = "Transcript queued (1)".to_string();
+
+        let banner = format_status_banner(&state, Theme::Coral, 96);
+        assert!(!banner
+            .lines
+            .iter()
+            .any(|line| line.contains("Transcript queued")));
+        assert!(banner.lines.iter().any(|line| line.contains("Q:1")));
+    }
+
+    #[test]
+    fn format_status_banner_full_mode_uses_ptt_label_for_manual() {
+        let mut state = StatusLineState::new();
+        state.hud_style = HudStyle::Full;
+        state.recording_state = RecordingState::Idle;
+        state.voice_mode = VoiceMode::Manual;
+
+        let banner = format_status_banner(&state, Theme::Coral, 96);
+        assert!(banner.lines.iter().any(|line| line.contains("PTT")));
+        assert!(!banner.lines.iter().any(|line| line.contains("MANUAL")));
     }
 
     #[test]
