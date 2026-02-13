@@ -86,13 +86,12 @@ credentials.json
 # Internal development docs
 PROJECT_OVERVIEW.md
 master_index.md
-agents.md
 project.md
 # Old docs paths (removed)
 # dev/archive/ is tracked
 **/PROJECT_OVERVIEW.md
 **/master_index.md
-**/agents.md
+!AGENTS.md
 src/mutants.out*
 claudeaudit.md
 

@@ -4,8 +4,8 @@ This document compares VoxTerm against nearby products in the "voice + AI CLI"
 space. It is intended for product positioning and roadmap prioritization.
 
 ## Plan status
-- Strategic master plan source for overlay direction.
-- Execution is tracked in `dev/active/MASTER_PLAN.md`.
+- Reference research only (market/competitor analysis).
+- The single active execution plan is `dev/active/MASTER_PLAN.md`.
 - Deferred work is tracked in `dev/deferred/`.
 
 ## Summary

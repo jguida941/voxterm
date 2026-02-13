@@ -1,9 +1,16 @@
 # Changelog
 
-All notable changes to this project will be documented here, following the SDLC policy defined in `agents.md`.
+All notable changes to this project will be documented here, following the SDLC policy defined in `AGENTS.md`.
 Note: Some historical entries reference internal documents that are not published in this repository.
 
 ## [Unreleased]
+
+## [1.0.52] - 2026-02-13
+
+### Documentation
+- Promote `AGENTS.md` to a tracked repository policy file and remove the ignore rule that prevented policy updates from being versioned.
+- Expand agent workflow requirements with a mandatory post-push audit loop, testing matrix by change type, CI expansion policy, and per-push documentation sync protocol.
+- Unify active planning into a single canonical `dev/active/MASTER_PLAN.md` and clarify that `dev/active/overlay.md` is reference market research.
 
 ## [1.0.51] - 2026-02-13
 

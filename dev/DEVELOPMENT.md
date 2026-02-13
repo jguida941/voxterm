@@ -22,7 +22,7 @@ voxterm/
 ├── app/
 │   ├── macos/VoxTerm.app # macOS double-click launcher
 │   └── windows/          # Windows launcher (planned placeholder)
-├── agents.md             # SDLC policy and release checklist
+├── AGENTS.md             # SDLC policy and release checklist
 ├── QUICK_START.md        # Fast setup and commands
 ├── guides/
 │   ├── CLI_FLAGS.md        # Full CLI and env reference
