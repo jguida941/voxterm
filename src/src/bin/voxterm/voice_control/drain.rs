@@ -17,6 +17,12 @@ use super::manager::{start_voice_capture, VoiceManager};
 use super::pipeline::pipeline_status_label;
 use super::{PREVIEW_CLEAR_MS, STATUS_TOAST_SECS, TRANSCRIPT_PREVIEW_MAX};
 
+pub(crate) fn clear_capture_metrics(status_state: &mut StatusLineState) {
+    status_state.recording_duration = None;
+    status_state.meter_db = None;
+    status_state.meter_levels.clear();
+}
+
 pub(crate) fn handle_voice_message(
     message: VoiceJobMessage,
     ctx: &mut VoiceMessageContext<'_, impl TranscriptSession>,
@@ -44,6 +50,7 @@ pub(crate) fn handle_voice_message(
                 .unwrap_or(0.0);
             session_stats.record_transcript(duration_secs);
             status_state.recording_state = RecordingState::Idle;
+            clear_capture_metrics(status_state);
             status_state.pipeline = match source {
                 VoiceCaptureSource::Native => Pipeline::Rust,
                 VoiceCaptureSource::Python => Pipeline::Python,
@@ -81,6 +88,7 @@ pub(crate) fn handle_voice_message(
         VoiceJobMessage::Empty { source, metrics } => {
             session_stats.record_empty();
             status_state.recording_state = RecordingState::Idle;
+            clear_capture_metrics(status_state);
             status_state.pipeline = match source {
                 VoiceCaptureSource::Native => Pipeline::Rust,
                 VoiceCaptureSource::Python => Pipeline::Python,
@@ -124,6 +132,7 @@ pub(crate) fn handle_voice_message(
         VoiceJobMessage::Error(message) => {
             session_stats.record_error();
             status_state.recording_state = RecordingState::Idle;
+            clear_capture_metrics(status_state);
             set_status(
                 writer_tx,
                 status_clear_deadline,
@@ -191,6 +200,7 @@ pub(crate) fn drain_voice_messages<S: TranscriptSession>(
                 prompt_tracker.note_activity(now);
             }
             status_state.recording_state = RecordingState::Idle;
+            clear_capture_metrics(status_state);
             status_state.pipeline = match source {
                 VoiceCaptureSource::Native => Pipeline::Rust,
                 VoiceCaptureSource::Python => Pipeline::Python,
@@ -569,5 +579,19 @@ mod tests {
         update_last_latency(&mut status_state, Some(started_at), None, now);
 
         assert_eq!(status_state.last_latency_ms, None);
+    }
+
+    #[test]
+    fn clear_capture_metrics_resets_recording_artifacts() {
+        let mut status_state = StatusLineState::new();
+        status_state.recording_duration = Some(3.2);
+        status_state.meter_db = Some(-12.0);
+        status_state.meter_levels.extend_from_slice(&[-40.0, -20.0]);
+
+        clear_capture_metrics(&mut status_state);
+
+        assert!(status_state.recording_duration.is_none());
+        assert!(status_state.meter_db.is_none());
+        assert!(status_state.meter_levels.is_empty());
     }
 }

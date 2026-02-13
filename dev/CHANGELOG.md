@@ -5,6 +5,12 @@ Note: Some historical entries reference internal documents that are not publishe
 
 ## [Unreleased]
 
+### UX
+- Improve HUD/overlay responsiveness while CLI output is continuously streaming by reducing writer redraw wait thresholds and forcing redraw opportunities during PTY output flow.
+- Batch PTY output chunks in the event loop before forwarding to the writer to reduce message pressure and settings/HUD lag while Codex is busy.
+- Clear stale capture visuals (recording duration + dB waveform/meter) when capture exits recording mode so the HUD does not freeze with old timer/meter values.
+- Clamp live recording meter floor to `-60dB` for stable display semantics.
+
 ## [1.0.52] - 2026-02-13
 
 ### Documentation

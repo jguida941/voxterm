@@ -294,7 +294,7 @@ Hidden HUD (idle example):
 # Minimal HUD - just a colored mode indicator
 voxterm --minimal-hud
 
-# Hidden HUD - nothing until you record
+# Hidden HUD - launcher row while idle, dim REC indicator while recording
 voxterm --hud-style hidden
 ```
 
@@ -303,6 +303,7 @@ You can also change HUD style at runtime via the settings menu (`Ctrl+O`).
 Preview tips:
 - When a transcript completes, a short preview snippet appears in quotes for a few seconds.
 - During recording, the status line shows a live waveform and the current dB level.
+- The live dB display is clamped to a `-60dB` floor to avoid misleading extreme values.
 
 ---
 

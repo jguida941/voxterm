@@ -1,6 +1,6 @@
 use std::time::{Duration, Instant};
 
-use crossbeam_channel::select;
+use crossbeam_channel::{select, TryRecvError};
 use crossterm::terminal::size as terminal_size;
 use voxterm::{log_debug, VoiceCaptureSource, VoiceCaptureTrigger};
 
@@ -40,13 +40,17 @@ use crate::theme_picker::{
     THEME_PICKER_OPTION_START_ROW,
 };
 use crate::transcript::{try_flush_pending, TranscriptIo};
-use crate::voice_control::{drain_voice_messages, reset_capture_visuals, start_voice_capture};
+use crate::voice_control::{
+    clear_capture_metrics, drain_voice_messages, reset_capture_visuals, start_voice_capture,
+};
 use crate::writer::{set_status, WriterMessage};
 
 const EVENT_LOOP_IDLE_MS: u64 = 50;
 const THEME_PICKER_NUMERIC_TIMEOUT_MS: u64 = 350;
 const RECORDING_DURATION_UPDATE_MS: u64 = 200;
 const PROCESSING_SPINNER_TICK_MS: u64 = 120;
+const METER_DB_FLOOR: f32 = -60.0;
+const PTY_OUTPUT_BATCH_CHUNKS: usize = 8;
 
 fn run_periodic_tasks(
     state: &mut EventLoopState,
@@ -159,7 +163,7 @@ fn run_periodic_tasks(
         && now.duration_since(timers.last_meter_update)
             >= Duration::from_millis(deps.meter_update_ms)
     {
-        let level = deps.live_meter.level_db();
+        let level = deps.live_meter.level_db().max(METER_DB_FLOOR);
         state.meter_levels.push_back(level);
         if state.meter_levels.len() > METER_HISTORY_MAX {
             state.meter_levels.pop_front();
@@ -1173,6 +1177,7 @@ pub(crate) fn run_event_loop(
                                     if deps.voice_manager.active_source() == Some(VoiceCaptureSource::Python) {
                                         let _ = deps.voice_manager.cancel_capture();
                                         state.status_state.recording_state = RecordingState::Idle;
+                                        clear_capture_metrics(&mut state.status_state);
                                         timers.recording_started_at = None;
                                         set_status(
                                             &deps.writer_tx,
@@ -1185,6 +1190,7 @@ pub(crate) fn run_event_loop(
                                     } else {
                                         deps.voice_manager.request_early_stop();
                                         state.status_state.recording_state = RecordingState::Processing;
+                                        clear_capture_metrics(&mut state.status_state);
                                         state.processing_spinner_index = 0;
                                         timers.last_processing_tick = Instant::now();
                                         set_status(
@@ -1379,7 +1385,18 @@ pub(crate) fn run_event_loop(
             }
             recv(deps.session.output_rx) -> chunk => {
                 match chunk {
-                    Ok(data) => {
+                    Ok(mut data) => {
+                        let mut output_disconnected = false;
+                        for _ in 0..PTY_OUTPUT_BATCH_CHUNKS {
+                            match deps.session.output_rx.try_recv() {
+                                Ok(next) => data.extend_from_slice(&next),
+                                Err(TryRecvError::Empty) => break,
+                                Err(TryRecvError::Disconnected) => {
+                                    output_disconnected = true;
+                                    break;
+                                }
+                            }
+                        }
                         let now = Instant::now();
                         state.prompt_tracker.feed_output(&data);
                         {
@@ -1424,6 +1441,9 @@ pub(crate) fn run_event_loop(
                             deps.sound_on_complete,
                             deps.sound_on_error,
                         );
+                        if output_disconnected {
+                            running = false;
+                        }
                     }
                     Err(_) => {
                         running = false;

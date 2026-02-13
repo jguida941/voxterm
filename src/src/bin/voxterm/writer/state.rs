@@ -12,6 +12,8 @@ use super::WriterMessage;
 use crate::status_line::{format_status_banner, StatusLineState};
 use crate::theme::Theme;
 
+const OUTPUT_FLUSH_INTERVAL_MS: u64 = 16;
+
 #[derive(Debug, Clone)]
 pub(super) struct OverlayPanel {
     pub(super) content: String,
@@ -59,6 +61,7 @@ pub(super) struct WriterState {
     rows: u16,
     cols: u16,
     last_output_at: Instant,
+    last_output_flush_at: Instant,
     last_status_draw_at: Instant,
     theme: Theme,
     mouse_enabled: bool,
@@ -74,6 +77,7 @@ impl WriterState {
             rows: 0,
             cols: 0,
             last_output_at: Instant::now(),
+            last_output_flush_at: Instant::now(),
             last_status_draw_at: Instant::now(),
             theme: Theme::default(),
             mouse_enabled: false,
@@ -87,13 +91,24 @@ impl WriterState {
                     log_debug(&format!("stdout write_all failed: {err}"));
                     return false;
                 }
-                self.last_output_at = Instant::now();
+                let now = Instant::now();
+                self.last_output_at = now;
                 if self.display.has_any() {
                     self.needs_redraw = true;
                 }
-                if let Err(err) = self.stdout.flush() {
-                    log_debug(&format!("stdout flush failed: {err}"));
+                if now.duration_since(self.last_output_flush_at)
+                    >= Duration::from_millis(OUTPUT_FLUSH_INTERVAL_MS)
+                    || bytes.contains(&b'\n')
+                {
+                    if let Err(err) = self.stdout.flush() {
+                        log_debug(&format!("stdout flush failed: {err}"));
+                    } else {
+                        self.last_output_flush_at = now;
+                    }
                 }
+                // Keep overlays/HUD responsive while PTY output is continuous.
+                // Without this, recv_timeout-based redraws can be starved.
+                self.maybe_redraw_status();
             }
             WriterMessage::Status { text } => {
                 self.pending.status = Some(text);
@@ -168,7 +183,7 @@ impl WriterState {
 
     pub(super) fn maybe_redraw_status(&mut self) {
         const STATUS_IDLE_MS: u64 = 50;
-        const STATUS_MAX_WAIT_MS: u64 = 500;
+        const STATUS_MAX_WAIT_MS: u64 = 150;
         if !self.needs_redraw {
             return;
         }

@@ -10,6 +10,7 @@ use voxterm::{
 use crate::status_line::{Pipeline, RecordingState, StatusLineState};
 use crate::writer::{send_enhanced_status, set_status, WriterMessage};
 
+use super::drain::clear_capture_metrics;
 use super::pipeline::using_native_pipeline;
 use super::STATUS_TOAST_SECS;
 
@@ -237,6 +238,8 @@ pub(crate) fn start_voice_capture(
     match voice_manager.start_capture(trigger)? {
         Some(info) => {
             status_state.recording_state = RecordingState::Recording;
+            clear_capture_metrics(status_state);
+            status_state.recording_duration = Some(0.0);
             status_state.pipeline = match info.source {
                 VoiceCaptureSource::Native => Pipeline::Rust,
                 VoiceCaptureSource::Python => Pipeline::Python,

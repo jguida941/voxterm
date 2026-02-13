@@ -34,6 +34,7 @@
 - [x] MP-080 Hide latency badge when reliable latency cannot be measured.
 - [x] MP-081 Emit structured `latency_audit|...` logs for analysis.
 - [x] MP-082 Add automated tests around latency calculation behavior.
+- [x] MP-097 Fix busy-output HUD responsiveness and stale meter/timer artifacts (settings lag under Codex output, stale REC duration/dB after capture, clamp meter floor to stable display bounds).
 - [ ] MP-083 Run and document baseline latency measurements with `latency_measurement` and `dev/scripts/tests/measure_latency.sh`.
 - [ ] MP-084 Add CI-friendly synthetic latency regression guardrails.
 
