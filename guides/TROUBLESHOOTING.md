@@ -113,7 +113,7 @@ Compact HUD also adapts module emphasis by context and width:
 - backend busy: queue + latency
 - idle: latency-focused compact view
 
-A brief transition pulse marker (`✦`, `•`) on mode changes is expected.
+A brief transition pulse marker (`✦`, `•`) on selected state changes is expected.
 
 ### Latency badge looks inaccurate
 

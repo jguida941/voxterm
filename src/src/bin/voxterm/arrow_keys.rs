@@ -84,6 +84,26 @@ pub(crate) fn parse_arrow_keys_only(bytes: &[u8]) -> Option<Vec<ArrowKey>> {
     Some(keys)
 }
 
+pub(crate) fn is_arrow_escape_noise(bytes: &[u8]) -> bool {
+    if bytes.is_empty() {
+        return false;
+    }
+
+    if parse_arrow_keys_only(bytes).is_some() {
+        return true;
+    }
+
+    let mut saw_escape = false;
+    for &byte in bytes {
+        match byte {
+            0x1b => saw_escape = true,
+            b'[' | b';' | b'0'..=b'9' | b'A' | b'B' | b'C' | b'D' => {}
+            _ => return false,
+        }
+    }
+    saw_escape
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -128,5 +148,21 @@ mod tests {
     fn parse_arrow_keys_only_rejects_non_arrow_csi_sequences() {
         assert!(parse_arrow_keys_only(&[0x1b, b'[', b'1', b';', b'2', b'P']).is_none());
         assert!(parse_arrow_keys_only(b"abc").is_none());
+    }
+
+    #[test]
+    fn is_arrow_escape_noise_accepts_arrow_sequences_and_fragments() {
+        assert!(is_arrow_escape_noise(b"\x1b[A"));
+        assert!(is_arrow_escape_noise(b"\x1b[B\x1b[C"));
+        assert!(is_arrow_escape_noise(b"\x1b[1;2A"));
+        assert!(is_arrow_escape_noise(b"\x1b["));
+        assert!(is_arrow_escape_noise(b"\x1b[1;"));
+    }
+
+    #[test]
+    fn is_arrow_escape_noise_rejects_non_noise_inputs() {
+        assert!(!is_arrow_escape_noise(b"hello"));
+        assert!(!is_arrow_escape_noise(b"\x1b[31mred\x1b[0m"));
+        assert!(!is_arrow_escape_noise(b"\n"));
     }
 }

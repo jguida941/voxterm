@@ -7,7 +7,7 @@ use crossbeam_channel::{never, select, TryRecvError, TrySendError};
 use crossterm::terminal::size as terminal_size;
 use voxterm::{log_debug, VoiceCaptureSource, VoiceCaptureTrigger};
 
-use crate::arrow_keys::{parse_arrow_keys, parse_arrow_keys_only, ArrowKey};
+use crate::arrow_keys::{is_arrow_escape_noise, parse_arrow_keys, parse_arrow_keys_only, ArrowKey};
 use crate::button_handlers::{
     advance_hud_button_focus, send_enhanced_status_with_buttons, update_button_registry,
     ButtonActionContext,
@@ -1105,6 +1105,11 @@ pub(crate) fn run_event_loop(
                                 }
                             }
                             InputEvent::Bytes(bytes) => {
+                                if state.suppress_startup_escape_input
+                                    && is_arrow_escape_noise(&bytes)
+                                {
+                                    continue;
+                                }
                                 if let Some(keys) = parse_arrow_keys_only(&bytes) {
                                     let mut moved = false;
                                     for key in keys {
@@ -1543,6 +1548,9 @@ pub(crate) fn run_event_loop(
                             }
                         }
                         let now = Instant::now();
+                        if !data.is_empty() {
+                            state.suppress_startup_escape_input = false;
+                        }
                         state.prompt_tracker.feed_output(&data);
                         {
                             let mut io = TranscriptIo {

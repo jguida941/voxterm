@@ -94,7 +94,7 @@ All CLI output passes through unchanged.
 | **Transcript queue** | Speak while CLI is busy, types when ready |
 | **Project voice macros** | Expand trigger phrases from `.voxterm/macros.yaml` before typing |
 | **Macros toggle** | Runtime ON/OFF control for macro expansion from Settings |
-| **Adaptive HUD telemetry** | Compact meter/latency trend chips with brief transition pulses on major state changes |
+| **Adaptive HUD telemetry** | Compact meter/latency trend chips with brief transition pulses on selected state changes |
 | **Backends** | Codex + Claude supported; experimental presets for Gemini (not working), Aider, OpenCode |
 | **Themes** | 11 built-in themes including ChatGPT, Catppuccin, Dracula, Nord, Tokyo Night, Gruvbox |
 
