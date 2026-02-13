@@ -1278,6 +1278,34 @@ mod tests {
     }
 
     #[test]
+    fn full_hud_rows_never_exceed_terminal_width_across_common_sizes() {
+        let mut state = StatusLineState::new();
+        state.hud_style = HudStyle::Full;
+        state.voice_mode = VoiceMode::Manual;
+        state.auto_voice_enabled = false;
+        state.send_mode = crate::config::VoiceSendMode::Insert;
+        state.message = "Ready".to_string();
+        state.recording_duration = Some(12.3);
+        state.meter_db = Some(-23.0);
+        state.meter_levels = vec![-55.0, -46.0, -38.0, -29.0, -21.0, -15.0, -10.0];
+        state.queue_depth = 2;
+        state.last_latency_ms = Some(316);
+        state.hud_right_panel = crate::config::HudRightPanel::Ribbon;
+        state.hud_right_panel_recording_only = false;
+
+        for width in 40..=220 {
+            let banner = format_status_banner(&state, Theme::Coral, width);
+            for line in banner.lines {
+                let line_width = display_width(&line);
+                assert!(
+                    line_width <= width,
+                    "line overflow at width {width}: line_width={line_width}, line={line:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
     fn compact_registry_adapts_to_queue_state() {
         let mut state = StatusLineState::new();
         state.queue_depth = 2;

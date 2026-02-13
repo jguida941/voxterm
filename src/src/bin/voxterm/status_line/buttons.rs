@@ -344,12 +344,13 @@ pub(super) fn format_shortcuts_row_with_positions(
     borders: &BorderSet,
     inner_width: usize,
 ) -> (String, Vec<ButtonPosition>) {
+    let row_width = inner_width.saturating_sub(1);
     // Row 2 from bottom of HUD (row 1 = bottom border)
     let (shortcuts_str, buttons) =
-        format_button_row_with_positions(state, colors, inner_width, 2, true, false);
+        format_button_row_with_positions(state, colors, row_width, 2, true, false);
 
     // Add leading space to match main row's left margin
-    let interior = format!(" {}", shortcuts_str);
+    let interior = truncate_display(&format!(" {}", shortcuts_str), inner_width);
     let interior_width = display_width(&interior);
     let padding_needed = inner_width.saturating_sub(interior_width);
     let padding = " ".repeat(padding_needed);
@@ -1007,5 +1008,25 @@ mod tests {
 
         let row = format_button_row(&state, &colors, 120);
         assert!(!row.contains("199ms"));
+    }
+
+    #[test]
+    fn shortcuts_row_stays_within_banner_width() {
+        let colors = Theme::Coral.colors();
+        let mut state = StatusLineState::new();
+        state.hud_style = HudStyle::Full;
+        state.recording_state = RecordingState::Idle;
+        state.last_latency_ms = Some(316);
+        state.latency_display = LatencyDisplayMode::Short;
+
+        let inner_width = 90;
+        let (row, _) =
+            format_shortcuts_row_with_positions(&state, &colors, &colors.borders, inner_width);
+
+        // +2 accounts for left/right border columns in full HUD rows.
+        assert!(
+            display_width(&row) <= inner_width + 2,
+            "shortcuts row should not exceed full HUD width"
+        );
     }
 }

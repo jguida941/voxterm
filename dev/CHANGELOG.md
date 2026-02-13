@@ -5,6 +5,14 @@ Note: Some historical entries reference internal documents that are not publishe
 
 ## [Unreleased]
 
+## [1.0.59] - 2026-02-13
+
+### UX
+- Fix a remaining JetBrains full-HUD wrap edge case by guarding rendered banner width and preventing one-column overflow in the shortcuts row.
+
+### Tests
+- Add status-line row-width coverage ensuring full-HUD shortcuts rows stay within banner bounds.
+
 ## [1.0.58] - 2026-02-13
 
 ### UX

@@ -58,6 +58,7 @@
 - [x] MP-114 Polish startup/theme UX in IDE terminals (remove startup top-gap, keep requested themes on 256-color terminals, and render Theme Picker neutral when current theme is `none`).
 - [x] MP-115 Stabilize terminal compatibility regressions (drop startup arrow escape noise during boot, suppress Ctrl+V idle pulse dot beside `PTT`, and restore conservative ANSI fallback when truecolor is not detected).
 - [x] MP-116 Fix JetBrains terminal HUD duplication by hardening scroll-region cursor restore semantics.
+- [x] MP-117 Prevent one-column HUD wrap in JetBrains terminals (status-banner width guard + row truncation safety).
 - [ ] MP-104 Add explicit voice-state visualization (idle/listening/processing/responding) with clear transitions.
 - [ ] MP-055 Quick theme switcher in settings.
 - [ ] MP-102 Add toast notification center with auto-dismiss, severity, and history review.
