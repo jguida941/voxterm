@@ -5,6 +5,15 @@ Note: Some historical entries reference internal documents that are not publishe
 
 ## [Unreleased]
 
+### UX
+- Expand Claude prompt-ready matching to recognize confirmation prompts (for example `[Y/n]`) in addition to bare `>` prompt lines.
+- Reserve the terminal scroll region above the HUD/overlay so long PTY output does not scroll through the bottom HUD rows.
+- Clear stale recording duration/meter/preview visuals when auto-voice is disabled, including the capture-cancel path.
+
+### Tests
+- Add Claude backend prompt-pattern coverage for confirmation prompts.
+- Add writer render coverage for setting and resetting terminal scroll-region sequences.
+
 ## [1.0.53] - 2026-02-13
 
 ### UX

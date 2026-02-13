@@ -43,8 +43,8 @@ impl AiBackend for ClaudeBackend {
     }
 
     fn prompt_pattern(&self) -> &str {
-        // Claude Code shows ">" when ready for input
-        r"^>\s*$"
+        // Claude Code can show either a bare prompt marker or confirmation prompts.
+        r"(?i)^(?:[>›❯]\s*|.*\[(?:y/n|y/N|Y/n|Y/N)\]\s*)$"
     }
 
     fn thinking_pattern(&self) -> Option<&str> {
@@ -56,6 +56,7 @@ impl AiBackend for ClaudeBackend {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use regex::Regex;
 
     #[test]
     fn test_claude_backend() {
@@ -71,5 +72,17 @@ mod tests {
     fn test_claude_with_args() {
         let backend = ClaudeBackend::with_args(vec!["--model".to_string(), "opus".to_string()]);
         assert_eq!(backend.command(), vec!["claude", "--model", "opus"]);
+    }
+
+    #[test]
+    fn test_claude_prompt_pattern_matches_review_prompts() {
+        let backend = ClaudeBackend::new();
+        let regex = Regex::new(backend.prompt_pattern()).expect("valid prompt regex");
+
+        assert!(regex.is_match("> "));
+        assert!(regex.is_match("❯ "));
+        assert!(regex.is_match("Do you want to apply these changes? [Y/n]"));
+        assert!(regex.is_match("Apply this update? [y/N]"));
+        assert!(!regex.is_match("Thinking..."));
     }
 }

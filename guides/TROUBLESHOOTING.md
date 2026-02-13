@@ -9,6 +9,7 @@
 | Codex not responding | See [Codex Issues → Codex not responding](#codex-not-responding) |
 | Auto-voice not triggering | See [Codex Issues → Auto-voice not triggering](#auto-voice-not-triggering) |
 | Typing feels laggy while Codex is busy | See [Status Messages → Typing/Enter feels laggy while backend is thinking](#typingenter-feels-laggy-while-backend-is-thinking) |
+| Transcript stays queued in Claude review prompts | See [Status Messages → Transcript stays queued in Claude review prompts](#transcript-stays-queued-in-claude-review-prompts) |
 | Wrong version after update | [Install Issues → Wrong version after update](#wrong-version-after-update) |
 
 Other sections: [Status Messages](#status-messages) · [Audio Setup](#audio-setup) ·
@@ -68,6 +69,17 @@ is idle for the transcript timeout). In auto mode, Enter is pressed for you.
 **Fixes:**
 1. Wait for the CLI to finish and return to a prompt
 2. If you need to send immediately, stop the current response (usually `Ctrl+C`) and try again
+
+### Transcript stays queued in Claude review prompts
+
+Some Claude sessions show confirmation prompts (for example `[Y/n]`) instead of
+a bare `>` line. Older builds could miss these as "ready" and keep transcripts
+queued until idle timeout.
+
+**Fixes:**
+1. Upgrade to the latest VoxTerm build
+2. Restart the session after upgrading
+3. If needed, set an explicit prompt regex (example: `--prompt-regex '.*\\[[Yy]/[Nn]\\]\\s*$'`)
 
 ### Typing/Enter feels laggy while backend is thinking
 
