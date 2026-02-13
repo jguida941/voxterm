@@ -91,7 +91,12 @@ def confirm_or_abort(message: str, assume_yes: bool) -> None:
     """Prompt for confirmation unless assume_yes is set."""
     if assume_yes:
         return
-    reply = input(f"{message} [y/N] ").strip().lower()
+    try:
+        reply = input(f"{message} [y/N] ").strip().lower()
+    except EOFError:
+        print(f"{message} [y/N] <non-interactive input unavailable>")
+        print("Aborted. Re-run with --yes for non-interactive usage.")
+        raise SystemExit(1)
     if reply not in ("y", "yes"):
         print("Aborted.")
         raise SystemExit(1)
