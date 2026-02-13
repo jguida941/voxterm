@@ -1100,6 +1100,36 @@ mod tests {
     }
 
     #[test]
+    fn format_status_banner_full_mode_duration_separator_aligns_with_edit_button_lane() {
+        let mut state = StatusLineState::new();
+        state.hud_style = HudStyle::Full;
+        state.recording_state = RecordingState::Recording;
+        state.recording_duration = Some(5.0);
+        state.meter_db = Some(-44.0);
+        state.send_mode = crate::config::VoiceSendMode::Insert;
+
+        let banner = format_status_banner(&state, Theme::None, 120);
+        let main_row = &banner.lines[1];
+        let shortcuts_row = &banner.lines[2];
+
+        let meter_idx = main_row
+            .find("-44dB")
+            .expect("main row should include meter text");
+        let before_meter = &main_row[..meter_idx];
+        let separator_idx = before_meter
+            .rfind('│')
+            .expect("main row should include separator before meter");
+        let separator_col = display_width(&main_row[..separator_idx]);
+        let edit_col = display_width(
+            shortcuts_row
+                .split("[edit]")
+                .next()
+                .expect("shortcuts row should include edit button"),
+        );
+        assert_eq!(separator_col, edit_col);
+    }
+
+    #[test]
     fn format_status_banner_full_mode_shows_ready_with_ribbon_panel() {
         let mut state = StatusLineState::new();
         state.hud_style = HudStyle::Full;

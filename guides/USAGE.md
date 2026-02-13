@@ -61,6 +61,9 @@ after the text is typed:
 - **Insert** - the text appears on the command line and you press `Enter`
   yourself (handy if you want to review or edit first)
 
+UI label note: the HUD/Settings shortcut for insert behavior is shown as
+`edit` to make the "review before Enter" behavior explicit.
+
 ![Recording Mode](https://raw.githubusercontent.com/jguida941/voxterm/master/img/recording.png)
 
 You control **when** recording starts and **what happens** after transcription.

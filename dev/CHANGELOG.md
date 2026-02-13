@@ -29,6 +29,8 @@ Note: Some historical entries reference internal documents that are not publishe
 - Shorten startup splash dwell time, render it in an alternate screen, and clear with stronger reset sequences so IDE terminals (for example PyCharm) do not retain the splash frame.
 - Fix startup tagline centering by using display-width math for Unicode separators (`│`) instead of byte length.
 - Improve terminal color capability detection so JetBrains/VSCode-style terminals that omit `COLORTERM` can still use truecolor themes instead of always falling back to ANSI.
+- Rename Settings send-mode `Insert` label to user-facing `Edit` so terminology matches HUD/status messaging.
+- Preserve Full HUD lane alignment between the duration separator and `[edit]` shortcut column.
 
 ### CI
 - Add a dedicated latency guard workflow (`.github/workflows/latency_guard.yml`) that runs synthetic voice-only regression bounds in CI.
@@ -50,6 +52,8 @@ Note: Some historical entries reference internal documents that are not publishe
 - Add HUD module coverage for meter/latency sparkline rendering.
 - Add status-line coverage for adaptive compact module registry selection.
 - Add minimal-HUD coverage for ribbon colorized waveform output and idle status compaction behavior.
+- Add settings-render coverage for `Send mode -> [ Edit ]` label semantics.
+- Add full-HUD layout coverage ensuring the duration separator aligns with the `[edit]` shortcut lane.
 
 ### Developer Experience
 - Add `python3 dev/scripts/devctl.py hygiene` to audit archive naming, ADR status/index consistency, and `dev/scripts` documentation coverage.

@@ -151,7 +151,7 @@ fn toggle_button(enabled: bool) -> String {
 fn mode_button(mode: VoiceSendMode) -> String {
     match mode {
         VoiceSendMode::Auto => button_label("Auto"),
-        VoiceSendMode::Insert => button_label("Insert"),
+        VoiceSendMode::Insert => button_label("Edit"),
     }
 }
 
@@ -288,11 +288,37 @@ fn format_menu_row(colors: &ThemeColors, width: usize, text: &str, selected: boo
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::{HudRightPanel, HudStyle, LatencyDisplayMode, VoiceSendMode};
     use crate::settings::settings_overlay_height;
+    use crate::status_line::Pipeline;
+    use crate::theme::Theme;
 
     #[test]
     fn settings_overlay_height_matches_items() {
         let height = settings_overlay_height();
         assert_eq!(height, SETTINGS_ITEMS.len() + 6);
+    }
+
+    #[test]
+    fn settings_overlay_uses_edit_label_for_insert_send_mode() {
+        let view = SettingsView {
+            selected: 1,
+            auto_voice_enabled: false,
+            send_mode: VoiceSendMode::Insert,
+            macros_enabled: true,
+            sensitivity_db: -35.0,
+            theme: Theme::Coral,
+            hud_style: HudStyle::Full,
+            hud_right_panel: HudRightPanel::Off,
+            hud_right_panel_recording_only: false,
+            latency_display: LatencyDisplayMode::Short,
+            mouse_enabled: true,
+            backend_label: "codex",
+            pipeline: Pipeline::Rust,
+        };
+        let rendered = format_settings_overlay(&view, 90);
+        assert!(rendered.contains("Send mode"));
+        assert!(rendered.contains("[ Edit ]"));
+        assert!(!rendered.contains("[ Insert ]"));
     }
 }
