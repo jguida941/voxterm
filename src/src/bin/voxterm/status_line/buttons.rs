@@ -283,13 +283,9 @@ fn get_button_defs(state: &StatusLineState) -> Vec<ButtonDef> {
     } else {
         "ptt"
     };
-    let send_label = if state.review_before_send {
-        "review"
-    } else {
-        match state.send_mode {
-            VoiceSendMode::Auto => "send",
-            VoiceSendMode::Insert => "edit",
-        }
+    let send_label = match state.send_mode {
+        VoiceSendMode::Auto => "send",
+        VoiceSendMode::Insert => "edit",
     };
 
     vec![
@@ -356,13 +352,7 @@ fn format_button_row_with_positions(
                 }
             }
             ButtonAction::ToggleSendMode => match state.send_mode {
-                VoiceSendMode::Auto => {
-                    if state.review_before_send {
-                        colors.warning
-                    } else {
-                        colors.success
-                    }
-                }
+                VoiceSendMode::Auto => colors.success,
                 VoiceSendMode::Insert => colors.warning,
             },
             // Static buttons use border/accent color to pop
@@ -444,13 +434,7 @@ fn format_button_row_with_positions(
                 }
             }
             ButtonAction::ToggleSendMode => match state.send_mode {
-                VoiceSendMode::Auto => {
-                    if state.review_before_send {
-                        colors.warning
-                    } else {
-                        colors.success
-                    }
-                }
+                VoiceSendMode::Auto => colors.success,
                 VoiceSendMode::Insert => colors.warning,
             },
             ButtonAction::SettingsToggle
@@ -519,13 +503,9 @@ fn format_button_row_legacy(
     items.push(format_button(colors, voice_label, voice_color, false));
 
     // send mode: auto/insert - green when auto-send, yellow when insert
-    let (send_label, send_color) = if state.review_before_send {
-        ("review", colors.warning)
-    } else {
-        match state.send_mode {
-            VoiceSendMode::Auto => ("send", colors.success), // green = auto-send
-            VoiceSendMode::Insert => ("edit", colors.warning), // yellow = insert/edit mode
-        }
+    let (send_label, send_color) = match state.send_mode {
+        VoiceSendMode::Auto => ("send", colors.success), // green = auto-send
+        VoiceSendMode::Insert => ("edit", colors.warning), // yellow = insert/edit mode
     };
     items.push(format_button(colors, send_label, send_color, false));
 
@@ -688,14 +668,21 @@ mod tests {
     }
 
     #[test]
-    fn button_defs_use_review_label_when_enabled() {
+    fn button_defs_use_send_label_from_send_mode() {
         let mut state = StatusLineState::new();
-        state.review_before_send = true;
         let defs = get_button_defs(&state);
         let send = defs
             .iter()
             .find(|def| def.action == ButtonAction::ToggleSendMode)
             .expect("send button");
-        assert_eq!(send.label, "review");
+        assert_eq!(send.label, "send");
+
+        state.send_mode = VoiceSendMode::Insert;
+        let defs = get_button_defs(&state);
+        let send = defs
+            .iter()
+            .find(|def| def.action == ButtonAction::ToggleSendMode)
+            .expect("send button");
+        assert_eq!(send.label, "edit");
     }
 }

@@ -1,15 +1,14 @@
 //! Settings item metadata so menus render and dispatch actions from one schema.
 
 use crate::config::{HudRightPanel, HudStyle, VoiceSendMode};
-use crate::status_line::{Pipeline, VoiceIntentMode};
+use crate::status_line::Pipeline;
 use crate::theme::Theme;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SettingsItem {
     AutoVoice,
     SendMode,
-    TranscriptReview,
-    VoiceMode,
+    Macros,
     Sensitivity,
     Theme,
     HudStyle,
@@ -25,8 +24,7 @@ pub enum SettingsItem {
 pub const SETTINGS_ITEMS: &[SettingsItem] = &[
     SettingsItem::AutoVoice,
     SettingsItem::SendMode,
-    SettingsItem::TranscriptReview,
-    SettingsItem::VoiceMode,
+    SettingsItem::Macros,
     SettingsItem::Sensitivity,
     SettingsItem::Theme,
     SettingsItem::HudStyle,
@@ -58,8 +56,7 @@ pub struct SettingsView<'a> {
     pub selected: usize,
     pub auto_voice_enabled: bool,
     pub send_mode: VoiceSendMode,
-    pub review_before_send: bool,
-    pub voice_intent_mode: VoiceIntentMode,
+    pub macros_enabled: bool,
     pub sensitivity_db: f32,
     pub theme: Theme,
     pub hud_style: HudStyle,

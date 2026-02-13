@@ -8,29 +8,24 @@ Note: Some historical entries reference internal documents that are not publishe
 ### UX
 - Add project-scoped voice macro expansion from `.voxterm/macros.yaml` before transcript injection, including trigger-to-command mappings and template macros with `{TRANSCRIPT}` remainder substitution.
 - Support per-macro send-mode overrides (`auto`/`insert`) so selected macros can stay in insert behavior even when global send mode is auto.
-- Add a separate command/dictation voice intent mode in Settings:
-  - Command mode keeps macro expansion enabled.
-  - Dictation mode disables macro expansion while preserving existing send-mode behavior (`auto` vs `insert`).
-- Show current intent mode (`CMD`/`DICT`) in status/HUD formatting so transcript-transform policy is always visible.
-- Add `Review first` in Settings to force transcript insert-before-send behavior and pause auto-voice re-arm until Enter is forwarded.
-- Surface review mode state in status/HUD labels (`RVW`) and send button styling.
+- Add a runtime `Macros` ON/OFF setting in the Settings panel to control macro expansion without changing send mode behavior.
+- Keep status/HUD text aligned with baseline `auto`/`insert` semantics (no extra review/intent labels).
 
 ### CI
 - Add a dedicated latency guard workflow (`.github/workflows/latency_guard.yml`) that runs synthetic voice-only regression bounds in CI.
 - Extend `latency_measurement` and `dev/scripts/tests/measure_latency.sh` with CI guardrail flags (`--ci-guard`, `--skip-stt`, and min/max latency bounds) for deterministic regression checks.
-- Add a dedicated voice-mode regression workflow (`.github/workflows/voice_mode_guard.yml`) to continuously validate command/dictation/review mode behavior.
+- Add a dedicated voice-mode regression workflow (`.github/workflows/voice_mode_guard.yml`) to continuously validate macros-toggle and send-mode behavior.
 
 ### Documentation
 - Document latency baseline results in `dev/archive/2026-02-13-latency-baseline.md`.
 - Document the latency guard workflow and command usage in `dev/scripts/README.md`.
 - Document voice macros in `guides/USAGE.md`, `guides/TROUBLESHOOTING.md`, and `dev/ARCHITECTURE.md`.
-- Document transcript review-before-send behavior in usage/troubleshooting/architecture docs.
+- Document the runtime macros ON/OFF behavior in usage/troubleshooting/architecture docs.
 
 ### Tests
 - Add unit coverage for voice macro parsing, trigger matching, template remainder substitution, and project file loading.
-- Add intent-mode tests for command vs dictation macro behavior and settings-toggle state transitions.
-- Add transcript delivery coverage for review wait-state tracking and settings-handler coverage for review toggle behavior.
-- Add HUD/status assertions for review-mode labels (`RVW` and `review` send control text).
+- Add settings and drain coverage for macros ON/OFF behavior.
+- Add status-line/button coverage for baseline send-mode labels (`send`/`edit`).
 
 ### Developer Experience
 - Add `python3 dev/scripts/devctl.py hygiene` to audit archive naming, ADR status/index consistency, and `dev/scripts` documentation coverage.

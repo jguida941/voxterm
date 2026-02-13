@@ -26,16 +26,13 @@ jobs:
       - name: Install ALSA development headers
         run: sudo apt-get update && sudo apt-get install -y libasound2-dev
 
-      - name: Command/Dictation mode guards
+      - name: Macro mode guards
         run: |
-          cargo test --bin voxterm settings_handlers::tests::toggle_voice_intent_mode_updates_state_and_status -- --nocapture
-          cargo test --bin voxterm voice_control::drain::tests::apply_voice_intent_mode_applies_macros_in_command_mode -- --nocapture
-          cargo test --bin voxterm voice_control::drain::tests::apply_voice_intent_mode_skips_macros_in_dictation_mode -- --nocapture
+          cargo test --bin voxterm settings_handlers::tests::toggle_macros_enabled_updates_state_and_status -- --nocapture
+          cargo test --bin voxterm voice_control::drain::tests::apply_macro_mode_applies_macros_when_enabled -- --nocapture
+          cargo test --bin voxterm voice_control::drain::tests::apply_macro_mode_skips_macros_when_disabled -- --nocapture
 
-      - name: Review-first mode guards
+      - name: Send mode label guards
         run: |
-          cargo test --bin voxterm settings_handlers::tests::toggle_transcript_review_updates_state_and_status -- --nocapture
-          cargo test --bin voxterm voice_control::drain::tests::apply_review_before_send_forces_insert_when_enabled -- --nocapture
-          cargo test --bin voxterm transcript::delivery::tests::deliver_transcript_tracks_review_wait_state -- --nocapture
-          cargo test --bin voxterm status_line::format::tests::format_status_line_shows_review_tag_when_enabled -- --nocapture
-          cargo test --bin voxterm status_line::buttons::tests::button_defs_use_review_label_when_enabled -- --nocapture
+          cargo test --bin voxterm settings_handlers::tests::toggle_send_mode_updates_state_and_status -- --nocapture
+          cargo test --bin voxterm status_line::buttons::tests::button_defs_use_send_label_from_send_mode -- --nocapture

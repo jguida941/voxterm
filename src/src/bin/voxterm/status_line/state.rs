@@ -33,32 +33,6 @@ impl VoiceMode {
     }
 }
 
-/// Voice intent mode controls transcript transformation policy.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum VoiceIntentMode {
-    /// Command-style voice input; macro expansion is enabled.
-    #[default]
-    Command,
-    /// Natural-language dictation; macro expansion is disabled.
-    Dictation,
-}
-
-impl VoiceIntentMode {
-    pub fn label(&self) -> &'static str {
-        match self {
-            Self::Command => "Command",
-            Self::Dictation => "Dictation",
-        }
-    }
-
-    pub fn short_label(&self) -> &'static str {
-        match self {
-            Self::Command => "CMD",
-            Self::Dictation => "DICT",
-        }
-    }
-}
-
 /// Current recording state.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum RecordingState {
@@ -169,12 +143,8 @@ pub struct StatusLineState {
     pub last_latency_ms: Option<u32>,
     /// Current voice send mode
     pub send_mode: VoiceSendMode,
-    /// Transcript intent mode (command vs dictation)
-    pub voice_intent_mode: VoiceIntentMode,
-    /// When true, transcripts are inserted for review/edit and user presses Enter to send.
-    pub review_before_send: bool,
-    /// Internal guard used to pause auto re-arm until the reviewed command is sent.
-    pub awaiting_review_send: bool,
+    /// Whether macro expansion from `.voxterm/macros.yaml` is enabled.
+    pub macros_enabled: bool,
     /// Right-side HUD panel mode
     pub hud_right_panel: HudRightPanel,
     /// Only animate the right-side panel while recording
@@ -192,6 +162,7 @@ impl StatusLineState {
         Self {
             sensitivity_db: -35.0,
             meter_levels: Vec::with_capacity(METER_HISTORY_MAX),
+            macros_enabled: true,
             ..Default::default()
         }
     }
@@ -209,14 +180,6 @@ mod tests {
     }
 
     #[test]
-    fn voice_intent_mode_labels() {
-        assert_eq!(VoiceIntentMode::Command.label(), "Command");
-        assert_eq!(VoiceIntentMode::Dictation.label(), "Dictation");
-        assert_eq!(VoiceIntentMode::Command.short_label(), "CMD");
-        assert_eq!(VoiceIntentMode::Dictation.short_label(), "DICT");
-    }
-
-    #[test]
     fn pipeline_labels() {
         assert_eq!(Pipeline::Rust.label(), "Rust");
         assert_eq!(Pipeline::Python.label(), "Python");
@@ -227,8 +190,7 @@ mod tests {
         let state = StatusLineState::new();
         assert_eq!(state.sensitivity_db, -35.0);
         assert!(!state.auto_voice_enabled);
-        assert!(!state.review_before_send);
-        assert!(!state.awaiting_review_send);
+        assert!(state.macros_enabled);
         assert!(state.message.is_empty());
     }
 }

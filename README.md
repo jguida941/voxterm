@@ -88,7 +88,7 @@ All CLI output passes through unchanged.
 | **Auto-voice** | Hands-free mode - no typing needed |
 | **Transcript queue** | Speak while CLI is busy, types when ready |
 | **Project voice macros** | Expand trigger phrases from `.voxterm/macros.yaml` before typing |
-| **Command/Dictation mode** | Toggle macro expansion policy independently from send mode |
+| **Macros toggle** | Runtime ON/OFF control for macro expansion from Settings |
 | **Backends** | Codex + Claude supported; experimental presets for Gemini (not working), Aider, OpenCode |
 | **Themes** | 11 built-in themes including ChatGPT, Catppuccin, Dracula, Nord, Tokyo Night, Gruvbox |
 
@@ -140,8 +140,7 @@ Use ↑/↓ to move and Enter to select, or type the theme number.
 
 Mouse control is on by default (toggle it off in Settings).
 You can click HUD buttons or use ←/→ to focus and Enter to activate.
-Settings also include `Voice mode` (Command/Dictation) and `Review first`
-for transcript edit-before-send behavior.
+Settings also include a `Macros` ON/OFF toggle, alongside send mode and auto-voice.
 See the [Usage Guide](guides/USAGE.md) for details.
 
 ### Voice Recording
@@ -165,8 +164,9 @@ See the [Usage Guide](guides/USAGE.md) for details.
 | `Ctrl+Q` | Quit |
 | `Ctrl+C` | Send interrupt to CLI |
 
-When Settings -> `Review first` is ON, transcripts are inserted for edit and the
-send control shows `review` until you press `Enter`.
+Macro behavior is controlled by Settings -> `Macros`:
+- `ON`: apply `.voxterm/macros.yaml` expansions before injection.
+- `OFF`: inject raw transcripts unchanged.
 
 ## Install Options
 

@@ -100,7 +100,7 @@ or activate the selected row. `Esc` closes the menu.
 ![Settings Menu](https://raw.githubusercontent.com/jguida941/voxterm/master/img/settings.png)
 
 The menu surfaces the most common controls (auto-voice, send mode,
-review-first, voice mode, mic sensitivity, theme) plus backend and pipeline
+macros, mic sensitivity, theme) plus backend and pipeline
 info.
 
 It also lets you configure:
@@ -116,14 +116,13 @@ Left/Right selects a HUD button and Enter activates it (even if Mouse is OFF).
 
 ## Voice Modes
 
-Four controls shape voice behavior:
+Three controls shape voice behavior:
 
 - **Auto-voice** (`Ctrl+V`) - when ON, VoxTerm listens automatically. When OFF, you press `Ctrl+R` each time.
 - **Send mode** (`Ctrl+T`) - **auto** types your words and presses Enter. **Insert** types your words but lets you press Enter yourself.
-- **Review first** (Settings -> Review first) - when ON, VoxTerm injects transcripts without Enter and waits for your Enter before auto-voice re-arms.
-- **Voice mode** (Settings → Voice mode) - **Command** enables macro expansion; **Dictation** disables macro expansion.
+- **Macros** (Settings -> Macros) - **ON** applies `.voxterm/macros.yaml` expansions before injection. **OFF** injects raw transcripts.
 
-### All four combinations
+### Auto-voice × send mode combinations
 
 | Auto-voice | Send mode | How it works |
 |------------|-----------|--------------|
@@ -132,14 +131,9 @@ Four controls shape voice behavior:
 | On | Auto | Just start talking. Text is typed + Enter is pressed for you. |
 | On | Insert | Just start talking. Text is typed. You press `Enter` when ready. |
 
-Command/Dictation mode is orthogonal to this table:
-- **Command**: macros can expand transcripts before injection.
-- **Dictation**: raw transcript is injected as-is.
-
-Review-first mode is orthogonal too:
-- **OFF**: auto-voice can re-arm immediately based on prompt/idle readiness.
-- **ON**: auto-voice waits until you press `Enter` after reviewing/editing the injected transcript.
-- In HUD/status, review mode appends `RVW` to the intent tag and the send control text becomes `review`.
+Macros toggle is orthogonal to this table:
+- **ON**: macros can expand transcripts before injection.
+- **OFF**: raw transcript is injected as-is.
 
 ### Tips
 
@@ -151,8 +145,6 @@ Review-first mode is orthogonal too:
 - **Prompt detection**: if auto-voice doesn't re-trigger after the CLI
   finishes, it falls back to an idle timer. Set `--prompt-regex` if your
   prompt is unusual (especially with Claude).
-- **Review first + auto-voice**: VoxTerm pauses listening while you edit.
-  After you press `Enter`, it resumes listening automatically.
 
 ### Long dictation (auto-voice + insert)
 
@@ -239,7 +231,7 @@ Rules:
 - Trigger matching is case-insensitive and ignores repeated spaces.
 - Template macros can consume extra spoken words via `{TRANSCRIPT}`.
 - `mode` is optional and can be `auto` or `insert`.
-- Macros are applied only when **Voice mode = Command**. In **Dictation**, transcripts bypass macros.
+- Macros are applied only when **Settings -> Macros = ON**.
 
 ---
 
@@ -248,10 +240,10 @@ Rules:
 The bottom of your terminal shows the current state:
 
 Example layout:
-`◉ AUTO CMD │ -35dB │ Auto-voice enabled   Ctrl+R rec  Ctrl+V auto`
+`◉ AUTO │ -35dB │ Auto-voice enabled   Ctrl+R rec  Ctrl+V auto`
 
 Sections (left to right):
-- Mode indicator (auto/manual/idle + `CMD`/`DICT` intent tag)
+- Mode indicator (auto/manual/idle)
 - Mic sensitivity in dB
 - Status message (recording adds a live waveform + dB readout)
 - Shortcut hints (on wide terminals)
@@ -273,7 +265,7 @@ When recording or processing, the mode label includes a pipeline tag
 | `Processing …` | Transcribing your speech (spinner updates) |
 | `Transcript ready (Rust)` | Text typed into the terminal (auto mode also presses Enter) |
 | `Transcript ready (Rust, macro 'run tests')` | A voice macro trigger matched and expanded before injection |
-| `Voice mode: dictation (macros disabled)` | Intent mode switched to raw dictation behavior |
+| `Macros: OFF` | Macro expansion disabled; transcripts are injected unchanged |
 | `No speech detected` | Recording finished but no voice was heard |
 | `Transcript queued (2)` | 2 transcripts waiting for the CLI to be ready |
 | `Mic sensitivity: -35 dB` | Threshold changed |
@@ -361,7 +353,7 @@ voxterm --claude
 # Hands-free capture + auto-send
 voxterm --auto-voice
 
-# Hands-free with review before sending
+# Hands-free with insert mode (manual Enter send)
 voxterm --auto-voice --voice-send-mode insert
 
 # Specific microphone

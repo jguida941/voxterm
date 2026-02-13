@@ -16,7 +16,7 @@
 - Protect current moat: terminal-native PTY orchestration, prompt-aware queueing, local-first voice flow.
 - Close trust gap: latency metrics must match user perception and be auditable.
 - Build differentiated product value in phases:
-  1. Quick wins that improve daily workflow (macros, mode clarity, transcript review)
+  1. Quick wins that improve daily workflow (macros, send-mode clarity, transcript ergonomics)
   2. Differentiators (voice navigation, history, CLI workflow polish)
   3. Advanced expansion (streaming STT, tmux/neovim, accessibility)
 
@@ -44,9 +44,9 @@
 
 ## Phase 2 - Overlay Quick Wins
 - [x] MP-085 Voice macros and custom triggers (`.voxterm/macros.yaml`).
-- [x] MP-086 Command mode vs dictation mode (state model + toggle UX).
-- [x] MP-087 Transcript preview/edit before send (Settings `Review first` toggle forces insert-style review and pauses auto re-arm until Enter).
-- [x] MP-112 Add CI voice-mode regression lane for command/dictation/review behavior (`.github/workflows/voice_mode_guard.yml`).
+- [x] MP-086 Runtime macros ON/OFF toggle (settings state + transcript transform gate).
+- [x] MP-087 Restore baseline send-mode semantics (`auto`/`insert`) without an extra review-first gate.
+- [x] MP-112 Add CI voice-mode regression lane for macros-toggle and send-mode behavior (`.github/workflows/voice_mode_guard.yml`).
 - [ ] MP-088 Persistent user config (`~/.config/voxterm/config.toml`) for core preferences.
 
 ## Phase 3 - Overlay Differentiators

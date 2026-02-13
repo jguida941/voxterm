@@ -10,11 +10,9 @@
 | Auto-voice not triggering | See [Codex Issues → Auto-voice not triggering](#auto-voice-not-triggering) |
 | Typing feels laggy while Codex is busy | See [Status Messages → Typing/Enter feels laggy while backend is thinking](#typingenter-feels-laggy-while-backend-is-thinking) |
 | HUD/overlay overlaps after terminal resize | See [Status Messages → HUD/overlay overlaps after terminal resize](#hudoverlay-overlaps-after-terminal-resize) |
-| Transcript stays queued in Claude review prompts | See [Status Messages → Transcript stays queued in Claude review prompts](#transcript-stays-queued-in-claude-review-prompts) |
+| Transcript stays queued in Claude confirmation prompts | See [Status Messages → Transcript stays queued in Claude-confirmation prompts](#transcript-stays-queued-in-claude-confirmation-prompts) |
 | Voice macro not expanding | See [Status Messages → Voice macro not expanding](#voice-macro-not-expanding) |
-| Voice macro expanded when dictating prose | See [Status Messages → Voice macro expanded when dictating prose](#voice-macro-expanded-when-dictating-prose) |
-| Auto-voice starts listening again before I finish editing | See [Status Messages → Auto-voice re-arms before transcript review is done](#auto-voice-re-arms-before-transcript-review-is-done) |
-| HUD still shows `send` while Review first is ON | See [Status Messages → Review mode indicator does not match settings](#review-mode-indicator-does-not-match-settings) |
+| Voice macro expanded unexpectedly | See [Status Messages → Voice macro expanded unexpectedly](#voice-macro-expanded-unexpectedly) |
 | Wrong version after update | [Install Issues → Wrong version after update](#wrong-version-after-update) |
 
 Other sections: [Status Messages](#status-messages) · [Audio Setup](#audio-setup) ·
@@ -75,7 +73,7 @@ is idle for the transcript timeout). In auto mode, Enter is pressed for you.
 1. Wait for the CLI to finish and return to a prompt
 2. If you need to send immediately, stop the current response (usually `Ctrl+C`) and try again
 
-### Transcript stays queued in Claude review prompts
+### Transcript stays queued in Claude confirmation prompts
 
 Some Claude sessions show confirmation prompts (for example `[Y/n]`) instead of
 a bare `>` line. Older builds could miss these as "ready" and keep transcripts
@@ -100,36 +98,15 @@ the transcript is sent as-is.
 3. Match trigger text exactly (case-insensitive, whitespace-insensitive)
 4. Restart VoxTerm after editing the macro file
 
-### Voice macro expanded when dictating prose
+### Voice macro expanded unexpectedly
 
-Macro expansion is enabled only in **Voice mode: Command**.
-If you are dictating natural language, switch to **Voice mode: Dictation** in
-Settings (`Ctrl+O`), which bypasses macro expansion.
+Macro expansion runs when **Settings -> Macros** is ON.
+If you are dictating natural language, turn **Macros** OFF in Settings (`Ctrl+O`).
 
 **Fixes:**
 1. Open Settings (`Ctrl+O`)
-2. Set **Voice mode** to **Dictation**
+2. Set **Macros** to **OFF**
 3. Keep your preferred send mode (`auto` or `insert`) unchanged
-
-### Auto-voice re-arms before transcript review is done
-
-If you use auto-voice and want to edit each transcript before sending, default
-auto behavior can restart listening while you are still editing.
-
-**Fixes:**
-1. Open Settings (`Ctrl+O`)
-2. Turn **Review first** to **ON**
-3. Speak, edit the injected text, then press `Enter` to send and re-arm auto-voice
-
-### Review mode indicator does not match settings
-
-With **Review first** ON, status/HUD should include `RVW` and the send control
-label should read `review`.
-
-**Fixes:**
-1. Toggle **Review first** OFF and back ON in Settings (`Ctrl+O`)
-2. Confirm you are running the latest build (`voxterm --version`)
-3. Restart `voxterm` if the old HUD state persists
 
 ### Typing/Enter feels laggy while backend is thinking
 

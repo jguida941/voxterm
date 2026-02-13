@@ -211,14 +211,11 @@ is added automatically.
 
 - Before queue/send, transcripts pass through project voice-macro expansion from
   `.voxterm/macros.yaml` (if present).
-- Voice intent mode (`Command` / `Dictation`) gates that transform:
-  - `Command`: macro expansion enabled.
-  - `Dictation`: macro expansion disabled (raw transcript injection).
+- A runtime **Macros** toggle in Settings gates that transform:
+  - `ON`: macro expansion enabled.
+  - `OFF`: raw transcript injection (no macro rewrite).
 - **Auto send**: inject transcript + newline immediately when safe to send.
 - **Insert**: inject transcript only (no newline); user presses Enter to send.
-- **Review first (settings toggle)**: forces insert-style transcript delivery and
-  sets an internal review-wait flag so auto-voice does not re-arm until Enter is
-  forwarded to PTY.
 - **Enter while recording (insert mode)**: stops capture early and transcribes what was recorded.
 
 ## Operational Workflows (Dev/CI/Release)
@@ -242,7 +239,7 @@ Primary command entrypoint: `dev/scripts/devctl.py`.
 | Workflow | File | Purpose |
 |---|---|---|
 | Rust CI | `.github/workflows/rust_ci.yml` | fmt + clippy + workspace tests |
-| Voice Mode Guard | `.github/workflows/voice_mode_guard.yml` | command/dictation/review mode regression tests |
+| Voice Mode Guard | `.github/workflows/voice_mode_guard.yml` | macros-toggle and send-mode regression tests |
 | Perf Smoke | `.github/workflows/perf_smoke.yml` | validate `voice_metrics|...` logging contract |
 | Latency Guardrails | `.github/workflows/latency_guard.yml` | synthetic latency regression checks (`measure_latency.sh --ci-guard`) |
 | Memory Guard | `.github/workflows/memory_guard.yml` | repeated thread/resource cleanup test |

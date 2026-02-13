@@ -8,7 +8,7 @@ use voxterm::{log_debug, VoiceCaptureSource, VoiceCaptureTrigger, VoiceJobMessag
 use crate::config::{OverlayConfig, VoiceSendMode};
 use crate::prompt::PromptTracker;
 use crate::session_stats::SessionStats;
-use crate::status_line::{Pipeline, RecordingState, StatusLineState, VoiceIntentMode};
+use crate::status_line::{Pipeline, RecordingState, StatusLineState};
 use crate::transcript::{
     deliver_transcript, push_pending_transcript, send_transcript, transcript_ready,
     try_flush_pending, PendingTranscript, TranscriptIo, TranscriptSession,
@@ -20,13 +20,13 @@ use super::manager::{start_voice_capture, VoiceManager};
 use super::pipeline::pipeline_status_label;
 use super::{PREVIEW_CLEAR_MS, STATUS_TOAST_SECS, TRANSCRIPT_PREVIEW_MAX};
 
-fn apply_voice_intent_mode(
+fn apply_macro_mode(
     text: &str,
     default_mode: VoiceSendMode,
-    voice_intent_mode: VoiceIntentMode,
+    macros_enabled: bool,
     voice_macros: &VoiceMacros,
 ) -> (String, VoiceSendMode, Option<String>) {
-    if voice_intent_mode == VoiceIntentMode::Dictation {
+    if !macros_enabled {
         return (text.to_string(), default_mode, None);
     }
     let expanded = voice_macros.apply(text, default_mode);
@@ -35,20 +35,6 @@ fn apply_voice_intent_mode(
         .as_ref()
         .map(|trigger| format!("macro '{}'", trigger));
     (expanded.text, expanded.mode, macro_note)
-}
-
-fn apply_review_before_send(
-    mode: VoiceSendMode,
-    review_before_send: bool,
-) -> (VoiceSendMode, Option<String>) {
-    if review_before_send && mode == VoiceSendMode::Auto {
-        (
-            VoiceSendMode::Insert,
-            Some("review before send".to_string()),
-        )
-    } else {
-        (mode, None)
-    }
 }
 
 pub(crate) fn clear_capture_metrics(status_state: &mut StatusLineState) {
@@ -228,14 +214,12 @@ pub(crate) fn drain_voice_messages<S: TranscriptSession>(
             source,
             metrics,
         } => {
-            let (text, transcript_mode, macro_note) = apply_voice_intent_mode(
+            let (text, transcript_mode, macro_note) = apply_macro_mode(
                 &text,
                 config.voice_send_mode,
-                status_state.voice_intent_mode,
+                status_state.macros_enabled,
                 voice_macros,
             );
-            let (transcript_mode, review_note) =
-                apply_review_before_send(transcript_mode, status_state.review_before_send);
             update_last_latency(status_state, *recording_started_at, metrics.as_ref(), now);
             let ready =
                 transcript_ready(prompt_tracker, *last_enter_at, now, transcript_idle_timeout);
@@ -260,14 +244,11 @@ pub(crate) fn drain_voice_messages<S: TranscriptSession>(
                 .as_ref()
                 .filter(|metrics| metrics.frames_dropped > 0)
                 .map(|metrics| format!("dropped {} frames", metrics.frames_dropped));
-            let mut notes = Vec::with_capacity(3);
+            let mut notes = Vec::with_capacity(2);
             if let Some(note) = drop_note {
                 notes.push(note);
             }
             if let Some(note) = macro_note {
-                notes.push(note);
-            }
-            if let Some(note) = review_note {
                 notes.push(note);
             }
             let delivery_note = if notes.is_empty() {
@@ -356,7 +337,6 @@ pub(crate) fn drain_voice_messages<S: TranscriptSession>(
                 }
             }
             if auto_voice_enabled
-                && !status_state.review_before_send
                 && transcript_mode == VoiceSendMode::Insert
                 && pending_transcripts.is_empty()
                 && voice_manager.is_idle()
@@ -558,7 +538,7 @@ mod tests {
     }
 
     #[test]
-    fn apply_voice_intent_mode_applies_macros_in_command_mode() {
+    fn apply_macro_mode_applies_macros_when_enabled() {
         let dir = write_test_macros_file(
             r#"
 macros:
@@ -566,12 +546,8 @@ macros:
 "#,
         );
         let voice_macros = VoiceMacros::load_for_project(&dir);
-        let (text, mode, note) = apply_voice_intent_mode(
-            "run tests",
-            VoiceSendMode::Auto,
-            VoiceIntentMode::Command,
-            &voice_macros,
-        );
+        let (text, mode, note) =
+            apply_macro_mode("run tests", VoiceSendMode::Auto, true, &voice_macros);
         assert_eq!(text, "cargo test --all-features");
         assert_eq!(mode, VoiceSendMode::Auto);
         assert_eq!(note.as_deref(), Some("macro 'run tests'"));
@@ -579,7 +555,7 @@ macros:
     }
 
     #[test]
-    fn apply_voice_intent_mode_skips_macros_in_dictation_mode() {
+    fn apply_macro_mode_skips_macros_when_disabled() {
         let dir = write_test_macros_file(
             r#"
 macros:
@@ -587,27 +563,12 @@ macros:
 "#,
         );
         let voice_macros = VoiceMacros::load_for_project(&dir);
-        let (text, mode, note) = apply_voice_intent_mode(
-            "run tests",
-            VoiceSendMode::Insert,
-            VoiceIntentMode::Dictation,
-            &voice_macros,
-        );
+        let (text, mode, note) =
+            apply_macro_mode("run tests", VoiceSendMode::Insert, false, &voice_macros);
         assert_eq!(text, "run tests");
         assert_eq!(mode, VoiceSendMode::Insert);
         assert!(note.is_none());
         let _ = fs::remove_dir_all(&dir);
-    }
-
-    #[test]
-    fn apply_review_before_send_forces_insert_when_enabled() {
-        let (mode, note) = apply_review_before_send(VoiceSendMode::Auto, true);
-        assert_eq!(mode, VoiceSendMode::Insert);
-        assert_eq!(note.as_deref(), Some("review before send"));
-
-        let (mode, note) = apply_review_before_send(VoiceSendMode::Insert, true);
-        assert_eq!(mode, VoiceSendMode::Insert);
-        assert!(note.is_none());
     }
 
     #[test]

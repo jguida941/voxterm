@@ -11,7 +11,7 @@ use crate::buttons::ButtonRegistry;
 use crate::config::{HudRightPanel, HudStyle, OverlayConfig, VoiceSendMode};
 use crate::log_debug;
 use crate::overlays::OverlayMode;
-use crate::status_line::{RecordingState, StatusLineState, VoiceIntentMode, VoiceMode};
+use crate::status_line::{RecordingState, StatusLineState, VoiceMode};
 use crate::terminal::update_pty_winsize;
 use crate::theme::Theme;
 use crate::theme_ops::{apply_theme_selection, cycle_theme};
@@ -98,7 +98,6 @@ impl<'a> SettingsActionContext<'a> {
                 self.status_state.recording_state = RecordingState::Idle;
                 *self.recording_started_at = None;
             }
-            self.status_state.awaiting_review_send = false;
             clear_capture_metrics(self.status_state);
             reset_capture_visuals(
                 self.status_state,
@@ -162,34 +161,12 @@ impl<'a> SettingsActionContext<'a> {
         );
     }
 
-    pub(crate) fn toggle_transcript_review(&mut self) {
-        self.status_state.review_before_send = !self.status_state.review_before_send;
-        if !self.status_state.review_before_send {
-            self.status_state.awaiting_review_send = false;
-        }
-        let msg = if self.status_state.review_before_send {
-            "Review before send: ON (edit then Enter)"
+    pub(crate) fn toggle_macros_enabled(&mut self) {
+        self.status_state.macros_enabled = !self.status_state.macros_enabled;
+        let msg = if self.status_state.macros_enabled {
+            "Macros: ON"
         } else {
-            "Review before send: OFF"
-        };
-        set_status(
-            self.writer_tx,
-            self.status_clear_deadline,
-            self.current_status,
-            self.status_state,
-            msg,
-            Some(Duration::from_secs(3)),
-        );
-    }
-
-    pub(crate) fn toggle_voice_intent_mode(&mut self) {
-        self.status_state.voice_intent_mode = match self.status_state.voice_intent_mode {
-            VoiceIntentMode::Command => VoiceIntentMode::Dictation,
-            VoiceIntentMode::Dictation => VoiceIntentMode::Command,
-        };
-        let msg = match self.status_state.voice_intent_mode {
-            VoiceIntentMode::Command => "Voice mode: command (macros enabled)",
-            VoiceIntentMode::Dictation => "Voice mode: dictation (macros disabled)",
+            "Macros: OFF"
         };
         set_status(
             self.writer_tx,
@@ -486,7 +463,7 @@ mod tests {
     }
 
     #[test]
-    fn toggle_voice_intent_mode_updates_state_and_status() {
+    fn toggle_macros_enabled_updates_state_and_status() {
         let mut config = OverlayConfig::parse_from(["test-app"]);
         let mut voice_manager = VoiceManager::new(config.app.clone());
         let (writer_tx, writer_rx) = bounded(4);
@@ -521,16 +498,15 @@ mod tests {
                 &mut terminal_cols,
                 &mut theme,
             );
-            ctx.toggle_voice_intent_mode();
+            ctx.toggle_macros_enabled();
         }
-        assert_eq!(status_state.voice_intent_mode, VoiceIntentMode::Dictation);
+        assert!(!status_state.macros_enabled);
         match writer_rx
             .recv_timeout(Duration::from_millis(200))
             .expect("status message")
         {
             WriterMessage::EnhancedStatus(state) => {
-                assert!(state.message.contains("dictation"));
-                assert!(state.message.contains("disabled"));
+                assert!(state.message.contains("Macros: OFF"));
             }
             other => panic!("unexpected writer message: {other:?}"),
         }
@@ -553,99 +529,15 @@ mod tests {
                 &mut terminal_cols,
                 &mut theme,
             );
-            ctx.toggle_voice_intent_mode();
+            ctx.toggle_macros_enabled();
         }
-        assert_eq!(status_state.voice_intent_mode, VoiceIntentMode::Command);
+        assert!(status_state.macros_enabled);
         match writer_rx
             .recv_timeout(Duration::from_millis(200))
             .expect("status message")
         {
             WriterMessage::EnhancedStatus(state) => {
-                assert!(state.message.contains("command"));
-                assert!(state.message.contains("enabled"));
-            }
-            other => panic!("unexpected writer message: {other:?}"),
-        }
-    }
-
-    #[test]
-    fn toggle_transcript_review_updates_state_and_status() {
-        let mut config = OverlayConfig::parse_from(["test-app"]);
-        let mut voice_manager = VoiceManager::new(config.app.clone());
-        let (writer_tx, writer_rx) = bounded(4);
-        let mut status_clear_deadline = None;
-        let mut current_status = None;
-        let mut status_state = StatusLineState::new();
-        let mut auto_voice_enabled = false;
-        let mut last_auto_trigger_at = None;
-        let mut recording_started_at = None;
-        let mut preview_clear_deadline = None;
-        let mut last_meter_update = Instant::now();
-        let button_registry = ButtonRegistry::new();
-        let mut terminal_rows = 24;
-        let mut terminal_cols = 80;
-        let mut theme = Theme::Coral;
-
-        {
-            let mut ctx = make_context(
-                &mut config,
-                &mut voice_manager,
-                &writer_tx,
-                &mut status_clear_deadline,
-                &mut current_status,
-                &mut status_state,
-                &mut auto_voice_enabled,
-                &mut last_auto_trigger_at,
-                &mut recording_started_at,
-                &mut preview_clear_deadline,
-                &mut last_meter_update,
-                &button_registry,
-                &mut terminal_rows,
-                &mut terminal_cols,
-                &mut theme,
-            );
-            ctx.toggle_transcript_review();
-        }
-        assert!(status_state.review_before_send);
-        match writer_rx
-            .recv_timeout(Duration::from_millis(200))
-            .expect("status message")
-        {
-            WriterMessage::EnhancedStatus(state) => {
-                assert!(state.message.contains("Review before send: ON"));
-            }
-            other => panic!("unexpected writer message: {other:?}"),
-        }
-
-        status_state.awaiting_review_send = true;
-        {
-            let mut ctx = make_context(
-                &mut config,
-                &mut voice_manager,
-                &writer_tx,
-                &mut status_clear_deadline,
-                &mut current_status,
-                &mut status_state,
-                &mut auto_voice_enabled,
-                &mut last_auto_trigger_at,
-                &mut recording_started_at,
-                &mut preview_clear_deadline,
-                &mut last_meter_update,
-                &button_registry,
-                &mut terminal_rows,
-                &mut terminal_cols,
-                &mut theme,
-            );
-            ctx.toggle_transcript_review();
-        }
-        assert!(!status_state.review_before_send);
-        assert!(!status_state.awaiting_review_send);
-        match writer_rx
-            .recv_timeout(Duration::from_millis(200))
-            .expect("status message")
-        {
-            WriterMessage::EnhancedStatus(state) => {
-                assert!(state.message.contains("Review before send: OFF"));
+                assert!(state.message.contains("Macros: ON"));
             }
             other => panic!("unexpected writer message: {other:?}"),
         }
