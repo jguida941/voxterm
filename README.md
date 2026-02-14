@@ -34,7 +34,7 @@ Runs Whisper locally with ~250ms latency. No cloud, no API keys.
 
 Install one supported AI CLI first:
 
-Codex (default):
+Codex:
 ```bash
 npm install -g @openai/codex
 ```
@@ -148,7 +148,7 @@ All CLI output passes through unchanged.
 VoiceTerm is optimized for Codex and Claude Code.
 For advanced backend configuration, see the [Usage Guide](guides/USAGE.md).
 
-### Codex (default)
+### Codex
 
 ```bash
 npm install -g @openai/codex
