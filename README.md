@@ -38,12 +38,42 @@ npm install -g @openai/codex
 # or: curl -fsSL https://claude.ai/install.sh | bash
 ```
 
-2. Install VoiceTerm (Homebrew recommended):
+2. Choose one VoiceTerm installation method:
+
+<details>
+<summary><strong>Homebrew (recommended)</strong></summary>
 
 ```bash
 brew tap jguida941/voiceterm
 brew install voiceterm
 ```
+</details>
+
+<details>
+<summary><strong>PyPI (pipx / pip)</strong></summary>
+
+```bash
+pipx install voiceterm
+# or: python3 -m pip install --user voiceterm
+```
+</details>
+
+<details>
+<summary><strong>From source</strong></summary>
+
+```bash
+git clone https://github.com/jguida941/voiceterm.git
+cd voiceterm
+./scripts/install.sh
+```
+</details>
+
+<details>
+<summary><strong>macOS App</strong></summary>
+
+Double-click `app/macos/VoiceTerm.app`, pick a folder, and it opens Terminal
+with VoiceTerm running.
+</details>
 
 3. Run it:
 
@@ -58,7 +88,7 @@ voiceterm --login --codex
 voiceterm --login --claude
 ```
 
-For PyPI/source/macOS app install paths, model options, and startup/IDE tuning:
+For model options and startup/IDE tuning:
 - [Install Guide](guides/INSTALL.md)
 - [Whisper docs](guides/WHISPER.md)
 - [Troubleshooting](guides/TROUBLESHOOTING.md)
