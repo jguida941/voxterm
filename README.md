@@ -183,6 +183,8 @@ See the [Usage Guide](guides/USAGE.md) for full behavior and configuration detai
 For full mode behavior and settings interactions, see the
 [Usage Guide](guides/USAGE.md#keyboard-shortcuts).
 
+### Voice Macros
+
 Voice macros let you map spoken triggers to commands/templates in
 `.voiceterm/macros.yaml` (for example, "run tests" -> `cargo test`).
 Use Settings -> `Macros` to control whether expansion runs:
