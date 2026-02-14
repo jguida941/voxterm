@@ -96,7 +96,6 @@ when `Right panel` is set to `Ribbon`, `Dots`, or `Heartbeat`.
 You should also see compact latency/meter trend telemetry in narrow HUD space.
 If you use Full HUD in IDE terminals, confirm the banner redraws as a single
 frame without duplicated/wrapped rows.
-For this Full HUD stability behavior, use `v1.0.62` or newer.
 JetBrains IDE terminals now auto-skip the startup splash; use
 `VOICETERM_NO_STARTUP_BANNER=1` if you want the same behavior everywhere.
 

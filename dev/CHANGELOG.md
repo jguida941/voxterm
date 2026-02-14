@@ -5,6 +5,9 @@ Note: Some historical entries reference internal documents that are not publishe
 
 ## [Unreleased]
 
+### Documentation
+- Remove version-specific stability callouts from user guides/README and keep release/version detail centralized in the changelog and release notes.
+
 ## [1.0.65] - 2026-02-14
 
 ### Packaging

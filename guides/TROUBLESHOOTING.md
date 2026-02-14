@@ -382,8 +382,8 @@ debug log above is still the fastest way to confirm what your terminal emits.
 
 If you see stacked/repeated Full HUD frames in PyCharm/CLion/RustRover:
 
-This is addressed in `v1.0.64` and newer using the stable `v1.0.53`
-writer/render HUD path plus writer-side stale-row cleanup on resize.
+This is addressed by the current conservative Full HUD writer/render path plus
+writer-side stale-row cleanup on resize.
 
 Symptoms can include:
 - duplicated/staggered HUD borders
@@ -434,17 +434,16 @@ failed to send PTY exit command: PTY write failed: Input/output error (os error 
 ```
 
 That message came from a race where the backend PTY had already started closing.
-It is treated as benign in `v1.0.60` and newer and should no longer be reported
-as an error during normal exit.
+It is treated as benign in current releases and should no longer be reported as
+an error during normal exit.
 
 ---
 
 ## Startup Banner Missing
 
 The startup splash is shown by default in non-JetBrains terminals. In JetBrains
-IDE terminals, `v1.0.64+` auto-skips splash by design. If you expect splash in
-another terminal and it does not appear, confirm the environment variable below
-is not set:
+IDE terminals, splash is auto-skipped by design. If you expect splash in another
+terminal and it does not appear, confirm the environment variable below is not set:
 
 ```bash
 env | rg VOICETERM_NO_STARTUP_BANNER
@@ -461,7 +460,7 @@ VOICETERM_NO_STARTUP_BANNER=1 voiceterm
 If the startup splash stays on screen in PyCharm/JetBrains terminals while it
 clears normally in Cursor/VS Code, use these checks:
 
-1. Verify you are on `v1.0.64` or newer (JetBrains terminals auto-skip splash by default):
+1. Verify your installed build:
    ```bash
    voiceterm --version
    ```

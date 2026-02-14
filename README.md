@@ -60,17 +60,9 @@ First run downloads a Whisper model (install/start scripts default to base ~142 
 - Or pass `--whisper-model-path` directly
 See [Whisper docs](guides/WHISPER.md) for details.
 
-Startup splash behavior:
-- default dwell is short (`VOICETERM_STARTUP_SPLASH_MS=1500`)
-- set `VOICETERM_STARTUP_SPLASH_MS=0` for immediate clear
-- set `VOICETERM_NO_STARTUP_BANNER=1` to skip it entirely
-
-IDE terminal HUD compatibility (`v1.0.64`):
-- Full HUD uses the proven `v1.0.53` writer/render baseline and clears stale
-  HUD rows on resize so ghost frames do not remain after terminal geometry
-  changes in Cursor/JetBrains terminals.
-- Startup splash is auto-skipped in JetBrains IDE terminals (PyCharm/IntelliJ/
-  CLion/WebStorm) to avoid alternate-screen handoff artifacts.
+Startup splash and IDE terminal behavior can be tuned with
+`VOICETERM_STARTUP_SPLASH_MS` and `VOICETERM_NO_STARTUP_BANNER`.
+For details, see [Usage](guides/USAGE.md) and [Troubleshooting](guides/TROUBLESHOOTING.md).
 
 ## How It Works
 

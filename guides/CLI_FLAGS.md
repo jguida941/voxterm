@@ -157,10 +157,9 @@ voiceterm --login --claude      # Login to Claude CLI
 Examples of the Minimal strip: `◉ AUTO · Ready`, `● REC · -55dB`.
 Compact HUD modules adapt by state and available width (recording favors meter +
 latency + queue, busy favors queue + latency, idle favors latency).
-Full HUD formatting follows the stable `v1.0.53` writer/render path and clears
-stale rows on resize to avoid ghost/duplicate artifacts in IDE terminals;
-there is no CLI flag for this behavior.
-For this behavior, prefer `v1.0.62` or newer.
+Full HUD formatting uses a conservative writer/render path and clears stale rows
+on resize to avoid ghost/duplicate artifacts in IDE terminals; there is no CLI
+flag for this behavior.
 
 **Theme defaults:** If `--theme` is not provided, VoiceTerm selects a backend-
 appropriate default. Claude → `claude`, Codex → `codex`, others → `coral`.

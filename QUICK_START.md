@@ -87,9 +87,8 @@ expanded via `.voiceterm/macros.yaml` before injection.
 Visual note: right-panel telemetry modes (`Ribbon`, `Dots`, `Heartbeat`) show in
 Minimal HUD as compact chips when enabled in Settings.
 Compact HUD telemetry also adapts by context (recording/busy/idle).
-IDE note (`v1.0.64`): Full HUD uses the stable `v1.0.53` writer/render path and
-clears stale HUD rows on resize to prevent duplicate/ghost frames in
-Cursor/JetBrains terminals.
+IDE note: Full HUD uses a conservative writer/render path and clears stale HUD
+rows on resize to prevent duplicate/ghost frames in Cursor/JetBrains terminals.
 Startup splash note: default dwell is short (`VOICETERM_STARTUP_SPLASH_MS=1500`).
 Use `VOICETERM_STARTUP_SPLASH_MS=0` for immediate clear, or
 `VOICETERM_NO_STARTUP_BANNER=1` to skip it. JetBrains IDE terminals auto-skip
