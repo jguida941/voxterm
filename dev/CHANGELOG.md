@@ -11,6 +11,7 @@ Note: Some historical entries reference internal documents that are not publishe
 - Simplify README backend/UI sections to focus on primary Codex/Claude support and move detailed/advanced behavior references to the Usage guide.
 - Reorganize README controls into grouped sections (voice, UI/navigation, sensitivity, session control) and link to the Usage guide for full behavior details.
 - Add a dedicated `Voice Macros` heading in README so macro behavior guidance is clearly separated from keyboard controls.
+- Expand README macro explanation with a concrete trigger example plus clear ON/OFF behavior semantics.
 
 ## [1.0.65] - 2026-02-14
 

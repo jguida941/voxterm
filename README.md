@@ -185,13 +185,21 @@ For full mode behavior and settings interactions, see the
 
 ### Voice Macros
 
-Voice macros let you map spoken triggers to commands/templates in
-`.voiceterm/macros.yaml` (for example, "run tests" -> `cargo test`).
-Use Settings -> `Macros` to control whether expansion runs:
-- `ON`: matching macro rules expand before text is typed into the CLI.
-- `OFF`: transcripts are typed exactly as spoken.
-See [Project Voice Macros](guides/USAGE.md#project-voice-macros) for setup,
-examples, and rule behavior.
+Voice macros are project-local voice shortcuts defined in
+`.voiceterm/macros.yaml`.
+
+Example:
+- You say: `run tests`
+- VoiceTerm types: `cargo test --all-features`
+
+When it runs:
+- `Settings -> Macros = ON`: if a spoken trigger matches, VoiceTerm expands it
+  before typing into the CLI.
+- `Settings -> Macros = OFF`: VoiceTerm skips expansion and types your
+  transcript exactly as spoken.
+
+See [Project Voice Macros](guides/USAGE.md#project-voice-macros) for the file
+format, templates, and matching rules.
 
 ## Install Options
 
