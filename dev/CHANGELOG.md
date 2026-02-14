@@ -18,6 +18,7 @@ Note: Some historical entries reference internal documents that are not publishe
 - Move README `Install Options` directly below `Quick Start` and update quick-nav order so install paths are visible earlier.
 - Promote README `Voice Macros` to a top-level section and point controls help text directly to the Usage guide keyboard-shortcuts reference.
 - Replace the verbose README controls key table with direct links to the Usage guide shortcut/settings references.
+- Merge README onboarding into one `Install and Start` section so install paths and first-run steps are not split across separate sections.
 
 ## [1.0.65] - 2026-02-14
 

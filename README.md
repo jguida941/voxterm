@@ -21,8 +21,7 @@ Runs Whisper locally with ~250ms latency. No cloud, no API keys.
 
 ## Quick Nav
 
-- [Quick Start](#quick-start)
-- [Install Options](#install-options)
+- [Install and Start](#install-and-start)
 - [How It Works](#how-it-works)
 - [Requirements](#requirements)
 - [Supported AI CLIs](#supported-ai-clis)
@@ -30,7 +29,7 @@ Runs Whisper locally with ~250ms latency. No cloud, no API keys.
 - [Documentation](#documentation)
 - [Support](#support)
 
-## Quick Start
+## Install and Start
 
 ```bash
 # Install Codex CLI (default backend)
@@ -64,7 +63,7 @@ Startup splash and IDE terminal behavior can be tuned with
 `VOICETERM_STARTUP_SPLASH_MS` and `VOICETERM_NO_STARTUP_BANNER`.
 For details, see [Usage](guides/USAGE.md) and [Troubleshooting](guides/TROUBLESHOOTING.md).
 
-## Install Options
+### Installation Methods
 
 <details>
 <summary><strong>Homebrew (recommended)</strong></summary>
