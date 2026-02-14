@@ -14,6 +14,7 @@ Note: Some historical entries reference internal documents that are not publishe
 - Expand README macro explanation with a concrete trigger example plus clear ON/OFF behavior semantics.
 - Center the README banner wordmark within `img/logo.svg` so the brand image appears visually centered on GitHub.
 - Move the README voice recording image into a standalone section placed before supported AI CLI examples for a cleaner reading flow.
+- Remove hotkey labels from README UI section headings and keep keybind details in the controls table.
 
 ## [1.0.65] - 2026-02-14
 

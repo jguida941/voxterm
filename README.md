@@ -132,12 +132,12 @@ voiceterm --login --claude
 
 ## UI Tour
 
-### Theme Picker (Ctrl+Y)
+### Theme Picker
 
 ![Theme Picker](https://raw.githubusercontent.com/jguida941/voiceterm/master/img/theme-picker.png)
 Use ↑/↓ to move and Enter to select, or type the theme number.
 
-### Settings Menu (Ctrl+O)
+### Settings Menu
 
 ![Settings](https://raw.githubusercontent.com/jguida941/voiceterm/master/img/settings.png)
 
