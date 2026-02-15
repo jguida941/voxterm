@@ -27,6 +27,15 @@ Note: Some historical entries reference internal documents that are not publishe
 - Remove `(default)` labels from Codex headings in README for cleaner backend section wording.
 - Bold the README install prerequisite labels (`Codex` and `Claude Code`) to improve visual scanability.
 
+## [1.0.66] - 2026-02-15
+
+### CI
+- Fix `Voice Mode Guard` workflow commands to run against the current `voiceterm` binary name.
+- Fix `Perf Smoke` workflow log verification to read `voiceterm_tui.log`.
+
+### Tests
+- Remove a flaky PTY-exit assertion in `event_loop` tests that intermittently failed on GitHub runners while preserving deterministic non-retry error-path coverage.
+
 ## [1.0.65] - 2026-02-14
 
 ### Packaging
