@@ -2007,6 +2007,17 @@ mod tests {
         (state, timers, deps, writer_rx, input_tx)
     }
 
+    fn wait_for_session_exit(session: &PtyOverlaySession, timeout: Duration) -> bool {
+        let start = Instant::now();
+        while start.elapsed() < timeout {
+            if !session.is_alive() {
+                return true;
+            }
+            thread::sleep(Duration::from_millis(5));
+        }
+        !session.is_alive()
+    }
+
     #[test]
     fn flush_pending_pty_output_returns_true_when_empty() {
         let (mut state, _timers, deps, _writer_rx, _input_tx) = build_harness("cat", &[], 8);
@@ -2138,7 +2149,10 @@ mod tests {
     fn write_or_queue_pty_input_returns_false_after_session_exits() {
         let (mut state, _timers, mut deps, _writer_rx, _input_tx) =
             build_harness("sh", &["-c", "exit 0"], 8);
-        thread::sleep(Duration::from_millis(50));
+        assert!(
+            wait_for_session_exit(&deps.session, Duration::from_secs(1)),
+            "expected short-lived PTY session to exit before write attempt"
+        );
 
         assert!(!write_or_queue_pty_input(
             &mut state,

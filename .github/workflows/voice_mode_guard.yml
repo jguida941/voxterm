@@ -28,11 +28,11 @@ jobs:
 
       - name: Macro mode guards
         run: |
-          cargo test --bin voxterm settings_handlers::tests::toggle_macros_enabled_updates_state_and_status -- --nocapture
-          cargo test --bin voxterm voice_control::drain::tests::apply_macro_mode_applies_macros_when_enabled -- --nocapture
-          cargo test --bin voxterm voice_control::drain::tests::apply_macro_mode_skips_macros_when_disabled -- --nocapture
+          cargo test --bin voiceterm settings_handlers::tests::toggle_macros_enabled_updates_state_and_status -- --nocapture
+          cargo test --bin voiceterm voice_control::drain::tests::apply_macro_mode_applies_macros_when_enabled -- --nocapture
+          cargo test --bin voiceterm voice_control::drain::tests::apply_macro_mode_skips_macros_when_disabled -- --nocapture
 
       - name: Send mode label guards
         run: |
-          cargo test --bin voxterm settings_handlers::tests::toggle_send_mode_updates_state_and_status -- --nocapture
-          cargo test --bin voxterm status_line::buttons::tests::button_defs_use_send_label_from_send_mode -- --nocapture
+          cargo test --bin voiceterm settings_handlers::tests::toggle_send_mode_updates_state_and_status -- --nocapture
+          cargo test --bin voiceterm status_line::buttons::tests::button_defs_use_send_label_from_send_mode -- --nocapture
