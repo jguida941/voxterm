@@ -141,11 +141,13 @@ All CLI output passes through unchanged.
 
 ## Voice Recording
 
-![Recording](https://raw.githubusercontent.com/jguida941/voiceterm/master/img/recording.png)
+![Recording](img/recording.png)
 
 ## Supported AI CLIs
 
 VoiceTerm is optimized for Codex and Claude Code.
+For canonical backend support status and experimental backend notes, see
+[Usage Guide -> Backend Support](guides/USAGE.md#backend-support).
 For advanced backend configuration, see the [Usage Guide](guides/USAGE.md).
 
 ### Codex
@@ -157,7 +159,7 @@ voiceterm --codex   # explicit (optional)
 voiceterm --login --codex
 ```
 
-![Codex Backend](https://raw.githubusercontent.com/jguida941/voiceterm/master/img/codex-backend.png)
+![Codex Backend](img/codex-backend.png)
 
 ### Claude Code
 
@@ -167,18 +169,18 @@ voiceterm --claude
 voiceterm --login --claude
 ```
 
-![Claude Backend](https://raw.githubusercontent.com/jguida941/voiceterm/master/img/claude-backend.png)
+![Claude Backend](img/claude-backend.png)
 
 ## UI Tour
 
 ### Theme Picker
 
-![Theme Picker](https://raw.githubusercontent.com/jguida941/voiceterm/master/img/theme-picker.png)
+![Theme Picker](img/theme-picker.png)
 Use ↑/↓ to move and Enter to select, or type the theme number.
 
 ### Settings Menu
 
-![Settings](https://raw.githubusercontent.com/jguida941/voiceterm/master/img/settings.png)
+![Settings](img/settings.png)
 
 Mouse control is enabled by default, and Settings (`Ctrl+O`) covers the main
 runtime toggles: send mode, auto-voice, macros, HUD style/border, right-panel
@@ -188,8 +190,9 @@ See the [Usage Guide](guides/USAGE.md) for full behavior and configuration detai
 ## Controls
 
 For complete keybindings and behavior details, see:
-- [Keyboard Shortcuts](guides/USAGE.md#keyboard-shortcuts)
+- [Core Controls](guides/USAGE.md#core-controls)
 - [Settings Menu](guides/USAGE.md#settings-menu)
+- [Voice Modes](guides/USAGE.md#voice-modes)
 
 ## Voice Macros
 
@@ -218,7 +221,12 @@ format, templates, and matching rules.
 | [Usage Guide](guides/USAGE.md) | [ADRs](dev/adr/README.md) |
 | [CLI Flags](guides/CLI_FLAGS.md) | [Contributing](.github/CONTRIBUTING.md) |
 | [Whisper & Languages](guides/WHISPER.md) | [Changelog](dev/CHANGELOG.md) |
-| [Troubleshooting](guides/TROUBLESHOOTING.md) | |
+| [Troubleshooting Hub](guides/TROUBLESHOOTING.md) | |
+
+Troubleshooting deep dives:
+- [Backend issues](guides/TROUBLESHOOTING_BACKEND.md)
+- [Terminal/IDE issues](guides/TROUBLESHOOTING_TERMINAL.md)
+- [Install/update issues](guides/TROUBLESHOOTING_INSTALL.md)
 
 ## Support
 

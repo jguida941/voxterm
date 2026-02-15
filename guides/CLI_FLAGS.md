@@ -12,6 +12,8 @@ All flags for the `voiceterm` command. Run `voiceterm --help` for the live outpu
 - [Capture Tuning](#capture-tuning)
 - [Themes & Display](#themes--display)
 - [Logging](#logging)
+- [IPC / Integration](#ipc--integration)
+- [Sounds](#sounds)
 - [Environment Variables](#environment-variables)
 - [See Also](#see-also)
 
@@ -76,7 +78,8 @@ voiceterm --login --claude      # Login to Claude CLI
 
 **Notes:**
 - `--backend` accepts a custom command string.
-- Gemini is currently nonfunctional; Aider/OpenCode presets exist but are untested. Only Codex and Claude are fully supported.
+- Gemini is currently nonfunctional; Aider/OpenCode presets exist but are untested.
+- Canonical backend support status matrix: [USAGE.md#backend-support](USAGE.md#backend-support).
 
 ---
 
@@ -157,9 +160,8 @@ voiceterm --login --claude      # Login to Claude CLI
 Examples of the Minimal strip: `◉ AUTO · Ready`, `● REC · -55dB`.
 Compact HUD modules adapt by state and available width (recording favors meter +
 latency + queue, busy favors queue + latency, idle favors latency).
-Full HUD formatting uses a conservative writer/render path and clears stale rows
-on resize to avoid ghost/duplicate artifacts in IDE terminals; there is no CLI
-flag for this behavior.
+Rendering internals and terminal-specific behavior are documented in
+`guides/TROUBLESHOOTING.md` and `dev/ARCHITECTURE.md`.
 
 **Theme defaults:** If `--theme` is not provided, VoiceTerm selects a backend-
 appropriate default. Claude → `claude`, Codex → `codex`, others → `coral`.

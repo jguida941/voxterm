@@ -26,6 +26,12 @@ Note: Some historical entries reference internal documents that are not publishe
 - Split README AI CLI prerequisite snippet into explicit Codex and Claude install blocks before the VoiceTerm install step.
 - Remove `(default)` labels from Codex headings in README for cleaner backend section wording.
 - Bold the README install prerequisite labels (`Codex` and `Claude Code`) to improve visual scanability.
+- Reorganize `guides/USAGE.md` around a task-first flow (quick start, controls, modes, customization, macros, status reference) with reduced duplication and consistent `auto`/`insert` terminology.
+- Replace branch-pinned raw image links in usage/readme docs with repository-relative paths for stable previews across branches and PRs.
+- Tighten `guides/CLI_FLAGS.md`, `guides/INSTALL.md`, and `guides/TROUBLESHOOTING.md` by fixing section navigation, removing internal implementation-heavy wording from user flows, and improving cross-guide linking.
+- Add a new troubleshooting information architecture: keep `guides/TROUBLESHOOTING.md` as a short hub and split deep-dive flows into `guides/TROUBLESHOOTING_BACKEND.md`, `guides/TROUBLESHOOTING_TERMINAL.md`, and `guides/TROUBLESHOOTING_INSTALL.md`.
+- Add an install-path decision table in `guides/INSTALL.md` so users can quickly choose Homebrew, PyPI, source, app, or manual run based on their goal.
+- Standardize backend support references to the canonical matrix in `guides/USAGE.md#backend-support` and link to it from README/quick start/flags/troubleshooting docs.
 
 ## [1.0.66] - 2026-02-15
 

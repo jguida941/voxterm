@@ -82,17 +82,11 @@ Send mode note: "auto" types your words and presses Enter. "Insert" types your w
 but lets you press `Enter` yourself. VoiceTerm only writes to the terminal (PTY) and
 does not call Codex/Claude directly.
 
-Macros note: in Settings (`Ctrl+O`), `Macros` controls whether transcript text is
-expanded via `.voiceterm/macros.yaml` before injection.
-Visual note: right-panel telemetry modes (`Ribbon`, `Dots`, `Heartbeat`) show in
-Minimal HUD as compact chips when enabled in Settings.
-Compact HUD telemetry also adapts by context (recording/busy/idle).
-IDE note: Full HUD uses a conservative writer/render path and clears stale HUD
-rows on resize to prevent duplicate/ghost frames in Cursor/JetBrains terminals.
-Startup splash note: default dwell is short (`VOICETERM_STARTUP_SPLASH_MS=1500`).
-Use `VOICETERM_STARTUP_SPLASH_MS=0` for immediate clear, or
-`VOICETERM_NO_STARTUP_BANNER=1` to skip it. JetBrains IDE terminals auto-skip
-the splash by default.
+More detailed topics:
+- Macros: [guides/USAGE.md#project-voice-macros](guides/USAGE.md#project-voice-macros)
+- HUD and themes: [guides/USAGE.md#customization](guides/USAGE.md#customization)
+- Backend support status: [guides/USAGE.md#backend-support](guides/USAGE.md#backend-support)
+- Startup and IDE behavior: [guides/TROUBLESHOOTING_TERMINAL.md](guides/TROUBLESHOOTING_TERMINAL.md)
 
 ## 5) Common flags
 
@@ -113,4 +107,4 @@ See [guides/CLI_FLAGS.md](guides/CLI_FLAGS.md) for the full CLI flag and env var
 ## 6) Need help?
 
 - Install options: [guides/INSTALL.md](guides/INSTALL.md)
-- Troubleshooting: [guides/TROUBLESHOOTING.md](guides/TROUBLESHOOTING.md)
+- Troubleshooting hub: [guides/TROUBLESHOOTING.md](guides/TROUBLESHOOTING.md)

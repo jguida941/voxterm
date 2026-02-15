@@ -14,6 +14,7 @@ Recommended: Homebrew on macOS/Linux for a global `voiceterm` command.
 ## Contents
 
 - [Prerequisites](#prerequisites)
+- [Choose an Install Path](#choose-an-install-path)
 - [Option A: Homebrew (recommended)](#option-a-homebrew-recommended)
 - [Option B: PyPI](#option-b-pypi)
 - [Option C: Install from source](#option-c-install-from-source)
@@ -45,6 +46,16 @@ voiceterm --login --claude
 - Rust toolchain (stable) only if you build from source: https://rustup.rs
 - Optional (Python fallback): `python3`, `ffmpeg`, and the `whisper` CLI on PATH
   (disable with `--no-python-fallback`)
+
+## Choose an Install Path
+
+| If you want... | Choose | Why |
+|----------------|--------|-----|
+| Easiest global install and upgrades | **Homebrew** | Best default on macOS/Linux with `brew upgrade` updates |
+| Python-managed CLI install | **PyPI (`pipx`)** | Isolated Python tool install, then bootstrap native binary on first run |
+| Full local control / development workflow | **From source** | Build and modify directly from this repository |
+| Finder-based launch on macOS | **macOS App** | Folder picker launches VoiceTerm without terminal setup steps |
+| No install, one-off run | **Manual run** | Use the repo scripts directly from any directory |
 
 ## Option A: Homebrew (recommended)
 
@@ -86,18 +97,11 @@ brew upgrade voiceterm
 ```
 
 If Homebrew still shows an older version or `voiceterm` runs an older binary, see
-[Troubleshooting: Wrong version after update](TROUBLESHOOTING.md#wrong-version-after-update).
+[Troubleshooting: Wrong version after update](TROUBLESHOOTING_INSTALL.md#wrong-version-after-update).
 
 After upgrading, run `voiceterm --version` and open Settings (`Ctrl+O`) once to
-confirm runtime options such as `Macros`, `Send mode`, and `Latency display`
-(`Off`, `Nms`, `Latency: Nms`) are present.
-If you use Minimal HUD, also verify the right-panel visualization chip appears
-when `Right panel` is set to `Ribbon`, `Dots`, or `Heartbeat`.
-You should also see compact latency/meter trend telemetry in narrow HUD space.
-If you use Full HUD in IDE terminals, confirm the banner redraws as a single
-frame without duplicated/wrapped rows.
-JetBrains IDE terminals now auto-skip the startup splash; use
-`VOICETERM_NO_STARTUP_BANNER=1` if you want the same behavior everywhere.
+confirm your expected defaults (for example `Send mode`, `Macros`, and
+`Latency display`) are available.
 
 ## Option B: PyPI
 
@@ -220,4 +224,5 @@ a macOS/Linux machine.
 | Quick Start | [QUICK_START.md](../QUICK_START.md) |
 | Usage | [USAGE.md](USAGE.md) |
 | CLI Flags | [CLI_FLAGS.md](CLI_FLAGS.md) |
-| Troubleshooting | [TROUBLESHOOTING.md](TROUBLESHOOTING.md) |
+| Troubleshooting hub | [TROUBLESHOOTING.md](TROUBLESHOOTING.md) |
+| Install/update troubleshooting | [TROUBLESHOOTING_INSTALL.md](TROUBLESHOOTING_INSTALL.md) |
